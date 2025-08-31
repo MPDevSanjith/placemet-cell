@@ -7,6 +7,7 @@ import OtpPage from './pages/Otp'
 import PlacementOfficerDashboard from './pages/placement-officer/Dashboard'
 import BulkUpload from './pages/placement-officer/BulkUpload'
 import CreateOfficerPage from './pages/placement-officer/CreateOfficer'
+import NewJobPost from './componies/NewJobPost'
 import StudentDashboard from './pages/student/Dashboard'
 import StudentOnboarding from './pages/student/Onboarding'
 import StudentAtsResults from './pages/student/AtsResults'
@@ -56,6 +57,7 @@ function AppRoutes() {
       <Route path="/placement-officer" element={loggedIn && officer ? <PlacementOfficerDashboard /> : <Navigate to="/login" replace />} />
       <Route path="/placement-officer/bulk-upload" element={loggedIn && officer ? <BulkUpload /> : <Navigate to="/login" replace />} />
       <Route path="/placement-officer/create-officer" element={loggedIn && officer ? <CreateOfficerPage /> : <Navigate to="/login" replace />} />
+      <Route path="/placement-officer/new-job-post" element={loggedIn && officer ? <NewJobPost /> : <Navigate to="/login" replace />} />
       
       {/* Catch-all for unknown routes */}
       <Route path="*" element={<Navigate to="/" replace />} />
