@@ -1,0 +1,243 @@
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { analyzeAtsOnServer, saveAtsScore, submitOnboarding } from '../../global/api'
+import { getAuth } from '../../global/auth'
+
+type Draft = {
+  desiredRole?: string
+  qualification?: string
+  gpa?: string
+  skillsTech?: string[]
+  skillsSoft?: string[]
+}
+
+const ROLE_KEYWORDS: Record<string, string[]> = {
+  'Software Engineer': ['Data Structures', 'Algorithms', 'Java', 'Python', 'JavaScript', 'TypeScript', 'React', 'Node.js', 'Git', 'SQL'],
+  'Full Stack Developer': ['React', 'Node.js', 'Express', 'MongoDB', 'REST', 'TypeScript', 'HTML', 'CSS', 'Git', 'SQL'],
+  'Frontend Developer': ['React', 'TypeScript', 'JavaScript', 'HTML', 'CSS', 'Tailwind', 'Accessibility', 'Testing'],
+  'Backend Developer': ['Node.js', 'Express', 'REST', 'MongoDB', 'SQL', 'Authentication', 'Caching', 'Scalability', 'Testing'],
+  'Data Analyst': ['SQL', 'Excel', 'Python', 'Pandas', 'Visualization', 'Tableau', 'Statistics'],
+  'DevOps Engineer': ['CI/CD', 'Docker', 'Kubernetes', 'Linux', 'AWS', 'Monitoring', 'Terraform'],
+  'QA Engineer': ['Testing', 'Selenium', 'Cypress', 'Automation', 'Bug Tracking'],
+  'UI/UX Designer': ['Figma', 'Wireframing', 'Prototyping', 'Accessibility', 'Design Systems'],
+  'Machine Learning Engineer': ['Python', 'Pandas', 'NumPy', 'Scikit-learn', 'TensorFlow', 'PyTorch', 'MLOps'],
+}
+
+function normalize(str: string) {
+  return str.toLowerCase()
+}
+
+function computeScores(draft: Draft) {
+  const role = draft.desiredRole || 'Software Engineer'
+  const roleKeywords = ROLE_KEYWORDS[role] || ROLE_KEYWORDS['Software Engineer']
+  const tech = (draft.skillsTech || []).map(s => s.trim()).filter(Boolean)
+  const techLower = tech.map(normalize)
+  const kwLower = roleKeywords.map(normalize)
+  const overlap = kwLower.filter(k => techLower.some(s => s.includes(k) || k.includes(s)))
+  const skillsMatch = Math.min(100, Math.round((overlap.length / Math.max(kwLower.length, 1)) * 100))
+
+  // Simple GPA-based academic score
+  const gpaNum = parseFloat((draft.gpa || '').replace(/[^0-9.]/g, ''))
+  let academic = 60
+  if (!isNaN(gpaNum)) {
+    // scale 6.0 -> 60, 10.0 -> 95; otherwise percentage 60-95
+    if (gpaNum <= 10) academic = Math.min(95, Math.max(50, Math.round((gpaNum / 10) * 95)))
+    if (gpaNum > 10) academic = Math.min(95, Math.max(50, Math.round(gpaNum)))
+  }
+
+  const keywordRelevance = Math.min(100, Math.round(skillsMatch * 1.0))
+  const formatting = 78 // placeholder until we parse resume
+  const grammar = 75 // placeholder
+
+  // Weight by role: emphasize skills and keywords
+  const overall = Math.round(
+    0.2 * academic +
+    0.4 * skillsMatch +
+    0.3 * keywordRelevance +
+    0.05 * formatting +
+    0.05 * grammar
+  )
+
+  const suggestions: string[] = []
+  if (skillsMatch < 80) suggestions.push(`Add role keywords: ${roleKeywords.slice(0, 6).join(', ')}`)
+  if (academic < 70) suggestions.push('Highlight relevant coursework and projects to strengthen academics')
+  if (formatting < 85) suggestions.push('Use consistent fonts, clear sections, and concise bullets')
+  if (grammar < 85) suggestions.push('Proofread for grammar and use stronger action verbs')
+
+  return {
+    role,
+    overall,
+    breakdown: {
+      academic,
+      skillsMatch,
+      formatting,
+      keywordRelevance,
+      grammar,
+    },
+    suggestions,
+    matched: overlap,
+    missing: kwLower.filter(k => !overlap.includes(k)).slice(0, 6),
+  }
+}
+
+export default function StudentAtsResults() {
+  const navigate = useNavigate()
+  const draft: Draft = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem('onboarding_draft') || '{}') } catch { return {} }
+  }, [])
+  const [serverAnalysis, setServerAnalysis] = useState<ReturnType<typeof computeScores> | null>(null)
+  const analysis = useMemo(() => serverAnalysis || computeScores(draft), [serverAnalysis, draft])
+  const [score, setScore] = useState(0)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const t = setTimeout(() => setScore(analysis.overall), 300)
+    return () => clearTimeout(t)
+  }, [analysis.overall])
+
+  useEffect(() => {
+    const auth = getAuth()
+    const token = auth?.token as string
+    analyzeAtsOnServer({ role: draft.desiredRole, skillsTech: draft.skillsTech, gpa: draft.gpa }, token)
+      .then(res => setServerAnalysis(res.result as any))
+      .catch(() => setServerAnalysis(null))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const auth = getAuth()
+    const token = auth?.token as string
+    saveAtsScore({
+      role: analysis.role,
+      overall: analysis.overall,
+      breakdown: analysis.breakdown,
+      matched: analysis.matched,
+      missing: analysis.missing,
+    }, token).catch(() => {})
+  }, [analysis])
+
+  async function handleSaveAll() {
+    try {
+      setSaving(true)
+      const auth = getAuth()
+      const token = auth?.token as string
+      // Persist full onboarding draft as profile info (send all known fields)
+      const fullDraft = (() => { try { return JSON.parse(localStorage.getItem('onboarding_draft') || '{}') } catch { return {} } })() as Record<string, any>
+      const payload: Record<string, any> = {
+        qualification: fullDraft.qualification || draft.qualification || '',
+        college: fullDraft.college || '',
+        gradYear: fullDraft.gradYear || '',
+        gpa: fullDraft.gpa || draft.gpa || '',
+        coursework: fullDraft.coursework || '',
+        skillsTech: Array.isArray(fullDraft.skillsTech) ? fullDraft.skillsTech : (draft.skillsTech || []),
+        skillsSoft: Array.isArray(fullDraft.skillsSoft) ? fullDraft.skillsSoft : (draft.skillsSoft || []),
+        expRole: fullDraft.expRole || '',
+        expCompany: fullDraft.expCompany || '',
+        expDuration: fullDraft.expDuration || '',
+        expResp: fullDraft.expResp || '',
+        desiredRole: fullDraft.desiredRole || draft.desiredRole || '',
+        industries: fullDraft.industries || '',
+        locations: fullDraft.locations || '',
+        salary: fullDraft.salary || '',
+        jobType: fullDraft.jobType || '',
+      }
+      await submitOnboarding(payload, token)
+      // Ensure ATS score is saved
+      await saveAtsScore({
+        role: analysis.role,
+        overall: analysis.overall,
+        breakdown: analysis.breakdown,
+        matched: analysis.matched,
+        missing: analysis.missing,
+      }, token)
+      // Mark onboarded locally and go to dashboard
+      try { localStorage.setItem('student_onboarded', 'true') } catch {}
+      navigate('/student', { replace: true })
+    } catch (e) {
+      alert((e as Error).message || 'Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <header className="max-w-5xl mx-auto px-4 pt-8">
+        <h1 className="text-2xl font-bold text-gray-900">Your Job Readiness Score</h1>
+        <p className="text-gray-600 mt-1">Role-targeted insights for {analysis.role}</p>
+      </header>
+
+      <div className="max-w-5xl mx-auto px-4 py-6 grid md:grid-cols-3 gap-6">
+        <div className="md:col-span-1 bg-white rounded-xl shadow p-6 flex items-center justify-center">
+          <div className="relative w-48 h-48">
+            <svg className="w-full h-full" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="45" stroke="#e5e7eb" strokeWidth="10" fill="none" />
+              <circle cx="50" cy="50" r="45" strokeWidth="10" fill="none"
+                stroke="url(#grad)" strokeDasharray={`${Math.max(1, score)} 283`} transform="rotate(-90 50 50)" />
+              <defs>
+                <linearGradient id="grad" x1="0" x2="1" y1="0" y2="0">
+                  <stop offset="0%" stopColor="#f58529" />
+                  <stop offset="40%" stopColor="#dd2a7b" />
+                  <stop offset="70%" stopColor="#8134af" />
+                  <stop offset="100%" stopColor="#515bd4" />
+                </linearGradient>
+              </defs>
+              <text x="50" y="54" textAnchor="middle" fontSize="20" fontWeight="700" fill="#111827">{score}/100</text>
+            </svg>
+          </div>
+        </div>
+
+        <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {[
+            { title: 'Academic Match', score: analysis.breakdown.academic },
+            { title: 'Skills Match', score: analysis.breakdown.skillsMatch },
+            { title: 'Resume Formatting', score: analysis.breakdown.formatting },
+            { title: 'Keyword Relevance', score: analysis.breakdown.keywordRelevance },
+            { title: 'Grammar & Readability', score: analysis.breakdown.grammar },
+          ].map((c) => (
+            <div key={c.title} className="bg-white rounded-xl shadow p-4">
+              <div className="flex items-center justify-between">
+                <p className="font-medium text-gray-800">{c.title}</p>
+                <span className="text-sm font-semibold bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] bg-clip-text text-transparent">{c.score}/100</span>
+              </div>
+              <div className="mt-3 h-2 bg-gray-200 rounded-full">
+                <div className="h-2 rounded-full bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4]" style={{ width: `${c.score}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="max-w-5xl mx-auto px-4 grid md:grid-cols-3 gap-6">
+        <div className="md:col-span-2 bg-white rounded-xl shadow p-6">
+          <h2 className="font-semibold text-gray-900">Detailed Feedback</h2>
+          <ul className="mt-3 space-y-2 text-sm text-gray-700">
+            {analysis.suggestions.map((s, i) => (
+              <li key={i}>• {s}</li>
+            ))}
+          </ul>
+          <div className="mt-4 text-sm">
+            <p className="font-medium text-gray-900">Resume Issues</p>
+            <ul className="mt-2 list-disc ml-5 text-gray-700 space-y-1">
+              {analysis.missing.map((k) => (
+                <li key={k}>Consider adding keyword: <span className="font-medium">{k}</span></li>
+              ))}
+              {analysis.breakdown.formatting < 85 && (
+                <li>Improve formatting consistency (headings, spacing, bullet clarity)</li>
+              )}
+              {analysis.breakdown.grammar < 85 && (
+                <li>Proofread for grammar and use stronger action verbs</li>
+              )}
+            </ul>
+          </div>
+          <div className="mt-6">
+            <button onClick={handleSaveAll} disabled={saving} className="px-5 py-2.5 rounded-lg text-white bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] disabled:opacity-60">{saving ? 'Saving…' : 'Save'}</button>
+          </div>
+        </div>
+        {/* Right column removed to keep only issues and Save */}
+      </div>
+    </div>
+  )
+}
+
+
