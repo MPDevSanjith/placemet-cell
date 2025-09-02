@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken')
 const Student = require('../models/Student')
 const User = require('../models/User')
 
-const authenticateToken = async (req, res, next) => {
+const protect = async (req, res, next) => {
   try {
     const authHeader = req.headers['authorization']
     console.log('🔐 Auth Debug - Headers:', {
@@ -12,7 +12,7 @@ const authenticateToken = async (req, res, next) => {
     })
     
     const token = authHeader && authHeader.split(' ')[1]
-    console.log('🔐 Auth Debug - Token:', token ? `${token.substring(0, 20)}...` : 'No token')
+    console.log('🔐 Auth Debug - Token:', token ? `${token.substring(0,20)}...` : 'No token')
 
     if (!token) {
       console.log('🔐 Auth Debug - No token provided')
@@ -50,6 +50,7 @@ const authenticateToken = async (req, res, next) => {
       id: user._id,
       email: user.email,
       name: user.name,
+      role: user.role || 'student', // Add role for authorization
       type: userType
     }
 
@@ -84,6 +85,29 @@ const authenticateToken = async (req, res, next) => {
   }
 }
 
+// Authorization middleware
+const authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Not authenticated'
+      });
+    }
+
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to access this resource'
+      });
+    }
+
+    next();
+  };
+};
+
 module.exports = {
-  authenticateToken
+  protect,
+  authorize,
+  authenticateToken: protect // Keep backward compatibility
 }

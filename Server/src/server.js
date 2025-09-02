@@ -32,6 +32,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', require('./routes/auth'))
 app.use('/api/students', require('./routes/students'))
 app.use('/api/placement-officer', require('./routes/placementOfficer'))
+app.use('/api/external-jobs', require('./routes/externalJobs'))
 
 // Error handling
 app.use((err, req, res, next) => {

@@ -1,15 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  Search, 
-  Bell, 
+
   User, 
-  Settings, 
-  LogOut, 
+ 
   Globe, 
   Plus, 
   FileText, 
   Zap,
-  ChevronDown,
+
   // Building,
   Users,
 
@@ -58,7 +56,7 @@ interface CompanyRequest {
 }
 
 const NewJobPost: React.FC = () => {
-  const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
+  // const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<string>('Company Requests');
   const [isAddExternalJobModalOpen, setIsAddExternalJobModalOpen] = useState<boolean>(false);
   const [isNewJobPostingModalOpen, setIsNewJobPostingModalOpen] = useState<boolean>(false);
@@ -90,18 +88,22 @@ const NewJobPost: React.FC = () => {
     endDate: ''
   });
 
-  const toggleProfile = (): void => {
-    setIsProfileOpen(!isProfileOpen);
-  };
+  // State for external jobs from backend
+  const [externalJobs, setExternalJobs] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+
+  // const toggleProfile = (): void => {
+  //   setIsProfileOpen(!isProfileOpen);
+  // };
 
   const handleTabChange = (tabLabel: string): void => {
     setActiveTab(tabLabel);
   };
 
-  const handleProfileAction = (action: string): void => {
-    console.log(`Profile action: ${action}`);
-    setIsProfileOpen(false);
-  };
+  // const handleProfileAction = (action: string): void => {
+  //   console.log(`Profile action: ${action}`);
+  //   setIsProfileOpen(false);
+  // };
 
   const openAddExternalJobModal = (): void => {
     setIsAddExternalJobModalOpen(true);
@@ -163,6 +165,62 @@ const NewJobPost: React.FC = () => {
     }));
   };
 
+  // API call to create external job
+  const handleAddExternalJob = async (): Promise<void> => {
+    try {
+      const response = await fetch('http://localhost:5000/api/external-jobs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Get token from localStorage
+        },
+        body: JSON.stringify(externalJobForm)
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log('External job created successfully:', data.data);
+        // You can add a success notification here
+        closeAddExternalJobModal();
+        // Refresh the external jobs list
+        fetchExternalJobs();
+      } else {
+        console.error('Failed to create external job:', data.message);
+        // You can add an error notification here
+      }
+    } catch (error) {
+      console.error('Error creating external job:', error);
+      // You can add an error notification here
+    }
+  };
+
+  // Fetch external jobs from backend
+  const fetchExternalJobs = async (): Promise<void> => {
+    try {
+      setLoading(true);
+      const response = await fetch('http://localhost:5000/api/external-jobs?status=Active&limit=10');
+      const data = await response.json();
+
+      if (data.success) {
+        setExternalJobs(data.data);
+      } else {
+        console.error('Failed to fetch external jobs:', data.message);
+      }
+    } catch (error) {
+      console.error('Error fetching external jobs:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch external jobs when component mounts or when External Jobs tab is active
+  useEffect(() => {
+    if (activeTab === 'External Jobs') {
+      fetchExternalJobs();
+    }
+  }, [activeTab]);
+
   const handleNewJobPostingFormChange = (field: keyof NewJobPosting, value: string): void => {
     setNewJobPostingForm(prev => ({
       ...prev,
@@ -197,87 +255,7 @@ const NewJobPost: React.FC = () => {
   return (
     <div className="h-screen w-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 overflow-hidden">
       {/* Header */}
-      <div className="bg-white shadow-lg border-b border-blue-100">
-        <div className="w-full px-6">
-          <div className="flex items-center justify-between h-16">
-            {/* Search Bar */}
-            <div className="flex-1 max-w-lg">
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search className="h-5 w-5 text-blue-500" />
-                </div>
-                <input
-                  className="block w-full pl-10 pr-3 py-2 border border-blue-200 rounded-lg leading-5 bg-blue-50 placeholder-blue-400 focus:outline-none focus:placeholder-blue-300 focus:ring-2 focus:ring-blue-300 focus:border-transparent"
-                  placeholder="Search students, companies, jobs..."
-                  type="text"
-                />
-              </div>
-            </div>
-
-            {/* Right Section */}
-            <div className="flex items-center space-x-4">
-              {/* Notification Icon */}
-              <div className="relative">
-                <button 
-                  className="p-2 rounded-lg hover:bg-blue-100 transition-colors duration-200"
-                  onClick={() => console.log('Notifications clicked')}
-                >
-                  <Bell className="h-6 w-6 text-blue-600" />
-                  <span className="absolute -top-1 -right-1 bg-gradient-to-r from-pink-500 to-orange-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    4
-                  </span>
-                </button>
-              </div>
-
-              {/* Profile Section */}
-              <div className="relative">
-                <button
-                  onClick={toggleProfile}
-                  className="flex items-center space-x-2 p-2 rounded-lg hover:bg-blue-100 transition-colors duration-200"
-                >
-                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-semibold">
-                    PO
-                  </div>
-                  <span className="text-blue-700 font-medium">Placement Officer</span>
-                  <ChevronDown className={`h-4 w-4 text-blue-600 transition-transform duration-200 ${isProfileOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {/* Profile Dropdown */}
-                {isProfileOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-blue-100 py-2 z-50">
-                    <div className="px-4 py-2 border-b border-blue-100">
-                      <h3 className="text-sm font-semibold text-blue-800">My Account</h3>
-                    </div>
-                    <div className="py-1">
-                      <button 
-                        className="flex items-center w-full px-4 py-2 text-sm text-blue-700 hover:bg-blue-50 transition-colors duration-200"
-                        onClick={() => handleProfileAction('profile-settings')}
-                      >
-                        <User className="h-4 w-4 mr-3 text-blue-500" />
-                        Profile Settings
-                      </button>
-                      <button 
-                        className="flex items-center w-full px-4 py-2 text-sm text-blue-700 hover:bg-blue-50 transition-colors duration-200"
-                        onClick={() => handleProfileAction('settings')}
-                      >
-                        <Settings className="h-4 w-4 mr-3 text-blue-500" />
-                        Settings
-                      </button>
-                      <button 
-                        className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors duration-200"
-                        onClick={() => handleProfileAction('sign-out')}
-                      >
-                        <LogOut className="h-4 w-4 mr-3 text-red-500" />
-                        Sign Out
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      
 
       {/* Main Content */}
       <div className="w-full h-[calc(100vh-4rem)] overflow-y-auto">
@@ -291,7 +269,7 @@ const NewJobPost: React.FC = () => {
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-4 mb-6 justify-center">
             <button 
-              className="flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white rounded-lg hover:from-blue-600 hover:via-purple-600 hover:to-pink-600 transition-all duration-200 shadow-lg hover:shadow-xl"
+              className="flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white rounded-lg hover:from-pink-600 hover:via-orange-600 hover:to-yellow-600 transition-all duration-200 shadow-lg hover:shadow-xl"
               onClick={openAddExternalJobModal}
             >
               <Globe className="h-5 w-5 mr-2" />
@@ -305,7 +283,7 @@ const NewJobPost: React.FC = () => {
                New Job Posting
              </button>
                          <button 
-               className="flex items-center px-6 py-3   text-white rounded-lg hover:from-pink-600 hover:via-orange-600 hover:to-yellow-600 transition-all duration-200 shadow-lg hover:shadow-xl"
+               className="flex items-center px-6 py-3   text-white rounded-lg bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500  hover:from-pink-600 hover:via-orange-600 hover:to-yellow-600 transition-all duration-200 shadow-lg hover:shadow-xl"
                onClick={openCompanyRequestModal}
              >
                <Plus className="h-5 w-5 mr-2" />
@@ -497,88 +475,82 @@ const NewJobPost: React.FC = () => {
               {/* Header */}
               <div className="flex items-center mb-6">
                 <Globe className="h-8 w-8 text-blue-600 mr-3" />
-                <div>
-                  <h2 className="text-3xl font-bold text-blue-800">External Job Opportunities</h2>
-                  <p className="text-lg text-blue-600">2 external job opportunities being tracked</p>
-                </div>
+                                 <div>
+                   <h2 className="text-3xl font-bold text-blue-800">External Job Opportunities</h2>
+                   <p className="text-lg text-blue-600">
+                     {loading ? 'Loading...' : `${externalJobs.length} external job opportunities being tracked`}
+                   </p>
+                 </div>
               </div>
 
               {/* External Job Cards */}
               <div className="space-y-4">
-                {/* Software Engineer at Google Card */}
-                <div className="bg-white rounded-xl shadow-lg border border-blue-100 p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center mb-3">
-                        <h3 className="text-2xl font-bold text-blue-800 mr-3">Software Engineer</h3>
-                        <span className="px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-full mr-2">Full-time</span>
-                        <span className="px-3 py-1 bg-blue-300 text-white text-sm font-medium rounded-full">External</span>
-                      </div>
-                      <p className="text-blue-600 text-lg mb-4">Build scalable systems</p>
-                      
-                      <div className="flex items-center space-x-6 text-sm">
-                        <div className="flex items-center text-blue-700">
-                          <Users className="h-5 w-5 mr-2" />
-                          <span className="font-medium">Google</span>
-                        </div>
-                        <div className="flex items-center text-blue-700">
-                          <Globe className="h-5 w-5 mr-2" />
-                          <span>Mountain View</span>
-                        </div>
-                        <div className="flex items-center text-blue-700">
-                          <span className="font-medium">₹25,00,000</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-col space-y-2 ml-6">
-                      <button className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200">
-                        <User className="h-4 w-4 mr-2" />
-                        Apply
-                      </button>
-                      <button className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200">
-                        <FileText className="h-4 w-4 mr-2" />
-                        Track
-                      </button>
-                    </div>
+                {loading ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-blue-600">Loading external jobs...</p>
                   </div>
-                </div>
-
-                {/* Product Manager Intern at Microsoft Card */}
-                <div className="bg-white rounded-xl shadow-lg border border-blue-100 p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center mb-3">
-                        <h3 className="text-2xl font-bold text-blue-800 mr-3">Product Manager Intern</h3>
-                        <span className="px-3 py-1 bg-purple-500 text-white text-sm font-medium rounded-full mr-2">Internship</span>
-                        <span className="px-3 py-1 bg-blue-300 text-white text-sm font-medium rounded-full">External</span>
-                      </div>
-                      <p className="text-blue-600 text-lg mb-4">Product management internship</p>
-                      
-                      <div className="flex items-center space-x-6 text-sm">
-                        <div className="flex items-center text-blue-700">
-                          <Users className="h-5 w-5 mr-2" />
-                          <span className="font-medium">Microsoft</span>
+                ) : externalJobs.length > 0 ? (
+                  externalJobs.map((job) => (
+                    <div key={job._id} className="bg-white rounded-xl shadow-lg border border-blue-100 p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center mb-3">
+                            <h3 className="text-2xl font-bold text-blue-800 mr-3">{job.jobTitle}</h3>
+                            <span className="px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-full mr-2">{job.jobType}</span>
+                            <span className="px-3 py-1 bg-blue-300 text-white text-sm font-medium rounded-full">External</span>
+                          </div>
+                          <p className="text-blue-600 text-lg mb-4">{job.description}</p>
+                          
+                          <div className="flex items-center space-x-6 text-sm">
+                            <div className="flex items-center text-blue-700">
+                              <Users className="h-5 w-5 mr-2" />
+                              <span className="font-medium">{job.companyName}</span>
+                            </div>
+                            <div className="flex items-center text-blue-700">
+                              <Globe className="h-5 w-5 mr-2" />
+                              <span>{job.location}</span>
+                            </div>
+                            {job.salary && (job.salary.min || job.salary.max) && (
+                              <div className="flex items-center text-blue-700">
+                                <span className="font-medium">
+                                  {job.salary.min && job.salary.max 
+                                    ? `${job.salary.currency} ${job.salary.min.toLocaleString()} - ${job.salary.max.toLocaleString()}`
+                                    : job.salary.min 
+                                      ? `${job.salary.currency} ${job.salary.min.toLocaleString()}+`
+                                      : `Up to ${job.salary.currency} ${job.salary.max.toLocaleString()}`
+                                  }
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center text-blue-700">
-                          <Globe className="h-5 w-5 mr-2" />
-                          <span>Seattle</span>
+                        
+                        <div className="flex flex-col space-y-2 ml-6">
+                          <a 
+                            href={job.externalUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
+                          >
+                            <User className="h-4 w-4 mr-2" />
+                            Apply
+                          </a>
+                          <button className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200">
+                            <FileText className="h-4 w-4 mr-2" />
+                            Track
+                          </button>
                         </div>
                       </div>
                     </div>
-                    
-                    <div className="flex flex-col space-y-2 ml-6">
-                      <button className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200">
-                        <User className="h-4 w-4 mr-2" />
-                        Apply
-                      </button>
-                      <button className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200">
-                        <FileText className="h-4 w-4 mr-2" />
-                        Track
-                      </button>
-                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8">
+                    <Globe className="h-16 w-16 text-blue-200 mx-auto mb-4" />
+                    <p className="text-blue-400">No external jobs found</p>
+                    <p className="text-blue-300 text-sm">Add some external job opportunities to get started</p>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           )}
@@ -701,17 +673,14 @@ const NewJobPost: React.FC = () => {
             </div>
 
             {/* Footer */}
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={() => {
-                  console.log({ companyName: externalJobForm.companyName, jobTitle: externalJobForm.jobTitle, description: externalJobForm.description, location: externalJobForm.location, jobType: externalJobForm.jobType, externalUrl: externalJobForm.externalUrl });
-                  closeAddExternalJobModal();
-                }}
-                className="bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700"
-              >
-                Add External Job
-              </button>
-            </div>
+                         <div className="mt-6 flex justify-end">
+               <button
+                 onClick={handleAddExternalJob}
+                 className="bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700"
+               >
+                 Add External Job
+               </button>
+             </div>
           </div>
                  </div>
        )}
