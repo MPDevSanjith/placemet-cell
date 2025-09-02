@@ -171,6 +171,7 @@ export type ResumeUploadResponse = {
     filename: string
     originalName: string
     cloudinaryUrl: string
+    viewerUrl?: string
     uploadDate: string
   }
 }

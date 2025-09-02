@@ -58,7 +58,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         {
           name: "Dashboard",
           icon: FiHome,
-          path: "/student/dashboar",
+          path: "/student/dashboard",
           description: "Overview & Analytics",
           color: "from-pink-500 to-purple-500",
           bgColor: "from-pink-50 to-purple-50"
@@ -121,10 +121,11 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         animate={{ x: 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
         className={`
-          fixed inset-y-0 left-0 z-50 lg:relative lg:translate-x-0
+          fixed inset-y-0 left-0 z-50 lg:relative
           flex flex-col bg-white/90 backdrop-blur-xl shadow-lg border-r border-gray-200/60
           transition-all duration-300 ease-in-out flex-shrink-0
-          ${isOpen ? "w-72" : "w-20"}
+          ${isOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72'}
+          lg:translate-x-0 ${isOpen ? 'lg:w-72' : 'lg:w-20'}
         `}
       >
         {/* Professional Header - Matching Navbar */}

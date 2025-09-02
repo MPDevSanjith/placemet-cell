@@ -83,7 +83,7 @@ export default function Navbar({
         </div>
 
         {/* Center Section - Enhanced Search */}
-        <div className="hidden lg:flex flex-1 max-w-md mx-8">
+        <div className="hidden md:flex flex-1 max-w-md mx-2 md:mx-8">
           <form onSubmit={handleSearch} className="relative w-full">
             <motion.div
               className={`relative rounded-2xl transition-all duration-300 ${
@@ -121,7 +121,7 @@ export default function Navbar({
         </div>
 
         {/* Right Section - Clean Actions (No Time/Date) */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2 md:space-x-4">
 
           {/* Enhanced Notifications */}
           <div className="relative">
