@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { FaUsers, FaUpload, FaChartBar, FaEnvelope, FaCog, FaSignOutAlt } from 'react-icons/fa'
+import Layout from '../../components/Layout'
 
 export default function PlacementOfficerDashboard() {
   const [activeTab, setActiveTab] = useState('overview')
@@ -19,28 +20,11 @@ export default function PlacementOfficerDashboard() {
   ]
 
   return (
-    <div className="min-h-screen bg-brand-muted">
-      {/* Header */}
-      <header className="bg-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div>
-              <h1 className="text-2xl font-bold text-brand-primary">Placement Officer Dashboard</h1>
-              <p className="text-gray-600">Welcome back, Officer</p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <button className="text-gray-600 hover:text-brand-primary">
-                <FaCog className="text-xl" />
-              </button>
-              <button className="text-gray-600 hover:text-red-600">
-                <FaSignOutAlt className="text-xl" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <Layout
+      title="Placement Officer Dashboard"
+      subtitle="Welcome back, Officer!"
+    >
+      <div className="max-w-7xl mx-auto p-6">
         {/* Navigation Tabs */}
         <div className="bg-white rounded-xl shadow-lg mb-8">
           <div className="border-b border-gray-200">
@@ -165,6 +149,6 @@ export default function PlacementOfficerDashboard() {
           </div>
         )}
       </div>
-    </div>
+    </Layout>
   )
 }

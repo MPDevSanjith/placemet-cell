@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { analyzeAtsOnServer, saveAtsScore, submitOnboarding } from '../../global/api'
 import { getAuth } from '../../global/auth'
+import Layout from '../../components/Layout'
 
 type Draft = {
   desiredRole?: string
@@ -82,6 +83,7 @@ function computeScores(draft: Draft) {
 
 export default function StudentAtsResults() {
   const navigate = useNavigate()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const draft: Draft = useMemo(() => {
     try { return JSON.parse(localStorage.getItem('onboarding_draft') || '{}') } catch { return {} }
   }, [])
@@ -161,82 +163,105 @@ export default function StudentAtsResults() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="max-w-5xl mx-auto px-4 pt-8">
-        <h1 className="text-2xl font-bold text-gray-900">Your Job Readiness Score</h1>
-        <p className="text-gray-600 mt-1">Role-targeted insights for {analysis.role}</p>
-      </header>
-
-      <div className="max-w-5xl mx-auto px-4 py-6 grid md:grid-cols-3 gap-6">
-        <div className="md:col-span-1 bg-white rounded-xl shadow p-6 flex items-center justify-center">
-          <div className="relative w-48 h-48">
-            <svg className="w-full h-full" viewBox="0 0 100 100">
-              <circle cx="50" cy="50" r="45" stroke="#e5e7eb" strokeWidth="10" fill="none" />
-              <circle cx="50" cy="50" r="45" strokeWidth="10" fill="none"
-                stroke="url(#grad)" strokeDasharray={`${Math.max(1, score)} 283`} transform="rotate(-90 50 50)" />
-              <defs>
-                <linearGradient id="grad" x1="0" x2="1" y1="0" y2="0">
-                  <stop offset="0%" stopColor="#f58529" />
-                  <stop offset="40%" stopColor="#dd2a7b" />
-                  <stop offset="70%" stopColor="#8134af" />
-                  <stop offset="100%" stopColor="#515bd4" />
-                </linearGradient>
-              </defs>
-              <text x="50" y="54" textAnchor="middle" fontSize="20" fontWeight="700" fill="#111827">{score}/100</text>
-            </svg>
-          </div>
-        </div>
-
-        <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {[
-            { title: 'Academic Match', score: analysis.breakdown.academic },
-            { title: 'Skills Match', score: analysis.breakdown.skillsMatch },
-            { title: 'Resume Formatting', score: analysis.breakdown.formatting },
-            { title: 'Keyword Relevance', score: analysis.breakdown.keywordRelevance },
-            { title: 'Grammar & Readability', score: analysis.breakdown.grammar },
-          ].map((c) => (
-            <div key={c.title} className="bg-white rounded-xl shadow p-4">
-              <div className="flex items-center justify-between">
-                <p className="font-medium text-gray-800">{c.title}</p>
-                <span className="text-sm font-semibold bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] bg-clip-text text-transparent">{c.score}/100</span>
-              </div>
-              <div className="mt-3 h-2 bg-gray-200 rounded-full">
-                <div className="h-2 rounded-full bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4]" style={{ width: `${c.score}%` }} />
+    <Layout title="ATS Results">
+      <div className="min-h-screen bg-gray-50">
+        {/* Sidebar and main content replaced by Layout */}
+        <div className="lg:ml-64 min-h-screen">
+          {/* Header */}
+          <header className="bg-white shadow-sm border-b border-gray-200">
+            <div className="flex items-center justify-between px-6 py-4">
+              <div className="flex items-center space-x-4">
+                {/* Mobile menu button */}
+                <button
+                  className="lg:hidden p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900">Your Job Readiness Score</h1>
+                  <p className="text-gray-600">Role-targeted insights for {analysis.role}</p>
+                </div>
               </div>
             </div>
-          ))}
-        </div>
-      </div>
+          </header>
+          {/* Page Content */}
+          <main className="p-6">
+            <div className="max-w-5xl mx-auto">
+              <div className="grid md:grid-cols-3 gap-6 mb-6">
+                <div className="md:col-span-1 bg-white rounded-xl shadow p-6 flex items-center justify-center">
+                  <div className="relative w-48 h-48">
+                    <svg className="w-full h-full" viewBox="0 0 100 100">
+                      <circle cx="50" cy="50" r="45" stroke="#e5e7eb" strokeWidth="10" fill="none" />
+                      <circle cx="50" cy="50" r="45" strokeWidth="10" fill="none"
+                        stroke="url(#grad)" strokeDasharray={`${Math.max(1, score)} 283`} transform="rotate(-90 50 50)" />
+                      <defs>
+                        <linearGradient id="grad" x1="0" x2="1" y1="0" y2="0">
+                          <stop offset="0%" stopColor="#f58529" />
+                          <stop offset="40%" stopColor="#dd2a7b" />
+                          <stop offset="70%" stopColor="#8134af" />
+                          <stop offset="100%" stopColor="#515bd4" />
+                        </linearGradient>
+                      </defs>
+                      <text x="50" y="54" textAnchor="middle" fontSize="20" fontWeight="700" fill="#111827">{score}/100</text>
+                    </svg>
+                  </div>
+                </div>
 
-      <div className="max-w-5xl mx-auto px-4 grid md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 bg-white rounded-xl shadow p-6">
-          <h2 className="font-semibold text-gray-900">Detailed Feedback</h2>
-          <ul className="mt-3 space-y-2 text-sm text-gray-700">
-            {analysis.suggestions.map((s, i) => (
-              <li key={i}>• {s}</li>
-            ))}
-          </ul>
-          <div className="mt-4 text-sm">
-            <p className="font-medium text-gray-900">Resume Issues</p>
-            <ul className="mt-2 list-disc ml-5 text-gray-700 space-y-1">
-              {analysis.missing.map((k) => (
-                <li key={k}>Consider adding keyword: <span className="font-medium">{k}</span></li>
-              ))}
-              {analysis.breakdown.formatting < 85 && (
-                <li>Improve formatting consistency (headings, spacing, bullet clarity)</li>
-              )}
-              {analysis.breakdown.grammar < 85 && (
-                <li>Proofread for grammar and use stronger action verbs</li>
-              )}
-            </ul>
-          </div>
-          <div className="mt-6">
-            <button onClick={handleSaveAll} disabled={saving} className="px-5 py-2.5 rounded-lg text-white bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] disabled:opacity-60">{saving ? 'Saving…' : 'Save'}</button>
-          </div>
+                <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {[
+                    { title: 'Academic Match', score: analysis.breakdown.academic },
+                    { title: 'Skills Match', score: analysis.breakdown.skillsMatch },
+                    { title: 'Resume Formatting', score: analysis.breakdown.formatting },
+                    { title: 'Keyword Relevance', score: analysis.breakdown.keywordRelevance },
+                    { title: 'Grammar & Readability', score: analysis.breakdown.grammar },
+                  ].map((c) => (
+                    <div key={c.title} className="bg-white rounded-xl shadow p-4">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium text-gray-800">{c.title}</p>
+                        <span className="text-sm font-semibold bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] bg-clip-text text-transparent">{c.score}/100</span>
+                      </div>
+                      <div className="mt-3 h-2 bg-gray-200 rounded-full">
+                        <div className="h-2 rounded-full bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4]" style={{ width: `${c.score}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-6">
+                <div className="md:col-span-2 bg-white rounded-xl shadow p-6">
+                  <h2 className="font-semibold text-gray-900">Detailed Feedback</h2>
+                  <ul className="mt-3 space-y-2 text-sm text-gray-700">
+                    {analysis.suggestions.map((s, i) => (
+                      <li key={i}>• {s}</li>
+                    ))}
+                  </ul>
+                  <div className="mt-4 text-sm">
+                    <p className="font-medium text-gray-900">Resume Issues</p>
+                    <ul className="mt-2 list-disc ml-5 text-gray-700 space-y-1">
+                      {analysis.missing.map((k) => (
+                        <li key={k}>Consider adding keyword: <span className="font-medium">{k}</span></li>
+                      ))}
+                      {analysis.breakdown.formatting < 85 && (
+                        <li>Improve formatting consistency (headings, spacing, bullet clarity)</li>
+                      )}
+                      {analysis.breakdown.grammar < 85 && (
+                        <li>Proofread for grammar and use stronger action verbs</li>
+                      )}
+                    </ul>
+                  </div>
+                  <div className="mt-6">
+                    <button onClick={handleSaveAll} disabled={saving} className="px-5 py-2.5 rounded-lg text-white bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] disabled:opacity-60">{saving ? 'Saving…' : 'Save'}</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </main>
         </div>
-        {/* Right column removed to keep only issues and Save */}
       </div>
-    </div>
+    </Layout>
   )
 }
 

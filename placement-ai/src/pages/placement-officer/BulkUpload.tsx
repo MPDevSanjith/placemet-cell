@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { FaUpload, FaDownload, FaEye, FaEyeSlash, FaCheckCircle, FaExclamationTriangle, FaSpinner, FaEnvelope } from 'react-icons/fa'
 import { bulkUploadStudents, sendBulkWelcomeEmails, sendBulkWelcomeEmailsWithCredentials, fetchStudentByEmail, createStudentManual } from '../../global/api'
+import Layout from '../../components/Layout'
 
 interface StudentData {
   name: string
@@ -317,13 +318,11 @@ export default function BulkUpload() {
   }
 
   return (
-    <div className="min-h-screen bg-brand-muted p-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="bg-white rounded-xl p-6 mb-6 shadow-lg">
-          <h1 className="text-3xl font-bold text-brand-primary mb-2">Bulk Student Upload</h1>
-          <p className="text-gray-600">Upload CSV file to create student accounts and send login credentials</p>
-        </div>
+    <Layout
+      title="Bulk Student Upload"
+      subtitle="Upload CSV file to create student accounts and send login credentials"
+    >
+      <div className="max-w-6xl mx-auto p-6">
 
         <div className="grid lg:grid-cols-2 gap-6">
           {/* Upload Section */}
@@ -590,6 +589,6 @@ export default function BulkUpload() {
           </div>
         </div>
       </div>
-    </div>
+    </Layout>
   )
 }

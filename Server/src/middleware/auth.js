@@ -1,89 +1,138 @@
-const jwt = require('jsonwebtoken')
-const Student = require('../models/Student')
-const User = require('../models/User')
+// ==========================
+// middleware/auth.js
+// ==========================
+import jwt from 'jsonwebtoken';
+import Student from '../models/Student.js';
+import User from '../models/User.js';
+import logger from '../utils/logger.js';
+import { verifyJwt } from '../config/jwt.js';
 
-const authenticateToken = async (req, res, next) => {
+// JWT authentication middleware
+export const authenticateToken = async (req, res, next) => {
   try {
-    const authHeader = req.headers['authorization']
-    console.log('🔐 Auth Debug - Headers:', {
-      authorization: authHeader,
-      'content-type': req.headers['content-type'],
-      'user-agent': req.headers['user-agent']
-    })
-    
-    const token = authHeader && authHeader.split(' ')[1]
-    console.log('🔐 Auth Debug - Token:', token ? `${token.substring(0, 20)}...` : 'No token')
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
-      console.log('🔐 Auth Debug - No token provided')
+      logger.warn('Authentication failed: No token provided');
       return res.status(401).json({ 
         success: false, 
         error: 'Access token required' 
-      })
+      });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret')
-    console.log('🔐 Auth Debug - Decoded token:', { id: decoded.id, email: decoded.email, role: decoded.role })
+    const decoded = verifyJwt(token);
     
     // Check if user exists in either Student or User collection
-    let user = await Student.findById(decoded.id).select('-password')
-    let userType = 'student'
+    let user = await Student.findById(decoded.id).select('-password -loginOtp -loginOtpExpires');
+    let userType = 'student';
     
     if (!user) {
-      console.log('🔐 Auth Debug - Student not found, checking User collection')
-      user = await User.findById(decoded.id).select('-password')
-      userType = 'user'
+      user = await User.findById(decoded.id).select('-password -passwordResetToken -passwordResetExpires');
+      userType = 'user';
     }
 
     if (!user) {
-      console.log('🔐 Auth Debug - User not found in either collection')
+      logger.warn(`Authentication failed: User not found for ID ${decoded.id}`);
       return res.status(401).json({ 
         success: false, 
         error: 'Invalid token - user not found' 
-      })
+      });
     }
-
-    console.log('🔐 Auth Debug - User found:', { id: user._id, email: user.email, type: userType })
 
     // Add user info to request
     req.user = {
       id: user._id,
       email: user.email,
       name: user.name,
+      role: decoded.role || userType,
       type: userType
-    }
+    };
 
-    next()
+    logger.debug(`Authentication successful: ${user.email} (${userType})`);
+    next();
   } catch (error) {
-    console.error('🔐 Auth Debug - Authentication error:', error.message)
-    console.error('🔐 Auth Debug - Error details:', {
-      name: error.name,
-      stack: error.stack
-    })
+    logger.error('Authentication error:', error.message);
     
     if (error.name === 'JsonWebTokenError') {
-      console.log('🔐 Auth Debug - JWT Secret used:', process.env.JWT_SECRET ? 'From env' : 'Fallback')
       return res.status(401).json({ 
         success: false, 
-        error: 'Invalid token - please login again',
-        details: 'Token signature verification failed'
-      })
+        error: 'Invalid token - please login again'
+      });
     }
     
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({ 
         success: false, 
         error: 'Token expired' 
-      })
+      });
     }
 
     res.status(500).json({ 
       success: false, 
       error: 'Authentication failed' 
-    })
+    });
   }
-}
+};
 
-module.exports = {
-  authenticateToken
-}
+// Role-based authorization middleware
+export const authorizeRole = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Authentication required' 
+      });
+    }
+
+    if (!roles.includes(req.user.role)) {
+      logger.warn(`Authorization failed: User ${req.user.email} attempted to access ${req.path} with role ${req.user.role}`);
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Insufficient permissions' 
+      });
+    }
+
+    next();
+  };
+};
+
+// Student-only middleware
+export const authorizeStudent = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ 
+      success: false, 
+      error: 'Authentication required' 
+    });
+  }
+
+  if (req.user.type !== 'student') {
+    logger.warn(`Authorization failed: Non-student user ${req.user.email} attempted to access student route`);
+    return res.status(403).json({ 
+      success: false, 
+      error: 'Student access only' 
+    });
+  }
+
+  next();
+};
+
+// Admin/placement officer middleware
+export const authorizeAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ 
+      success: false, 
+      error: 'Authentication required' 
+    });
+  }
+
+  if (req.user.type !== 'user' || !['admin', 'placement_officer'].includes(req.user.role)) {
+    logger.warn(`Authorization failed: User ${req.user.email} attempted to access admin route`);
+    return res.status(403).json({ 
+      success: false, 
+      error: 'Admin access only' 
+    });
+  }
+
+  next();
+};

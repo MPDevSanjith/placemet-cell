@@ -13,18 +13,18 @@ function StatCard({ value, label }: { value: string; label: string }) {
   )
 }
 
-export default function LoginPage() {
+export default function Login() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-
-  const [forgotOpen, setForgotOpen] = useState(false)
   const [forgotEmail, setForgotEmail] = useState('')
   const [forgotStatus, setForgotStatus] = useState<string | null>(null)
   const [forgotSubmitting, setForgotSubmitting] = useState(false)
+  const [hasNavigated, setHasNavigated] = useState(false)
+  const [forgotOpen, setForgotOpen] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,21 +33,69 @@ export default function LoginPage() {
       setError('Please enter email and password.')
       return
     }
+    if (hasNavigated) return // Prevent multiple submissions
+    if (submitting) return // Prevent multiple submissions
+    
     try {
       setSubmitting(true)
       const payload: LoginPayload = { email, password }
+      console.log('🔐 Attempting login with:', { email: payload.email })
+      
       const res = await login(payload) as LoginResponse
-      if (res?.user?.role === 'student' && res?.otpRequired) {
-        // move to OTP page, do not save token yet
-        navigate('/otp', { state: { email: res.user.email, name: res.user.name }, replace: true })
+      console.log('🔐 Login response received:', res)
+      console.log('🔐 Response type:', typeof res)
+      console.log('🔐 Response keys:', Object.keys(res || {}))
+      console.log('🔐 requiresOtp value:', res?.requiresOtp)
+      console.log('🔐 otpRequired value:', res?.otpRequired)
+      console.log('🔐 message value:', res?.message)
+      
+      // Check for OTP requirement in multiple possible fields
+      const requiresOtp = res?.requiresOtp === true || res?.otpRequired === true || res?.message?.toLowerCase().includes('otp')
+      console.log('🔐 Final requiresOtp decision:', requiresOtp)
+      
+      if (requiresOtp) {
+        // Student login requires OTP - redirect to OTP page
+        console.log('📱 Student login requires OTP, redirecting to /otp')
+        console.log('📧 Email for OTP:', res.email || email)
+        
+        const otpState = { 
+          email: res.email || email, 
+          name: (res.email || email).split('@')[0] // Use email prefix as name for now
+        }
+        console.log('📱 OTP page state:', otpState)
+        
+        // Set navigation flag to prevent multiple navigations
+        setHasNavigated(true)
+        
+        // Force navigation to OTP page
+        try {
+          navigate('/otp', { 
+            state: otpState, 
+            replace: true 
+          })
+          console.log('✅ Navigation to OTP page initiated')
+        } catch (navError) {
+          console.error('❌ Navigation error:', navError)
+          // Fallback: force redirect
+          window.location.href = `/otp?email=${encodeURIComponent(otpState.email)}&name=${encodeURIComponent(otpState.name)}`
+        }
       } else if (res?.token && res?.user?.role) {
+        // Direct login successful (placement officer or student with token)
+        console.log('✅ Direct login successful, role:', res.user.role)
         const role: 'placement_officer' | 'student' = res.user.role === 'placement_officer' ? 'placement_officer' : 'student'
         saveAuth({ token: res.token, user: { id: res.user.id, email: res.user.email, name: res.user.name, role } })
+        
+        // Set navigation flag to prevent multiple navigations
+        setHasNavigated(true)
+        
         navigate(role === 'placement_officer' ? '/placement-officer' : '/student', { replace: true })
       } else {
-        setError('Login failed')
+        console.error('❌ Unexpected login response format:', res)
+        console.error('❌ Response structure:', JSON.stringify(res, null, 2))
+        setError(`Login failed - unexpected response format. Response: ${JSON.stringify(res)}`)
       }
     } catch (err: unknown) {
+      console.error('❌ Login error:', err)
       const message = err instanceof Error ? err.message : 'Login failed'
       setError(message)
     } finally {
@@ -72,6 +120,11 @@ export default function LoginPage() {
       setForgotSubmitting(false)
     }
   }
+
+  const openForgotPassword = () => {
+    setForgotOpen(true);
+  };
+
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 bg-white">
@@ -102,6 +155,8 @@ export default function LoginPage() {
             </div>
           )}
 
+
+
           <form onSubmit={handleSubmit} className="space-y-6">
 
             <div className="space-y-2">
@@ -129,7 +184,7 @@ export default function LoginPage() {
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <label htmlFor="password" className="block text-sm font-medium text-[#5E286D]">Password</label>
-                <button type="button" onClick={() => { setForgotOpen(true); setForgotEmail(email) }} className="text-sm text-brand-secondary hover:underline">Forgot?</button>
+                <button type="button" onClick={() => { openForgotPassword(); setForgotEmail(email) }} className="text-sm text-brand-secondary hover:underline">Forgot?</button>
               </div>
               <div className="relative">
                 <input
@@ -155,10 +210,17 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={submitting}
-              className="w-full rounded-lg px-4 py-2.5 font-medium shadow-md bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] hover:opacity-95 text-white focus:outline-none focus:ring-2 focus:ring-[#dd2a7b] disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+              disabled={submitting || hasNavigated}
+              className="w-full bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] text-white font-bold py-3 px-4 rounded-xl hover:shadow-lg transform hover:scale-[1.02] transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
-              {submitting ? 'Signing in…' : 'Sign in'}
+              {submitting ? (
+                <span className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  Signing in...
+                </span>
+              ) : (
+                'Sign in'
+              )}
             </button>
 
             <p className="text-xs text-brand-subtext mt-3">By continuing you agree to our Terms and Privacy Policy.</p>

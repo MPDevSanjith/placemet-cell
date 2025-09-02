@@ -1,36 +1,33 @@
-// ==========================
-// routes/auth.js (clean & organized)
-// ==========================
-const express = require('express')
-const router = express.Router()
+import express from 'express';
+const router = express.Router();
 
-// Import auth controller
-const {
-  login,
-  verifyOtp,
-  requestOtp,
-  forgotPassword,
-  resetPassword,
-  clearAuth
-} = require('../controllers/authController')
+import { 
+  login, 
+  verifyOtp, 
+  registerOfficer, 
+  bulkRegisterStudents,
+  forgotPassword, 
+  resetPassword, 
+  getProfile,
+  verify
+} from '../controllers/authController.js';
 
-// ---------- Routes ----------
-// Login (officers/admins: password; students: password + OTP)
-router.post('/login', login)
+import { authenticateToken } from '../middleware/auth.js';
 
-// Verify OTP (students)
-router.post('/verify-otp', verifyOtp)
+// Public routes
+router.post('/login', login);
+router.post('/verify-otp', verifyOtp);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 
-// Request OTP for students
-router.post('/request-otp', requestOtp)
+// Token verification route
+router.get('/verify', verify);
 
-// Forgot password (both collections)
-router.post('/forgot-password', forgotPassword)
+// Protected routes (admin only)
+router.post('/register-officer', authenticateToken, registerOfficer);
+router.post('/bulk-register-students', authenticateToken, bulkRegisterStudents);
 
-// Reset password with token (both collections)
-router.post('/reset-password', resetPassword)
+// Protected routes (authenticated users)
+router.get('/profile', authenticateToken, getProfile);
 
-// Clear auth debug helper
-router.post('/clear-auth', clearAuth)
-
-module.exports = router
+export default router;
