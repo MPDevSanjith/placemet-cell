@@ -27,13 +27,7 @@ a {
 }
 a:hover { color: var(--brand-glow); }
 
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  /* Global fallback background in case component background doesn't render */
-  /* background: linear-gradient(135deg, #E6E6FA 0%, #A87CA0 50%, #5E286D 100%); */
-}
+
 
 h1 {
   font-size: 3.2em;
@@ -144,6 +138,56 @@ button:focus-visible {
   background: transparent !important;
   outline: none;
   box-shadow: none;
+}
+
+/* Instagram-inspired Sidebar Styles */
+.sidebar-gradient {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.sidebar-item-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-item-hover:hover {
+  transform: translateX(4px);
+}
+
+.sidebar-active {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  border-left: 3px solid #667eea;
+}
+
+.sidebar-logo-glow {
+  box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
+}
+
+/* Instagram-style gradient text */
+.instagram-gradient {
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Modern card shadows */
+.modern-shadow {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.modern-shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Smooth transitions */
+.smooth-transition {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hover effects */
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
 /* OTP Page Styles */

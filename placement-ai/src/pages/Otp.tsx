@@ -7,17 +7,41 @@ export default function OtpPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const state = (location.state as { email?: string; name?: string } | null) || null
-  const email = state?.email
-  const name = state?.name
+  const searchParams = new URLSearchParams(location.search)
+  
+  // Get email from state, URL params, or fallback
+  const email = state?.email || searchParams.get('email') || ''
+  const name = state?.name || searchParams.get('name') || email.split('@')[0] || ''
+  
+  console.log('📱 OTP Page Debug:', {
+    location: location.pathname,
+    state,
+    searchParams: Object.fromEntries(searchParams.entries()),
+    email,
+    name,
+    hasState: !!state,
+    hasSearchParams: searchParams.has('email')
+  })
+  
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [hasNavigated, setHasNavigated] = useState(false)
   const inputs = useMemo(() => Array.from({ length: 6 }).map(() => createRef<HTMLInputElement>()), [])
   const [resendTimer, setResendTimer] = useState(30)
   const [canResend, setCanResend] = useState(false)
 
   useEffect(() => {
+    console.log('📱 OTP Page mounted with email:', email)
+    if (!email) {
+      console.warn('⚠️ No email found in state or URL, redirecting to login')
+      if (!hasNavigated) {
+        setHasNavigated(true)
+        navigate('/login', { replace: true })
+      }
+      return
+    }
     inputs[0]?.current?.focus()
-  }, [inputs])
+  }, [email, navigate, inputs, hasNavigated])
 
   useEffect(() => {
     if (resendTimer > 0) {
@@ -68,18 +92,73 @@ export default function OtpPage() {
     e.preventDefault()
     setError(null)
     if (!email) return setError('Missing email. Please login again.')
+    if (hasNavigated) return // Prevent multiple submissions
+    if (submitting) return // Prevent multiple submissions
+    
     const code = collectCode()
     if (code.length !== 6) return setError('Enter 6-digit OTP')
+    
     try {
       setSubmitting(true)
       const res = await verifyStudentOtp(email, code) as LoginResponse
+      console.log('🔐 OTP verification response:', res)
+      
       if (res?.token && res?.user?.role === 'student') {
-        saveAuth({ token: res.token, user: { id: res.user.id!, email: res.user.email, name: res.user.name, role: 'student' } })
-        navigate('/student/onboarding', { replace: true })
+        // Save authentication immediately for fast response
+        saveAuth({ 
+          token: res.token, 
+          user: { 
+            id: res.user.id!, 
+            email: res.user.email, 
+            name: res.user.name, 
+            role: 'student' 
+          } 
+        })
+        
+        // Set navigation flag to prevent multiple navigations
+        setHasNavigated(true)
+        
+        // Check if student is already onboarded
+        const isAlreadyOnboarded = localStorage.getItem('student_onboarded') === 'true'
+        
+        if (isAlreadyOnboarded) {
+          console.log('✅ Student already onboarded, redirecting to dashboard')
+          navigate('/student', { replace: true })
+        } else {
+          // Set onboarding status in localStorage to prevent redirect loop
+          localStorage.setItem('student_onboarded', 'false')
+          localStorage.setItem('resume_uploaded', 'false')
+          
+          console.log('✅ OTP verified, redirecting to onboarding')
+          navigate('/student/onboarding', { replace: true })
+        }
+        
+        // Do backend verification in background (non-blocking)
+        setTimeout(async () => {
+          try {
+            // Verify with backend to get fresh data
+            const backendRes = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/auth/verify`, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${res.token}`,
+                'Content-Type': 'application/json'
+              }
+            })
+            
+            if (backendRes.ok) {
+              console.log('✅ Backend verification completed successfully')
+            }
+          } catch (err) {
+            console.log('⚠️ Background backend verification failed, but user is already logged in')
+          }
+        }, 100)
+        
       } else {
-        setError('Invalid OTP')
+        console.error('❌ Invalid OTP response:', res)
+        setError('Invalid OTP or verification failed')
       }
     } catch (err: unknown) {
+      console.error('❌ OTP verification error:', err)
       const msg = err instanceof Error ? err.message : 'Verification failed'
       setError(msg)
     } finally {
@@ -149,8 +228,20 @@ export default function OtpPage() {
                 </div>
               </div>
               <p className="text-center text-sm text-gray-500">Tip: Paste the full code or type — it will auto-advance.</p>
-              <button className="otp-submit-btn" style={{ background: 'linear-gradient(90deg, #f58529, #dd2a7b, #8134af, #515bd4)' }} disabled={submitting}>
-                {submitting ? <span className="submit-loading"><span className="loading-spinner" /> Verifying…</span> : 'Verify & Continue'}
+              <button 
+                className="otp-submit-btn" 
+                style={{ background: 'linear-gradient(90deg, #f58529, #dd2a7b, #8134af, #515bd4)' }} 
+                disabled={submitting || hasNavigated}
+                type="submit"
+              >
+                {submitting ? (
+                  <span className="submit-loading">
+                    <span className="loading-spinner" /> 
+                    Verifying…
+                  </span>
+                ) : (
+                  'Verify & Continue'
+                )}
               </button>
               <div className="otp-resend">
                 <p className="resend-text">Didn't receive the code?</p>

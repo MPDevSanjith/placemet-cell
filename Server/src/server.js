@@ -1,9 +1,8 @@
-const express = require('express')
-const cors = require('cors')
-const helmet = require('helmet')
-const morgan = require('morgan')
-require('dotenv').config()
+import app from './app.js';
+import connectDB from './config/database.js';
+import { initializeEmail } from './email/email.js';
 
+<<<<<<< HEAD
 const app = express()
 const PORT = process.env.PORT || 5000
 
@@ -42,14 +41,16 @@ app.use((err, req, res, next) => {
 
 // 404
 app.use('*', (req, res) => res.status(404).json({ success: false, error: 'Route not found' }))
+=======
+const PORT = process.env.PORT || 5000;
+>>>>>>> 119d8bb2feb1f30304868cdece1789d6b85bf892
 
 // Start server
 const startServer = async () => {
   try {
-    await connectDB()
-    console.log('📧 Initializing Email Service...')
-    initializeEmail()
+    console.log('🚀 Starting server...');
     
+<<<<<<< HEAD
     // Google Drive integration removed
     
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`))
@@ -58,5 +59,25 @@ const startServer = async () => {
     process.exit(1)
   }
 }
+=======
+    // Connect to database
+    await connectDB();
+    console.log('✅ Database connected');
+>>>>>>> 119d8bb2feb1f30304868cdece1789d6b85bf892
 
-startServer()
+    // Initialize email service
+    console.log('📧 Initializing Email Service...');
+    initializeEmail();
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📊 Health check: http://localhost:${PORT}/health`);
+      console.log(`🔗 API Base: http://localhost:${PORT}/api`);
+    });
+  } catch (err) {
+    console.error('❌ Failed to start server:', err);
+    process.exit(1);
+  }
+};
+
+startServer();

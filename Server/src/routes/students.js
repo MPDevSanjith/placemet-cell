@@ -1,47 +1,57 @@
+<<<<<<< HEAD
 const express = require('express')
 const multer = require('multer')
 const router = express.Router()
 const Student = require('../models/Student')
 const { authenticateToken } = require('../middleware/auth')
 // Google Drive integration removed
+=======
+import express from 'express';
+import { authenticateToken } from '../middleware/auth.js';
+import { 
+  onboarding, 
+  onboardingComplete, 
+  getOnboardingStatus,
+  getProfile, 
+  updateProfile, 
+  atsAnalysis,
+  getStudentProfile,
+  getCompletionStatus,
+  updateStudentProfile,
+  updateSkills,
+  updateProjects
+} from '../controllers/studentController.js';
+>>>>>>> 119d8bb2feb1f30304868cdece1789d6b85bf892
 
-// Multer setup for file uploads
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-  fileFilter: (req, file, cb) => {
-    if (
-      file.mimetype === 'application/pdf' ||
-      file.mimetype === 'application/msword' ||
-      file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    ) {
-      cb(null, true)
-    } else {
-      cb(new Error('Only PDF and DOC/DOCX files are allowed'))
-    }
-  }
-})
+const router = express.Router();
 
-// Resume upload route - supports multiple resumes
-router.post('/resume', authenticateToken, upload.single('resume'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ success: false, error: 'No resume file provided' })
-    }
+// Onboarding
+router.post('/onboarding', authenticateToken, onboarding);
+router.post('/onboarding-complete', authenticateToken, onboardingComplete);
+router.get('/onboarding-status', authenticateToken, getOnboardingStatus);
 
-    const timestamp = Date.now()
-    const originalName = req.file.originalname
-    const fileName = `resume_${timestamp}_${originalName}`
+// Profile (legacy endpoints for backward compatibility)
+router.get('/profile', authenticateToken, getProfile);
+router.put('/profile', authenticateToken, updateProfile);
 
+<<<<<<< HEAD
     // Store file locally or mark as uploaded without external storage
     const uploadResult = { success: true, fileId: null, fileUrl: null, id: null, link: null }
+=======
+// Profile (new comprehensive endpoints)
+router.get('/profile/comprehensive', authenticateToken, getStudentProfile);
+router.get('/profile/completion', authenticateToken, getCompletionStatus);
+router.put('/profile/comprehensive', authenticateToken, updateStudentProfile);
 
-    // Get student and add new resume
-    const student = await Student.findById(req.user.id)
-    if (!student) {
-      return res.status(404).json({ success: false, error: 'Student not found' })
-    }
+// Skills and Projects management
+router.put('/profile/skills', authenticateToken, updateSkills);
+router.put('/profile/projects', authenticateToken, updateProjects);
+>>>>>>> 119d8bb2feb1f30304868cdece1789d6b85bf892
 
+// ATS
+router.post('/ats-analysis', authenticateToken, atsAnalysis);
+
+<<<<<<< HEAD
     // Add new resume using the model method
     await student.addResume({
       fileName: fileName,
@@ -363,3 +373,6 @@ router.get('/ats-scores', authenticateToken, async (req, res) => {
 })
 
 module.exports = router
+=======
+export default router;
+>>>>>>> 119d8bb2feb1f30304868cdece1789d6b85bf892

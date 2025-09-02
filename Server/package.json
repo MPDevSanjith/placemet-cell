@@ -2,34 +2,35 @@
   "name": "placement-erp-backend",
   "version": "1.0.0",
   "description": "Clean, well-structured backend for Placement ERP system",
+  "type": "module",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [
-    "placement",
-    "erp",
-    "backend",
-    "nodejs",
-    "express",
-    "mongodb"
-  ],
-  "author": "Your Name",
-  "license": "MIT",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.7.0",
     "cors": "^2.8.5",
     "csv-parser": "^3.2.0",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
+<<<<<<< HEAD
+=======
+    "form-data": "^4.0.4",
+    "googleapis": "^128.0.0",
+>>>>>>> 119d8bb2feb1f30304868cdece1789d6b85bf892
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
+    "mammoth": "^1.10.0",
     "mongoose": "^8.18.0",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
-    "nodemailer": "^7.0.5"
+    "node-fetch": "^3.3.2",
+    "nodemailer": "^7.0.5",
+    "pdf-parse": "^1.1.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
