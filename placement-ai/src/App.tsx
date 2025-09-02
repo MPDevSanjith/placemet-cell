@@ -137,10 +137,7 @@ function AppRoutes() {
       
       {/* OTP verification - Always accessible (part of auth flow) */}
       <Route path="/otp" element={<OtpPage />} />
-      <Route path="/placement-officer" element={loggedIn && officer ? <PlacementOfficerDashboard /> : <Navigate to="/login" replace />} />
-      <Route path="/placement-officer/bulk-upload" element={loggedIn && officer ? <BulkUpload /> : <Navigate to="/login" replace />} />
-      <Route path="/placement-officer/create-officer" element={loggedIn && officer ? <CreateOfficerPage /> : <Navigate to="/login" replace />} />
-      <Route path="/placement-officer/new-job-post" element={loggedIn && officer ? <NewJobPost /> : <Navigate to="/login" replace />} />
+      
       
       {/* Student Routes */}
       <Route path="/student" element={
@@ -183,6 +180,11 @@ function AppRoutes() {
       <Route path="/placement-officer/create-officer" element={
         isAuthenticated && userRole === 'placement_officer'
           ? <CreateOfficerPage />
+          : <Navigate to="/login" replace />
+      } />
+      <Route path="/placement-officer/new-job-post" element={
+        isAuthenticated && userRole === 'placement_officer'
+          ? <NewJobPost />
           : <Navigate to="/login" replace />
       } />
       
