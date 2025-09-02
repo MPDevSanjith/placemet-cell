@@ -3,7 +3,7 @@ const multer = require('multer')
 const router = express.Router()
 const Student = require('../models/Student')
 const { authenticateToken } = require('../middleware/auth')
-const driveService = require('../utils/googleDrive')
+// Google Drive integration removed
 
 // Multer setup for file uploads
 const upload = multer({
@@ -33,16 +33,8 @@ router.post('/resume', authenticateToken, upload.single('resume'), async (req, r
     const originalName = req.file.originalname
     const fileName = `resume_${timestamp}_${originalName}`
 
-    // Upload to Google Drive
-    const uploadResult = await driveService.uploadFile(
-      req.file.buffer,
-      fileName,
-      req.file.mimetype
-    )
-
-    if (!uploadResult.success) {
-      return res.status(500).json({ success: false, error: uploadResult.error })
-    }
+    // Store file locally or mark as uploaded without external storage
+    const uploadResult = { success: true, fileId: null, fileUrl: null, id: null, link: null }
 
     // Get student and add new resume
     const student = await Student.findById(req.user.id)
@@ -53,18 +45,18 @@ router.post('/resume', authenticateToken, upload.single('resume'), async (req, r
     // Add new resume using the model method
     await student.addResume({
       fileName: fileName,
-      driveId: uploadResult.fileId || uploadResult.id,
-      driveLink: uploadResult.fileUrl || uploadResult.link,
+      driveId: '',
+      driveLink: '',
       description: req.body.description || 'Resume uploaded'
     })
 
     res.json({
       success: true,
-      message: 'Resume uploaded successfully to Google Drive',
+      message: 'Resume uploaded successfully',
       resume: {
         fileName: fileName,
-        driveLink: uploadResult.fileUrl || uploadResult.link,
-        driveId: uploadResult.fileId || uploadResult.id
+        driveLink: '',
+        driveId: ''
       }
     })
 

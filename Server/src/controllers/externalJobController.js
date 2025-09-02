@@ -44,6 +44,13 @@ const createExternalJob = async (req, res) => {
 
   } catch (error) {
     console.error('Error creating external job:', error);
+    if (error.code === 11000 && error.keyPattern && error.keyPattern.externalUrl) {
+      return res.status(409).json({
+        success: false,
+        message: 'An external job with this URL already exists',
+        field: 'externalUrl'
+      });
+    }
     
     if (error.name === 'ValidationError') {
       const validationErrors = Object.values(error.errors).map(err => err.message);

@@ -36,6 +36,7 @@ const externalJobSchema = new mongoose.Schema({
   externalUrl: {
     type: String,
     required: [true, 'External URL is required'],
+    unique: true,
     trim: true,
     validate: {
       validator: function(v) {
@@ -106,6 +107,7 @@ externalJobSchema.index({ status: 1, createdAt: -1 });
 externalJobSchema.index({ location: 1 });
 externalJobSchema.index({ jobType: 1 });
 externalJobSchema.index({ tags: 1 });
+externalJobSchema.index({ externalUrl: 1 }, { unique: true });
 
 // Virtual for formatted salary range
 externalJobSchema.virtual('salaryRange').get(function() {

@@ -2,6 +2,37 @@ const Job = require('../models/Job');
 const { createPaginationResponse } = require('../utils/helpers');
 const logger = require('../utils/logger');
 
+// @desc    Create a new internal job posting
+// @route   POST /api/jobs
+// @access  Private (Placement Officer/Admin)
+const createJob = async (req, res) => {
+  try {
+    const { company, title, description, location, jobType, ctc, deadline } = req.body
+
+    if (!company || !title || !description || !location || !jobType) {
+      return res.status(400).json({ success: false, message: 'Missing required fields' })
+    }
+
+    const job = new Job({
+      company,
+      title,
+      description,
+      location,
+      jobType,
+      ctc,
+      deadline,
+      createdBy: req.user?.id || null
+    })
+
+    await job.save()
+
+    res.status(201).json({ success: true, data: job })
+  } catch (error) {
+    logger.error('Create job error:', error)
+    res.status(500).json({ success: false, message: 'Server error while creating job' })
+  }
+}
+
 // @desc    Get all jobs
 // @route   GET /api/jobs
 // @access  Public
@@ -97,6 +128,7 @@ const getJob = async (req, res) => {
 };
 
 module.exports = {
+  createJob,
   getJobs,
   getJob
 };

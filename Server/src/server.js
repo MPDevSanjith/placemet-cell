@@ -10,8 +10,6 @@ const PORT = process.env.PORT || 5000
 // Database
 const connectDB = require('./config/database')
 
-// Google Drive Service
-const driveService = require('./utils/googleDrive')
 
 // Email Service
 const { initializeEmail } = require('./config/email')
@@ -33,6 +31,8 @@ app.use('/api/auth', require('./routes/auth'))
 app.use('/api/students', require('./routes/students'))
 app.use('/api/placement-officer', require('./routes/placementOfficer'))
 app.use('/api/external-jobs', require('./routes/externalJobs'))
+app.use('/api/jobs', require('./routes/jobs'))
+app.use('/api/companies', require('./routes/companies'))
 
 // Error handling
 app.use((err, req, res, next) => {
@@ -50,14 +50,7 @@ const startServer = async () => {
     console.log('📧 Initializing Email Service...')
     initializeEmail()
     
-    console.log('🔑 Initializing Google Drive...')
-    const driveOk = await driveService.initialize()
-    if (!driveOk) {
-      console.error('❌ Google Drive initialization failed.')
-      console.error('💡 Please check GOOGLE_DRIVE_SETUP.md for configuration instructions')
-      console.error('📁 You need to set GDRIVE_SHARED_DRIVE_ID environment variable')
-      process.exit(1)
-    }
+    // Google Drive integration removed
     
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`))
   } catch (err) {

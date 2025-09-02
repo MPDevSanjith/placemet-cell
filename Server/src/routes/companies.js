@@ -3,6 +3,8 @@ const router = express.Router()
 
 // Import MongoDB models
 const Company = require('../models/Company')
+const CompanyRequest = require('../models/CompanyRequest')
+const { protect, authorize } = require('../middleware/auth')
 
 // Get companies list
 router.get('/', async (req, res) => {
@@ -177,4 +179,73 @@ router.delete('/:id', async (req, res) => {
   }
 })
 
+// Company Requests CRUD (used by NewJobPost UI)
+router.get('/requests', async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query
+    const skip = (page - 1) * limit
+
+    const items = await CompanyRequest.find().sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit))
+    const total = await CompanyRequest.countDocuments()
+
+    res.json({
+      success: true,
+      data: items,
+      pagination: { page: parseInt(page), limit: parseInt(limit), total, pages: Math.ceil(total / limit) }
+    })
+  } catch (error) {
+    console.error('Error fetching company requests:', error)
+    res.status(500).json({ success: false, error: 'Internal server error' })
+  }
+})
+
+router.post('/requests', protect, authorize('placement_officer', 'admin'), async (req, res) => {
+  try {
+    const { company, jobRole, description, studentsRequired, minimumCGPA, startDate, endDate } = req.body
+    if (!company || !jobRole || !description) {
+      return res.status(400).json({ success: false, error: 'company, jobRole, description are required' })
+    }
+
+    const request = new CompanyRequest({
+      company,
+      jobRole,
+      description,
+      studentsRequired: Number(studentsRequired) || 1,
+      minimumCGPA: Number(minimumCGPA) || 0,
+      startDate,
+      endDate,
+      createdBy: req.user.id
+    })
+    await request.save()
+    res.status(201).json({ success: true, data: request })
+  } catch (error) {
+    console.error('Error creating company request:', error)
+    res.status(500).json({ success: false, error: 'Internal server error' })
+  }
+})
+
+router.put('/requests/:id', protect, authorize('placement_officer', 'admin'), async (req, res) => {
+  try {
+    const updated = await CompanyRequest.findByIdAndUpdate(req.params.id, req.body, { new: true })
+    if (!updated) return res.status(404).json({ success: false, error: 'Request not found' })
+    res.json({ success: true, data: updated })
+  } catch (error) {
+    console.error('Error updating company request:', error)
+    res.status(500).json({ success: false, error: 'Internal server error' })
+  }
+})
+
+router.delete('/requests/:id', protect, authorize('placement_officer', 'admin'), async (req, res) => {
+  try {
+    const found = await CompanyRequest.findById(req.params.id)
+    if (!found) return res.status(404).json({ success: false, error: 'Request not found' })
+    await CompanyRequest.findByIdAndDelete(req.params.id)
+    res.json({ success: true, message: 'Request deleted' })
+  } catch (error) {
+    console.error('Error deleting company request:', error)
+    res.status(500).json({ success: false, error: 'Internal server error' })
+  }
+})
+
 module.exports = router
+ 

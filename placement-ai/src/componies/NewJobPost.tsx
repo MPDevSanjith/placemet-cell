@@ -90,6 +90,8 @@ const NewJobPost: React.FC = () => {
 
   // State for external jobs from backend
   const [externalJobs, setExternalJobs] = useState<any[]>([]);
+  const [jobPostings, setJobPostings] = useState<any[]>([]);
+  const [companyRequests, setCompanyRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
 
   // const toggleProfile = (): void => {
@@ -168,7 +170,7 @@ const NewJobPost: React.FC = () => {
   // API call to create external job
   const handleAddExternalJob = async (): Promise<void> => {
     try {
-      const response = await fetch('http://localhost:5000/api/external-jobs', {
+      const response = await fetch('http://localhost:5000/api/external-jobs/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -214,10 +216,14 @@ const NewJobPost: React.FC = () => {
     }
   };
 
-  // Fetch external jobs when component mounts or when External Jobs tab is active
+  // Fetch lists when tabs change
   useEffect(() => {
     if (activeTab === 'External Jobs') {
       fetchExternalJobs();
+    } else if (activeTab === 'Job Postings') {
+      fetchJobPostings();
+    } else if (activeTab === 'Company Requests') {
+      fetchCompanyRequests();
     }
   }, [activeTab]);
 
@@ -227,12 +233,128 @@ const NewJobPost: React.FC = () => {
       [field]: value
     }));
   };
+  
+  // Create internal job posting
+  const handleCreateJobPosting = async (): Promise<void> => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('You must be logged in as placement officer/admin to create a job.');
+        return;
+      }
+      const payload = {
+        company: newJobPostingForm.company,
+        title: newJobPostingForm.jobTitle,
+        description: newJobPostingForm.description,
+        location: newJobPostingForm.location,
+        jobType: newJobPostingForm.jobType,
+        ctc: newJobPostingForm.ctc,
+        deadline: newJobPostingForm.deadline
+      };
+      const res = await fetch('http://localhost:5000/api/jobs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        closeNewJobPostingModal();
+        fetchJobPostings();
+      } else {
+        console.error('Failed to create job posting:', data);
+        alert(`Create job failed (${res.status}): ${data?.message || data?.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      console.error('Error creating job posting:', err);
+      alert('Network error while creating job posting. Check console for details.');
+    }
+  };
 
   const handleCompanyRequestFormChange = (field: keyof CompanyRequest, value: string): void => {
     setCompanyRequestForm(prev => ({
       ...prev,
       [field]: value
     }));
+  };
+
+  // Create company request
+  const handleCreateCompanyRequest = async (): Promise<void> => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('You must be logged in as placement officer/admin to create a request.');
+        return;
+      }
+      const payload = {
+        company: companyRequestForm.company,
+        jobRole: companyRequestForm.jobRole,
+        description: companyRequestForm.description,
+        studentsRequired: Number(companyRequestForm.studentsRequired),
+        minimumCGPA: Number(companyRequestForm.minimumCGPA),
+        startDate: companyRequestForm.startDate,
+        endDate: companyRequestForm.endDate
+      };
+      const res = await fetch('http://localhost:5000/api/companies/requests', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        closeCompanyRequestModal();
+        fetchCompanyRequests();
+      } else {
+        console.error('Failed to create company request:', data);
+        alert(`Create request failed (${res.status}): ${data?.message || data?.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      console.error('Error creating company request:', err);
+      alert('Network error while creating company request. Check console for details.');
+    }
+  };
+
+  // Fetch job postings
+  const fetchJobPostings = async (): Promise<void> => {
+    try {
+      setLoading(true);
+      const res = await fetch('http://localhost:5000/api/jobs?limit=10');
+      const data = await res.json();
+      if (data.success) {
+        const items = Array.isArray(data.data?.items) ? data.data.items : (Array.isArray(data.data) ? data.data : []);
+        setJobPostings(items);
+      } else {
+        console.error('Failed to fetch job postings:', data.message || data.error);
+      }
+    } catch (err) {
+      console.error('Error fetching job postings:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch company requests
+  const fetchCompanyRequests = async (): Promise<void> => {
+    try {
+      setLoading(true);
+      const res = await fetch('http://localhost:5000/api/companies/requests?limit=10');
+      const data = await res.json();
+      if (data.success) {
+        const items = Array.isArray(data.data) ? data.data : (Array.isArray(data.requests) ? data.requests : []);
+        setCompanyRequests(items);
+      } else {
+        console.error('Failed to fetch company requests:', data.message || data.error);
+      }
+    } catch (err) {
+      console.error('Error fetching company requests:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
 
@@ -244,68 +366,64 @@ const NewJobPost: React.FC = () => {
     { id: 'analytics', label: 'Analytics' }
   ];
 
-  const sampleRequest: JobRequest = {
-    id: '1',
-    title: 'Software Engineer',
-    company: 'Tech Corp',
-    status: 'Open',
-    studentCount: 5
-  };
+  
 
   return (
-    <div className="h-screen w-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 overflow-hidden">
+    <div className="h-screen w-full bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 overflow-hidden">
       {/* Header */}
       
 
       {/* Main Content */}
-      <div className="w-full h-[calc(100vh-4rem)] overflow-y-auto">
-        <div className="w-full max-w-7xl mx-auto px-6 py-6">
-          {/* Title Section */}
-          <div className="mb-6 text-center">
-            <h1 className="text-4xl font-bold text-blue-800 mb-2">Company Management</h1>
-            <p className="text-lg text-blue-600">Manage job requests, postings, and external job tracking.</p>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-wrap gap-4 mb-6 justify-center">
-            <button 
-              className="flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white rounded-lg hover:from-pink-600 hover:via-orange-600 hover:to-yellow-600 transition-all duration-200 shadow-lg hover:shadow-xl"
-              onClick={openAddExternalJobModal}
-            >
-              <Globe className="h-5 w-5 mr-2" />
-              Add External Job
-            </button>
-                         <button 
-               className="flex items-center px-6 py-3 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 text-white rounded-lg hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 transition-all duration-200 shadow-lg hover:shadow-xl"
-               onClick={openNewJobPostingModal}
-             >
-               <Plus className="h-5 w-5 mr-2" />
-               New Job Posting
-             </button>
-                         <button 
-               className="flex items-center px-6 py-3   text-white rounded-lg bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500  hover:from-pink-600 hover:via-orange-600 hover:to-yellow-600 transition-all duration-200 shadow-lg hover:shadow-xl"
-               onClick={openCompanyRequestModal}
-             >
-               <Plus className="h-5 w-5 mr-2" />
-               New Request
-             </button>
+      <div className="w-full h-[calc(100vh-4rem)] overflow-y-hidden">
+        <div className="w-full max-w-none px-2 sm:px-6 py-6">
+          {/* Title + Actions */}
+          <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-blue-800 leading-tight">Company Management</h1>
+              <p className="text-sm sm:text-base md:text-lg text-blue-600">Manage job requests, postings, and external job tracking.</p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 flex-shrink-0 sm:flex-wrap w-full sm:w-auto">
+              <button 
+                className="flex items-center justify-center px-5 py-3 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white rounded-lg hover:from-pink-600 hover:via-orange-600 hover:to-yellow-600 transition-all duration-200 shadow-lg hover:shadow-xl w-full sm:w-auto"
+                onClick={openAddExternalJobModal}
+              >
+                <Globe className="h-5 w-5 mr-2" />
+                Add External Job
+              </button>
+              <button 
+                className="flex items-center justify-center px-5 py-3 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 text-white rounded-lg hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 transition-all duration-200 shadow-lg hover:shadow-xl w-full sm:w-auto"
+                onClick={openNewJobPostingModal}
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                New Job Posting
+              </button>
+              <button 
+                className="flex items-center justify-center px-5 py-3 text-white rounded-lg bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500  hover:from-pink-600 hover:via-orange-600 hover:to-yellow-600 transition-all duration-200 shadow-lg hover:shadow-xl w-full sm:w-auto"
+                onClick={openCompanyRequestModal}
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                New Request
+              </button>
+            </div>
           </div>
 
           {/* Tabs */}
-          <div className="flex space-x-1 mb-6 bg-white rounded-lg p-1 shadow-lg">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.label)}
-                className={`flex-1 px-4 py-3 text-sm font-medium rounded-md transition-all duration-200 ${
-                  activeTab === tab.label
-                    ? 'bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white shadow-lg'
-                    : 'text-blue-600 hover:bg-blue-50 hover:text-blue-700'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div className="mb-6 bg-white rounded-lg p-2 shadow-lg">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabChange(tab.label)}
+                  className={`px-4 py-3 text-sm font-medium rounded-md transition-all duration-200 w-full ${
+                    activeTab === tab.label
+                      ? 'bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white shadow-lg'
+                      : 'text-blue-600 hover:bg-blue-50 hover:text-blue-700'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Content Cards */}
@@ -317,23 +435,28 @@ const NewJobPost: React.FC = () => {
                   <FileText className="h-6 w-6 text-blue-500 mr-2" />
                   <h3 className="text-xl font-semibold text-blue-800">Active Requests</h3>
                 </div>
-                <p className="text-blue-600 mb-4">1 open requests</p>
+                <p className="text-blue-600 mb-4">{companyRequests.length} open requests</p>
                 
-                <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border border-blue-200">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center">
-                      <Zap className="h-4 w-4 text-yellow-500 mr-2" />
-                      <span className="font-medium text-blue-800">{sampleRequest.title}</span>
+                <div className="space-y-3">
+                  {companyRequests.map((req) => (
+                    <div key={req._id} className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border border-blue-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center">
+                          <Zap className="h-4 w-4 text-yellow-500 mr-2" />
+                          <span className="font-medium text-blue-800">{req.jobRole}</span>
+                        </div>
+                        <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">{req.status || 'Open'}</span>
+                      </div>
+                      <p className="text-blue-600 text-sm mb-2">{req.company}</p>
+                      <div className="flex items-center text-blue-600 text-sm">
+                        <Users className="h-4 w-4 mr-1" />
+                        {req.studentsRequired || 0} students
+                      </div>
                     </div>
-                    <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
-                      {sampleRequest.status}
-                    </span>
-                  </div>
-                  <p className="text-blue-600 text-sm mb-2">{sampleRequest.company}</p>
-                  <div className="flex items-center text-blue-600 text-sm">
-                    <Users className="h-4 w-4 mr-1" />
-                    {sampleRequest.studentCount} students
-                  </div>
+                  ))}
+                  {companyRequests.length === 0 && (
+                    <div className="text-blue-400 text-sm">No requests yet.</div>
+                  )}
                 </div>
               </div>
 
@@ -374,98 +497,46 @@ const NewJobPost: React.FC = () => {
                 <FileText className="h-8 w-8 text-blue-600 mr-3" />
                 <div>
                   <h2 className="text-3xl font-bold text-blue-800">Active Job Postings</h2>
-                  <p className="text-lg text-blue-600">2 active job postings</p>
+                  <p className="text-lg text-blue-600">{jobPostings.length} active job postings</p>
                 </div>
               </div>
 
               {/* Job Posting Cards */}
               <div className="space-y-4">
-                {/* Software Engineer Card */}
-                <div className="bg-white rounded-xl shadow-lg border border-blue-100 p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center mb-3">
-                        <h3 className="text-2xl font-bold text-blue-800 mr-3">Software Engineer</h3>
-                        <span className="px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-full">Full-time</span>
+                {jobPostings.map((job) => (
+                  <div key={job._id} className="bg-white rounded-xl shadow-lg border border-blue-100 p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center mb-3">
+                          <h3 className="text-2xl font-bold text-blue-800 mr-3">{job.title}</h3>
+                          <span className="px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-full">{job.jobType}</span>
+                        </div>
+                        <p className="text-blue-600 text-lg mb-4">{job.description}</p>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div className="flex items-center text-blue-700">
+                            <Users className="h-4 w-4 mr-2" />
+                            <span>{job.company}</span>
+                          </div>
+                          <div className="flex items-center text-blue-700">
+                            <Globe className="h-4 w-4 mr-2" />
+                            <span>{job.location}</span>
+                          </div>
+                          <div className="flex items-center text-blue-700">
+                            <FileText className="h-4 w-4 mr-2" />
+                            <span>Deadline: {job.deadline || 'N/A'}</span>
+                          </div>
+                          <div className="flex items-center text-blue-700">
+                            <User className="h-4 w-4 mr-2" />
+                            <span>{job.ctc || '-'}</span>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-blue-600 text-lg mb-4">Full-stack developer position</p>
-                      
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div className="flex items-center text-blue-700">
-                          <Users className="h-4 w-4 mr-2" />
-                          <span>Tech Corp</span>
-                        </div>
-                        <div className="flex items-center text-blue-700">
-                          <Globe className="h-4 w-4 mr-2" />
-                          <span>Bangalore</span>
-                        </div>
-                        <div className="flex items-center text-blue-700">
-                          <FileText className="h-4 w-4 mr-2" />
-                          <span>Deadline: 30/4/2024</span>
-                        </div>
-                        <div className="flex items-center text-blue-700">
-                          <User className="h-4 w-4 mr-2" />
-                          <span>₹8,00,000</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-col space-y-2 ml-6">
-                      <button className="flex items-center px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors duration-200">
-                        <User className="h-4 w-4 mr-2" />
-                        View
-                      </button>
-                      <button className="flex items-center px-4 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors duration-200">
-                        <FileText className="h-4 w-4 mr-2" />
-                        Edit
-                      </button>
                     </div>
                   </div>
-                </div>
-
-                {/* Data Science Intern Card */}
-                <div className="bg-white rounded-xl shadow-lg border border-blue-100 p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center mb-3">
-                        <h3 className="text-2xl font-bold text-blue-800 mr-3">Data Science Intern</h3>
-                        <span className="px-3 py-1 bg-purple-500 text-white text-sm font-medium rounded-full mr-2">Internship</span>
-                        <span className="px-3 py-1 bg-yellow-500 text-white text-sm font-medium rounded-full">External</span>
-                      </div>
-                      <p className="text-blue-600 text-lg mb-4">Machine learning internship</p>
-                      
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div className="flex items-center text-blue-700">
-                          <Users className="h-4 w-4 mr-2" />
-                          <span>Innovation Labs</span>
-                        </div>
-                        <div className="flex items-center text-blue-700">
-                          <Globe className="h-4 w-4 mr-2" />
-                          <span>Remote</span>
-                        </div>
-                        <div className="flex items-center text-blue-700">
-                          <FileText className="h-4 w-4 mr-2" />
-                          <span>Deadline: 15/5/2024</span>
-                        </div>
-                        <div className="flex items-center text-blue-700">
-                          <User className="h-4 w-4 mr-2" />
-                          <span>₹25,000</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-col space-y-2 ml-6">
-                      <button className="flex items-center px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors duration-200">
-                        <User className="h-4 w-4 mr-2" />
-                        View
-                      </button>
-                      <button className="flex items-center px-4 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors duration-200">
-                        <FileText className="h-4 w-4 mr-2" />
-                        Edit
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                ))}
+                {jobPostings.length === 0 && (
+                  <div className="text-blue-400 text-sm">No job postings yet.</div>
+                )}
               </div>
             </div>
           )}
@@ -599,8 +670,8 @@ const NewJobPost: React.FC = () => {
 
             {/* Add External Job Modal */}
       {isAddExternalJobModalOpen && (
-        <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 backdrop-blur-sm z-50">
-          <div className="bg-white rounded-xl shadow-lg w-1/2 p-6">            {/* Header */}
+        <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 px-4">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-2xl p-6">            {/* Header */}
             <div className="flex justify-between items-start mb-4">
               <h2 className="text-lg font-semibold">Add External Job</h2>
               <button
@@ -618,7 +689,7 @@ const NewJobPost: React.FC = () => {
 </div>
             {/* Form */}
             <div className="space-y-4">
-              <div className="flex gap-3">
+              <div className="flex flex-col md:flex-row gap-3">
                 <input
                   type="text"
                   placeholder="e.g., Google, Microsoft"
@@ -643,7 +714,7 @@ const NewJobPost: React.FC = () => {
                 className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
               />
 
-              <div className="flex gap-3">
+              <div className="flex flex-col md:flex-row gap-3">
                 <input
                   type="text"
                   placeholder="e.g., Remote, Bangalore"
@@ -654,7 +725,7 @@ const NewJobPost: React.FC = () => {
                 <select
                   value={externalJobForm.jobType}
                   onChange={(e) => handleExternalJobFormChange('jobType', e.target.value)}
-                  className="w-32 border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
+                  className="w-full md:w-32 border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
                 >
                   <option>Full-time</option>
                   <option>Part-time</option>
@@ -687,8 +758,8 @@ const NewJobPost: React.FC = () => {
 
        {/* New Job Posting Modal */}
        {isNewJobPostingModalOpen && (
-         <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 backdrop-blur-sm z-50">
-           <div className="bg-white rounded-xl shadow-lg w-1/2 p-6">
+         <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 px-4">
+           <div className="bg-white rounded-xl shadow-lg w-full max-w-2xl p-6">
              {/* Header */}
              <div className="flex justify-between items-start mb-4">
                <h2 className="text-lg font-semibold">Create Job Posting</h2>
@@ -708,7 +779,7 @@ const NewJobPost: React.FC = () => {
 
              {/* Form */}
              <div className="space-y-4">
-               <div className="flex gap-3">
+               <div className="flex flex-col md:flex-row gap-3">
                  <select
                    value={newJobPostingForm.company}
                    onChange={(e) => handleNewJobPostingFormChange('company', e.target.value)}
@@ -738,7 +809,7 @@ const NewJobPost: React.FC = () => {
                  className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
                />
 
-               <div className="flex gap-3">
+               <div className="flex flex-col md:flex-row gap-3">
                  <input
                    type="text"
                    placeholder="e.g., Bangalore, Remote"
@@ -749,7 +820,7 @@ const NewJobPost: React.FC = () => {
                  <select
                    value={newJobPostingForm.jobType}
                    onChange={(e) => handleNewJobPostingFormChange('jobType', e.target.value)}
-                   className="w-32 border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
+                   className="w-full md:w-32 border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
                  >
                    <option>Full-time</option>
                    <option>Part-time</option>
@@ -758,7 +829,7 @@ const NewJobPost: React.FC = () => {
                  </select>
                </div>
 
-               <div className="flex gap-3">
+               <div className="flex flex-col md:flex-row gap-3">
                  <input
                    type="text"
                    placeholder="0"
@@ -779,10 +850,7 @@ const NewJobPost: React.FC = () => {
              {/* Footer */}
              <div className="mt-6 flex justify-end">
                <button
-                 onClick={() => {
-                   console.log({ company: newJobPostingForm.company, jobTitle: newJobPostingForm.jobTitle, description: newJobPostingForm.description, location: newJobPostingForm.location, jobType: newJobPostingForm.jobType, ctc: newJobPostingForm.ctc, deadline: newJobPostingForm.deadline });
-                   closeNewJobPostingModal();
-                 }}
+                 onClick={handleCreateJobPosting}
                  className="bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700"
                >
                  Create Job Posting
@@ -794,8 +862,8 @@ const NewJobPost: React.FC = () => {
 
        {/* Company Request Modal */}
        {isCompanyRequestModalOpen && (
-         <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 backdrop-blur-sm z-50">
-           <div className="bg-white rounded-xl shadow-lg w-1/2 p-6">
+         <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 px-4">
+           <div className="bg-white rounded-xl shadow-lg w-full max-w-2xl p-6">
              {/* Header */}
              <div className="flex justify-between items-start mb-4">
                <h2 className="text-lg font-semibold">Create Company Request</h2>
@@ -815,7 +883,7 @@ const NewJobPost: React.FC = () => {
 
              {/* Form */}
              <div className="space-y-4">
-               <div className="flex gap-3">
+               <div className="flex flex-col md:flex-row gap-3">
                  <select
                    value={companyRequestForm.company}
                    onChange={(e) => handleCompanyRequestFormChange('company', e.target.value)}
@@ -845,7 +913,7 @@ const NewJobPost: React.FC = () => {
                  className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
                />
 
-               <div className="flex gap-3">
+               <div className="flex flex-col md:flex-row gap-3">
                  <input
                    type="number"
                    placeholder="1"
@@ -862,7 +930,7 @@ const NewJobPost: React.FC = () => {
                  />
                </div>
 
-               <div className="flex gap-3">
+               <div className="flex flex-col md:flex-row gap-3">
                  <input
                    type="text"
                    placeholder="dd-mm-yyyy"
@@ -883,10 +951,7 @@ const NewJobPost: React.FC = () => {
              {/* Footer */}
              <div className="mt-6 flex justify-end">
                <button
-                 onClick={() => {
-                   console.log({ company: companyRequestForm.company, jobRole: companyRequestForm.jobRole, description: companyRequestForm.description, studentsRequired: companyRequestForm.studentsRequired, minimumCGPA: companyRequestForm.minimumCGPA, startDate: companyRequestForm.startDate, endDate: companyRequestForm.endDate });
-                   closeCompanyRequestModal();
-                 }}
+                 onClick={handleCreateCompanyRequest}
                  className="bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700"
                >
                  Create Request

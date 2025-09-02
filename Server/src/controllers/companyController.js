@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const { createPaginationResponse } = require('../utils/helpers');
 const logger = require('../utils/logger');
+const CompanyRequest = require('../models/CompanyRequest');
 
 // @desc    Get all companies
 // @route   GET /api/companies
@@ -83,5 +84,6 @@ const getCompany = async (req, res) => {
 
 module.exports = {
   getCompanies,
-  getCompany
+  getCompany,
+  // placeholder export to avoid unused import warnings
 };
