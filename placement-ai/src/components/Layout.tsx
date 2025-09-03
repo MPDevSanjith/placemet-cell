@@ -9,7 +9,7 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, title, subtitle }: LayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => typeof window !== 'undefined' ? window.innerWidth >= 1024 : true);
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
 
@@ -19,9 +19,7 @@ export default function Layout({ children, title, subtitle }: LayoutProps) {
       <Sidebar isOpen={sidebarOpen} onToggle={toggleSidebar} />
 
       {/* Main content area */}
-      <div
-        className="flex flex-col flex-1 min-w-0 transition-all duration-300"
-      >
+      <div className="flex flex-col flex-1 min-w-0 transition-all duration-300">
         {/* Navbar */}
         <Navbar
           onSidebarToggle={toggleSidebar}
@@ -32,7 +30,7 @@ export default function Layout({ children, title, subtitle }: LayoutProps) {
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto bg-gray-50">
-          <div className="h-full p-6">{children}</div>
+          <div className="h-full p-3 md:p-6">{children}</div>
         </main>
       </div>
     </div>

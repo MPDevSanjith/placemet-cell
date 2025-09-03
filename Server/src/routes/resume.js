@@ -265,10 +265,18 @@ router.post('/analyze-ats', authenticateToken, authorizeStudent, async (req, res
     const resumeDoc = await Resume.findById(resumeId);
     if (!resumeDoc) return res.status(404).json({ success: false, error: 'Resume not found' });
 
-    // Download raw file buffer from Cloudinary
-    const fileUrl = cloudinaryService.generateRawDownloadUrl(resumeDoc.cloudinaryId);
+    // Download file buffer from Cloudinary using a signed URL to avoid access issues
+    if (!resumeDoc.cloudinaryId) {
+      return res.status(400).json({ success: false, error: 'Resume missing Cloudinary id' });
+    }
+    const fileUrl = await cloudinaryService.generateAutoDownloadUrl(
+      resumeDoc.cloudinaryId,
+      { signed: true, ttlSeconds: 900, attachment: resumeDoc.fileName || 'resume.pdf' }
+    );
     const dl = await fetch(fileUrl);
-    if (!dl.ok) return res.status(400).json({ success: false, error: 'Failed to fetch resume content' });
+    if (!dl.ok) {
+      return res.status(400).json({ success: false, error: `Failed to fetch resume content (${dl.status} ${dl.statusText})` });
+    }
     const fileBuffer = Buffer.from(await dl.arrayBuffer());
 
     // Run ATS analysis (Gemini-backed with fallback)
@@ -404,10 +412,10 @@ router.post('/upload', authenticateToken, authorizeStudent, upload.single('resum
 
     // Optionally attach to Student
     try {
-      await Student.findByIdAndUpdate(studentId, {
-        $addToSet: { resumes: resumeDoc._id },
-        $set: { 'activeResume.resumeId': resumeDoc._id, 'activeResume.lastUpdated': new Date() }
-      });
+    await Student.findByIdAndUpdate(studentId, {
+      $addToSet: { resumes: resumeDoc._id },
+      $set: { 'activeResume.resumeId': resumeDoc._id, 'activeResume.lastUpdated': new Date() }
+    });
     } catch {}
 
     // Map to frontend expected shape

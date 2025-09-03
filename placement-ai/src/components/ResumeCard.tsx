@@ -18,6 +18,8 @@ interface ResumeCardProps {
 const ResumeCard: React.FC<ResumeCardProps> = ({ resume, onResumeUpdate, token }) => {
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [isViewerOpen, setIsViewerOpen] = useState(false)
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null)
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -101,8 +103,8 @@ const ResumeCard: React.FC<ResumeCardProps> = ({ resume, onResumeUpdate, token }
                 <span className="text-blue-600 text-lg">📄</span>
               </div>
               <div className="flex-1">
-                <h4 className="font-medium text-gray-900">{resume.originalName}</h4>
-                <p className="text-sm text-gray-500">Uploaded as: {resume.filename}</p>
+                <h4 className="font-medium text-gray-900" title={resume.originalName}>{resume.filename || resume.originalName}</h4>
+                <p className="text-sm text-gray-500">Original: {resume.originalName}</p>
               </div>
             </div>
           </div>
@@ -125,16 +127,20 @@ const ResumeCard: React.FC<ResumeCardProps> = ({ resume, onResumeUpdate, token }
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-3">
-                    {resume.cloudinaryUrl && resume.cloudinaryUrl !== '#' ? (
-          <a
-            href={resume.cloudinaryUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+            {resume.cloudinaryUrl && resume.cloudinaryUrl !== '#' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const url = (resume as any).viewUrl || (resume as any).viewerUrl || resume.cloudinaryUrl
+                  setViewerUrl(url)
+                  setIsViewerOpen(true)
+                }}
                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-xl transition-colors duration-200 flex items-center justify-center space-x-2"
+                title={resume.filename || 'View resume'}
               >
                 <span>👁️</span>
-                <span>View Resume</span>
-              </a>
+                <span>View</span>
+              </button>
             ) : (
               <button
                 className="flex-1 bg-gray-400 cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl flex items-center justify-center space-x-2"
@@ -144,6 +150,20 @@ const ResumeCard: React.FC<ResumeCardProps> = ({ resume, onResumeUpdate, token }
                 <span>👁️</span>
                 <span>File Not Available</span>
               </button>
+            )}
+
+            {resume.cloudinaryUrl && (
+              <a
+                href={resume.cloudinaryUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                download={resume.filename || 'resume.pdf'}
+                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-4 rounded-xl transition-colors duration-200 flex items-center justify-center space-x-2"
+                title={resume.filename || 'Download resume'}
+              >
+                <span>⬇️</span>
+                <span>Download</span>
+              </a>
             )}
             
             <label className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-xl transition-colors duration-200 flex items-center justify-center space-x-2 cursor-pointer">
@@ -193,6 +213,45 @@ const ResumeCard: React.FC<ResumeCardProps> = ({ resume, onResumeUpdate, token }
               className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-300"
               style={{ width: `${uploadProgress}%` }}
             ></div>
+          </div>
+        </div>
+      )}
+
+      {/* Inline Viewer Modal */}
+      {isViewerOpen && viewerUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="w-[95vw] h-[90vh] bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <div className="font-medium text-gray-900 truncate pr-4">{resume?.filename || 'Resume'}</div>
+              <div className="flex items-center gap-2">
+                {resume?.cloudinaryUrl && (
+                  <a
+                    href={resume.cloudinaryUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download={resume.filename || 'resume.pdf'}
+                    className="px-3 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-md"
+                  >
+                    Download
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => { setIsViewerOpen(false); setViewerUrl(null); }}
+                  className="px-3 py-1.5 text-sm bg-gray-200 hover:bg-gray-300 rounded-md"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 bg-gray-50">
+              <iframe
+                title="Resume Viewer"
+                src={viewerUrl}
+                className="w-full h-full"
+                allow="fullscreen"
+              />
+            </div>
           </div>
         </div>
       )}
