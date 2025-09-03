@@ -1,17 +1,8 @@
-<<<<<<< HEAD
-module.exports = {
-  info: (...args) => console.log('[INFO]', ...args),
-  error: (...args) => console.error('[ERROR]', ...args),
-  warn: (...args) => console.warn('[WARN]', ...args),
-}
-
-
-=======
 // ==========================
 // utils/logger.js
 // ==========================
 
-// Simple logger utility
+// Simple logger utility (ESM)
 const logger = {
   info: (message, ...args) => {
     console.log(`ℹ️ ${new Date().toISOString()} - ${message}`, ...args);
@@ -37,4 +28,3 @@ const logger = {
 };
 
 export default logger;
->>>>>>> 119d8bb2feb1f30304868cdece1789d6b85bf892

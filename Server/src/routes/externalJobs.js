@@ -1,6 +1,5 @@
-const express = require('express');
-const router = express.Router();
-const {
+import express from 'express';
+import {
   createExternalJob,
   getAllExternalJobs,
   getExternalJobById,
@@ -9,9 +8,9 @@ const {
   updateJobStatus,
   getExternalJobsStats,
   bulkUpdateExpiredJobs
-} = require('../controllers/externalJobController');
-
-const { protect, authorize } = require('../middleware/auth');
+} from '../controllers/externalJobController.js';
+import authModule from '../middleware/auth.js';
+const { protect, authorize } = authModule;
 
 // Public routes
 router.get('/', getAllExternalJobs);
@@ -32,4 +31,4 @@ router.get('/stats/overview', authorize('placement_officer', 'admin'), getExtern
 // Admin only routes
 router.post('/bulk-update-expired', authorize('admin'), bulkUpdateExpiredJobs);
 
-module.exports = router;
+export default router;

@@ -1,6 +1,6 @@
-const Job = require('../models/Job');
-const { createPaginationResponse } = require('../utils/helpers');
-const logger = require('../utils/logger');
+import Job from '../models/Job.js';
+import { createPaginationResponse } from '../utils/helpers.js';
+import logger from '../utils/logger.js';
 
 // @desc    Create a new internal job posting
 // @route   POST /api/jobs
@@ -127,8 +127,4 @@ const getJob = async (req, res) => {
   }
 };
 
-module.exports = {
-  createJob,
-  getJobs,
-  getJob
-};
+export { createJob, getJobs, getJob };

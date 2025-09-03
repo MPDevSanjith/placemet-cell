@@ -1,11 +1,11 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose')
 
 const connectDB = async () => {
   try {
     // Use MongoDB URI from environment variables with fallback
     const mongoURI = process.env.MONGODB_URI;
     
-    const conn = await mongoose.connect(mongoURI);
+    const conn = await mongoose.connect(mongoURI)
 
     console.log('✅ MongoDB Connected:', conn.connection.host);
   } catch (error) {
@@ -16,6 +16,6 @@ const connectDB = async () => {
     console.log('3. Update MONGODB_URI in your .env file');
     process.exit(1);
   }
-};
+}
 
-export default connectDB;
+module.exports = connectDB

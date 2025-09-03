@@ -1,10 +1,11 @@
-const express = require('express')
+import express from 'express'
 const router = express.Router()
 
 // Import MongoDB models
-const Company = require('../models/Company')
-const CompanyRequest = require('../models/CompanyRequest')
-const { protect, authorize } = require('../middleware/auth')
+import Company from '../models/Company.js'
+import CompanyRequest from '../models/CompanyRequest.js'
+import authModule from '../middleware/auth.js'
+const { protect, authorize } = authModule
 
 // Get companies list
 router.get('/', async (req, res) => {
@@ -247,5 +248,5 @@ router.delete('/requests/:id', protect, authorize('placement_officer', 'admin'),
   }
 })
 
-module.exports = router
+export default router
  

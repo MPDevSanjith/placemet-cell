@@ -18,13 +18,13 @@ interface Tab {
   label: string;
 }
 
-interface JobRequest {
-  id: string;
-  title: string;
-  company: string;
-  status: 'Open' | 'Closed' | 'Pending';
-  studentCount: number;
-}
+// interface JobRequest {
+//   id: string;
+//   title: string;
+//   company: string;
+//   status: 'Open' | 'Closed' | 'Pending';
+//   studentCount: number;
+// }
 
 interface ExternalJob {
   companyName: string;
