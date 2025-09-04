@@ -7,7 +7,7 @@ import OtpPage from './pages/Otp'
 import PlacementOfficerDashboard from './pages/placement-officer/Dashboard'
 import BulkUpload from './pages/placement-officer/BulkUpload'
 import CreateOfficerPage from './pages/placement-officer/CreateOfficer'
-import NewJobPost from './componies/NewJobPost'
+import ComponiesPage from './pages/placement-officer/Componies'
 import StudentDashboard from './pages/student/Dashboard'
 import StudentOnboarding from './pages/student/Onboarding'
 import StudentAtsResults from './pages/student/AtsResults'
@@ -184,7 +184,7 @@ function AppRoutes() {
       } />
       <Route path="/placement-officer/new-job-post" element={
         isAuthenticated && userRole === 'placement_officer'
-          ? <NewJobPost />
+          ? <ComponiesPage />
           : <Navigate to="/login" replace />
       } />
       

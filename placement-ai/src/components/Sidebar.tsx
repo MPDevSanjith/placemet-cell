@@ -50,6 +50,14 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
           description: "Add New Officers",
           color: "from-purple-500 to-pink-500",
           bgColor: "from-purple-50 to-pink-50"
+        },
+        {
+          name: "Componies",
+          icon: FiUsers,
+          path: "/placement-officer/new-job-post",
+          description: "Post New Jobs",
+          color: "from-orange-500 to-red-500",
+          bgColor: "from-orange-50 to-red-50"
         }
       ];
     } else {
