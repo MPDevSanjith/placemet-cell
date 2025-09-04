@@ -5,12 +5,15 @@ import './index.css'
 import Login from './pages/Login'
 import OtpPage from './pages/Otp'
 import PlacementOfficerDashboard from './pages/placement-officer/Dashboard'
+import OfficerStudents from './pages/placement-officer/OfficerStudents'
 import BulkUpload from './pages/placement-officer/BulkUpload'
+import BiodataUpload from './pages/placement-officer/BiodataUpload'
 import CreateOfficerPage from './pages/placement-officer/CreateOfficer'
 import StudentDashboard from './pages/student/Dashboard'
 import StudentOnboarding from './pages/student/Onboarding'
 import StudentAtsResults from './pages/student/AtsResults'
 import ProfilePage from './pages/student/ProfilePage'
+import PlacementAnalytics from './pages/placement-officer/Analytics'
 import { useAuth } from './hooks/useAuth'
 import { getCompletionStatus } from './global/api'
 import { getAuth } from './global/auth'
@@ -82,12 +85,28 @@ function AppRoutes() {
     checkStudentStatus()
   }, [auth, userRole, hasNavigated])
 
-  // Prevent multiple navigations
+  // Prevent multiple navigations - but allow re-authentication
   useEffect(() => {
     if (isAuthenticated && userRole && !hasNavigated) {
       setHasNavigated(true)
     }
   }, [isAuthenticated, userRole, hasNavigated])
+
+  // Reset navigation flag when auth changes
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setHasNavigated(false)
+    }
+  }, [isAuthenticated])
+
+  // Initialize auth state from localStorage on mount
+  useEffect(() => {
+    const localAuth = getAuth()
+    if (localAuth?.token && localAuth?.user?.id && localAuth?.user?.role) {
+      console.log('🔐 Found valid local auth, initializing state')
+      // This will trigger the useAuth hook to verify the token
+    }
+  }, [])
 
   // Debug logging
   console.log('🔍 Routing Debug:', {
@@ -111,6 +130,18 @@ function AppRoutes() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500 mx-auto mb-4"></div>
           <p className="text-gray-600">Quick verification...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // If we have auth data but still loading, show a brief loading state
+  if (authLoading && getAuth() && !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Verifying authentication...</p>
         </div>
       </div>
     )
@@ -168,10 +199,26 @@ function AppRoutes() {
           ? <PlacementOfficerDashboard />
           : <Navigate to="/login" replace />
       } />
+      <Route path="/placement-officer/analytics" element={
+        isAuthenticated && userRole === 'placement_officer'
+          ? <PlacementAnalytics />
+          : <Navigate to="/login" replace />
+      } />
       
       <Route path="/placement-officer/bulk-upload" element={
         isAuthenticated && userRole === 'placement_officer'
           ? <BulkUpload />
+          : <Navigate to="/login" replace />
+      } />
+      
+      <Route path="/placement-officer/biodata-upload" element={
+        isAuthenticated && userRole === 'placement_officer'
+          ? <BiodataUpload />
+          : <Navigate to="/login" replace />
+      } />
+      <Route path="/placement-officer/students" element={
+        isAuthenticated && userRole === 'placement_officer'
+          ? <OfficerStudents />
           : <Navigate to="/login" replace />
       } />
       

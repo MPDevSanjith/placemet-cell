@@ -79,16 +79,20 @@ export default function Login() {
           // Fallback: force redirect
           window.location.href = `/otp?email=${encodeURIComponent(otpState.email)}&name=${encodeURIComponent(otpState.name)}`
         }
-      } else if (res?.token && res?.user?.role) {
-        // Direct login successful (placement officer or student with token)
+      } else if (res?.user?.role) {
+        // Direct login successful (placement officer or student). On iOS/mac Safari, use cookie session.
         console.log('✅ Direct login successful, role:', res.user.role)
         const role: 'placement_officer' | 'student' = res.user.role === 'placement_officer' ? 'placement_officer' : 'student'
-        saveAuth({ token: res.token, user: { id: res.user.id, email: res.user.email, name: res.user.name, role } })
+        const tokenToStore = res.token || 'cookie-session'
+        saveAuth({ token: tokenToStore, user: { id: res.user.id, email: res.user.email, name: res.user.name, role } })
         
         // Set navigation flag to prevent multiple navigations
         setHasNavigated(true)
         
-        navigate(role === 'placement_officer' ? '/placement-officer' : '/student', { replace: true })
+        // Force navigation with a small delay to ensure auth state is properly set
+        setTimeout(() => {
+          window.location.href = role === 'placement_officer' ? '/placement-officer' : '/student'
+        }, 100)
       } else {
         console.error('❌ Unexpected login response format:', res)
         console.error('❌ Response structure:', JSON.stringify(res, null, 2))

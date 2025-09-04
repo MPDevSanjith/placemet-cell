@@ -20,6 +20,12 @@ router.post('/verify-otp', verifyOtp);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 
+// Logout destroys cookie session
+router.post('/logout', (req, res) => {
+  res.clearCookie('auth_token', { path: '/' });
+  return res.json({ success: true, message: 'Logged out' });
+});
+
 // Token verification route
 router.get('/verify', verify);
 

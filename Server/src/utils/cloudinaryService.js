@@ -104,15 +104,35 @@ class CloudinaryService {
     };
   }
 
-  // Generate a view/download URL
-  generateViewUrl(publicId, resourceType = 'image', format = 'pdf', attachmentName = 'resume.pdf') {
-    return cloudinary.url(publicId, {
+  // Generate a view URL. If attachmentName is provided, Cloudinary may force download; omit for inline viewing
+  generateViewUrl(publicId, resourceType = 'image', format = 'pdf', attachmentName) {
+    // For PDFs stored as images, use the same method as download URLs but without attachment
+    // This ensures the URL works for viewing in browsers
+    
+    const nowUtcSeconds = Math.floor(Date.now() / 1000);
+    const expiresAt = nowUtcSeconds + 3600; // 1 hour expiry
+    
+    // Use cloudinary's private_download_url but without attachment for inline viewing
+    const viewUrl = cloudinary.utils.private_download_url(publicId, format, {
       secure: true,
       resource_type: resourceType,
       type: 'upload',
-      format,
-      attachment: attachmentName,
+      expires_at: expiresAt,
+      attachment: false, // This is the key difference - no forced download
+      sign_url: true,
     });
+    
+    console.log('👁️ Generated Cloudinary View URL:', {
+      publicId,
+      resourceType,
+      format,
+      attachmentName: attachmentName || 'none (inline view)',
+      url: viewUrl,
+      willForceDownload: !!attachmentName,
+      expiresAt: new Date(expiresAt * 1000).toISOString()
+    });
+    
+    return viewUrl;
   }
 
   // Generate short-lived signed download URL with UTC timestamp and skew leeway
@@ -129,7 +149,7 @@ class CloudinaryService {
     const nowUtcSeconds = Math.floor(Date.now() / 1000);
     const expiresAt = nowUtcSeconds + Math.max(30, ttlSeconds) + Math.max(0, clockSkewLeewaySeconds);
 
-    return cloudinary.utils.private_download_url(publicId, format, {
+    const downloadUrl = cloudinary.utils.private_download_url(publicId, format, {
       secure: true,
       resource_type: resourceType,
       type: deliveryType,
@@ -137,13 +157,27 @@ class CloudinaryService {
       attachment,
       sign_url: true,
     });
+
+    console.log('🔗 Generated Cloudinary Download URL:', {
+      publicId,
+      format,
+      resourceType,
+      deliveryType,
+      attachment,
+      expiresAt: new Date(expiresAt * 1000).toISOString(),
+      url: downloadUrl
+    });
+
+    return downloadUrl;
+    
   }
 
   // Unified helper: always return image/pdf URLs (we convert DOC/DOCX on upload)
   async generateAutoDownloadUrl(publicId, options = {}) {
     const { signed = false, ttlSeconds = 1800, deliveryType = 'upload', attachment = 'resume.pdf' } = options;
     if (!signed) {
-      return this.generateViewUrl(publicId, 'image', 'pdf', attachment);
+      // For view URLs, don't pass attachment to avoid forced download
+      return this.generateViewUrl(publicId, 'image', 'pdf');
     }
     return this.generateSignedDownloadUrl(publicId, {
       ttlSeconds,
@@ -152,6 +186,7 @@ class CloudinaryService {
       resourceType: 'image',
       format: 'pdf',
     });
+    
   }
 
   // Delete by trying image first then raw
@@ -184,6 +219,115 @@ class CloudinaryService {
       throw err;
     }
   }
+
+  // Resolve the best inline-viewable PDF URL for a given publicId
+  // async generateInlinePdfViewUrl(publicId) {
+  //   try {
+  //     // First try as image/pdf (native PDFs uploaded as image resource)
+  //     try {
+  //       const imgInfo = await cloudinary.api.resource(publicId, { resource_type: 'image' });
+  //       if (imgInfo && (imgInfo.format === 'pdf' || imgInfo.type === 'upload')) {
+  //         return this.generateViewUrl(publicId, 'image', 'pdf');
+  //       }
+  //     } catch (_e) {
+  //       // ignore and try raw
+  //     }
+
+  //     // Then try as raw. If raw is already a PDF, use raw URL; else use derived PDF if present
+  //     try {
+  //       const rawInfo = await cloudinary.api.resource(publicId, { resource_type: 'raw' });
+  //       if (rawInfo) {
+  //         if (rawInfo.format === 'pdf') {
+  //           return cloudinary.url(publicId, { secure: true, resource_type: 'raw', type: 'upload' });
+  //         }
+  //         if (Array.isArray(rawInfo.derived) && rawInfo.derived.length > 0) {
+  //           const pdfDerived = rawInfo.derived.find(d => (d.format === 'pdf') || (typeof d.secure_url === 'string' && d.secure_url.toLowerCase().endsWith('.pdf')));
+  //           if (pdfDerived && pdfDerived.secure_url) {
+  //             return pdfDerived.secure_url;
+  //           }
+  //         }
+  //       }
+  //     } catch (_e2) {}
+  //   } catch (err) {
+  //     console.error('❌ generateInlinePdfViewUrl error:', err);
+  //   }
+  //   return null;
+  // }
+
+
+
+  async generateInlinePdfViewUrl(publicId) {
+    try {
+      console.log('🔍 Generating inline PDF view URL for:', publicId);
+      
+      // 1) Check as image resource (Cloudinary sometimes stores PDFs as images)
+      try {
+        const imgInfo = await cloudinary.api.resource(publicId, { resource_type: 'image' });
+        if (imgInfo) {
+          // Direct PDF as image
+          if (imgInfo.format === 'pdf' && imgInfo.secure_url) {
+            console.log('✅ Found as image PDF:', imgInfo.secure_url);
+            return imgInfo.secure_url;
+          }
+  
+          // Check derived PDFs
+          if (Array.isArray(imgInfo.derived)) {
+            const pdfDerived = imgInfo.derived.find(d => d.format === 'pdf' || d.secure_url?.endsWith('.pdf'));
+            if (pdfDerived?.secure_url) {
+              console.log('✅ Found derived PDF from image:', pdfDerived.secure_url);
+              return pdfDerived.secure_url;
+            }
+          }
+        }
+      } catch (errImage) {
+        console.log('⚠️ Not found as image resource:', errImage.message);
+      }
+  
+      // 2) Check as raw resource (DOC/DOCX often stored here)
+      try {
+        const rawInfo = await cloudinary.api.resource(publicId, { resource_type: 'raw' });
+        if (rawInfo) {
+          // Direct PDF in raw
+          if (rawInfo.format === 'pdf' && rawInfo.secure_url) {
+            console.log('✅ Found as raw PDF:', rawInfo.secure_url);
+            return rawInfo.secure_url;
+          }
+  
+          // Derived PDF from raw
+          if (Array.isArray(rawInfo.derived)) {
+            const pdfDerived = rawInfo.derived.find(d => d.format === 'pdf' || d.secure_url?.endsWith('.pdf'));
+            if (pdfDerived?.secure_url) {
+              console.log('✅ Found derived PDF from raw:', pdfDerived.secure_url);
+              return pdfDerived.secure_url;
+            }
+          }
+        }
+      } catch (errRaw) {
+        console.log('⚠️ Not found as raw resource:', errRaw.message);
+      }
+  
+      // 3) Fallback: build direct PDF URL if all else fails
+      const fallbackUrl = cloudinary.url(publicId, {
+        secure: true,
+        resource_type: 'image',
+        type: 'upload',
+        format: 'pdf'
+      });
+      console.log('🔄 Using fallback URL:', fallbackUrl);
+      return fallbackUrl;
+    } catch (err) {
+      console.error('❌ generateInlinePdfViewUrl error:', err);
+      return null;
+    }
+  }
+  
+
+
+
+
+
+
+
 
   // List all resumes of a student
   async listStudentResumes(studentId) {

@@ -49,6 +49,7 @@ export type LoginResponse = {
   requiresOtp?: boolean
   email?: string
   otpRequired?: boolean // Keep for backward compatibility
+  // When using cookie sessions on iOS/macOS Safari, token may be omitted
 }
 
 export function login(payload: LoginPayload) {
@@ -102,16 +103,23 @@ export function bulkUploadStudents(formData: FormData) {
 }
 
 export function sendBulkWelcomeEmails(studentIds: string[]) {
-  return request<{ success: boolean; results: unknown }>('/placement-officer/send-welcome-emails', {
+  return request<{ success: boolean; results: Array<{ email?: string; id?: string; status: string; error?: string }> }>('/placement-officer/send-welcome-emails', {
     method: 'POST',
     body: JSON.stringify({ studentIds }),
   })
 }
 
 export function sendBulkWelcomeEmailsWithCredentials(students: Array<{ email: string; password: string; name?: string }>) {
-  return request<{ success: boolean; results: unknown }>('/placement-officer/send-welcome-emails', {
+  return request<{ success: boolean; results: Array<{ email: string; status: string; error?: string }> }>('/placement-officer/send-welcome-emails', {
     method: 'POST',
     body: JSON.stringify({ students }),
+  })
+}
+
+export function sendBulkWelcomeEmailsByEmails(emails: string[]) {
+  return request<{ success: boolean; results: Array<{ email: string; status: string; error?: string }> }>('/placement-officer/send-welcome-emails', {
+    method: 'POST',
+    body: JSON.stringify({ emails }),
   })
 }
 
@@ -127,12 +135,177 @@ export function createStudentManual(payload: { name: string; email: string; bran
   })
 }
 
+// ------------------- BIODATA & ELIGIBILITY ------------------- //
+
+export type BiodataEntry = {
+  email: string
+  name: string
+  branch: string
+  section: string
+  rollNumber: string
+  phone?: string
+  year: string
+  gender?: string
+  dateOfBirth?: string
+  address?: string
+  gpa?: number
+  specialization?: string
+  skills?: string[]
+  projects?: string[]
+  attendancePercentage?: number
+  backlogs?: number
+  academicRequirements?: string
+  otherEligibility?: string
+  
+  // Physical & Personal Details
+  bloodGroup?: string
+  height?: number
+  weight?: number
+  nationality?: string
+  religion?: string
+  caste?: string
+  category?: string
+  
+  // Family Information
+  parentName?: string
+  parentPhone?: string
+  parentOccupation?: string
+  familyIncome?: number
+  
+  // Academic History
+  tenthPercentage?: number
+  twelfthPercentage?: number
+  diplomaPercentage?: number
+  entranceExamScore?: number
+  entranceExamRank?: number
+  
+  // Living & Transportation
+  hostelStatus?: string
+  transportMode?: string
+  
+  // Medical Information
+  medicalConditions?: string
+  allergies?: string
+  disabilities?: string
+  
+  // Skills & Languages
+  languagesKnown?: string[]
+  hobbies?: string[]
+  extraCurricularActivities?: string[]
+  sports?: string[]
+  
+  // Certifications & Achievements
+  technicalCertifications?: string[]
+  nonTechnicalCertifications?: string[]
+  internships?: string[]
+  workshopsAttended?: string[]
+  paperPublications?: string[]
+  patentApplications?: number
+  startupExperience?: number
+  leadershipRoles?: number
+  communityService?: number
+  
+  // Online Presence
+  socialMediaPresence?: string[]
+  linkedinProfile?: string
+  portfolioWebsite?: string
+  githubProfile?: string
+  
+  // Career Preferences
+  expectedSalary?: number
+  preferredLocation?: string[]
+  willingToRelocate?: boolean
+  
+  // Documents & Identity
+  passportNumber?: string
+  drivingLicense?: string
+  vehicleOwnership?: boolean
+  bankAccount?: string
+  panCard?: string
+  aadharNumber?: string
+}
+
+export type BiodataUploadResponse = {
+  total: number
+  successful: number
+  failed: number
+  errors: string[]
+  results: Array<{
+    email: string
+    status: 'success' | 'failed'
+    error?: string
+    studentId?: string
+  }>
+}
+
+export function bulkUploadBiodata(formData: FormData) {
+  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/placement-officer/bulk-biodata`
+  return fetch(url, { method: 'POST', body: formData, credentials: 'include' }).then(async (res) => {
+    const contentType = res.headers.get('content-type') || ''
+    const isJson = contentType.includes('application/json')
+    const data: unknown = isJson ? await res.json().catch(() => ({})) : await res.text()
+    if (!res.ok) {
+      const message =
+        (isJson && typeof data === 'object' ? (data as Record<string, unknown>)?.error as string || (data as Record<string, unknown>)?.message as string : undefined)
+        || `${res.status} ${res.statusText}` || 'Upload failed'
+      throw new Error(message)
+    }
+    return data as BiodataUploadResponse
+  })
+}
+
+export function createBiodataManual(payload: BiodataEntry) {
+  return request<{ success: boolean; student: unknown; message: string }>('/placement-officer/create-biodata', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 // ------------------- OFFICERS ------------------- //
 
 export function createOfficer(payload: { name: string; email: string }) {
   return request<{ success: boolean; officer: unknown }>('/placement-officer/create-officer', {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+// ------------------- PLACEMENT OFFICER: STUDENT MGMT ------------------- //
+
+export type OfficerStudent = {
+  _id: string
+  name: string
+  email: string
+  rollNumber?: string
+  branch?: string
+  section?: string
+  year?: string
+  course?: string
+  isActive: boolean
+  isPlaced?: boolean
+}
+
+export type OfficerStudentListResponse = {
+  success: boolean
+  items: OfficerStudent[]
+  total: number
+  page: number
+  limit: number
+  metrics: { total: number; placed: number; blocked: number }
+}
+
+export function listOfficerStudents(params: Record<string, string | number | boolean | undefined>) {
+  const qs = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== '') qs.set(k, String(v))
+  })
+  return request<OfficerStudentListResponse>(`/placement-officer/students?${qs.toString()}`)
+}
+
+export function bulkOfficerStudentAction(action: 'block'|'unblock'|'place'|'unplace', ids: string[]) {
+  return request<{ success: boolean; updated: number }>(`/placement-officer/students/bulk`, {
+    method: 'POST',
+    body: JSON.stringify({ action, ids })
   })
 }
 
@@ -289,6 +462,35 @@ export async function listResumes(token: string) {
   }
   
   return data as { success: boolean; resumes: Array<{ id: string; filename: string; originalName: string; cloudinaryUrl: string; uploadDate: string; hasAtsAnalysis: boolean }> }
+}
+
+// Officer: get active resume view url for a student
+export async function getStudentActiveResumeViewUrl(token: string, studentId: string) {
+  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/resume/admin/student/${studentId}/active-view`
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+    credentials: 'include',
+  })
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(data?.error || data?.message || 'Failed to get resume view url')
+  }
+  return data as { success: boolean; url: string; resume?: { id: string; originalName?: string; fileName?: string } }
+}
+
+export async function listStudentResumesForOfficer(token: string, studentId: string) {
+  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/resume/admin/student/${studentId}/list`
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+    credentials: 'include',
+  })
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(data?.error || data?.message || 'Failed to list student resumes')
+  }
+  return data as { success: boolean; resumes: Array<{ id: string; originalName?: string; fileName?: string; uploadDate: string; viewUrl?: string; cloudinaryUrl?: string; hasAtsAnalysis?: boolean }> }
 }
 
 // Delete resume
@@ -463,7 +665,7 @@ export type ProfileCompletion = {
 
 // Get comprehensive student profile
 export async function getStudentProfile(token: string) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/students/profile/comprehensive`
+  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/profile/comprehensive`
 
   const res = await fetch(url, {
     method: 'GET',
@@ -476,12 +678,12 @@ export async function getStudentProfile(token: string) {
     throw new Error(data?.error || data?.message || 'Failed to get student profile')
   }
   
-  return data as { success: boolean; profile: StudentProfile; studentId: string }
+  return data as { success: boolean; profile: StudentProfile }
 }
 
 // Get profile completion status
 export async function getCompletionStatus(token: string) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/students/profile/completion`
+  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/profile/completion`
 
   const res = await fetch(url, {
     method: 'GET',
@@ -494,7 +696,7 @@ export async function getCompletionStatus(token: string) {
     throw new Error(data?.error || data?.message || 'Failed to get completion status')
   }
   
-  return data as { success: boolean; completion: ProfileCompletion }
+  return data as { success: boolean; profileCompletion: number; onboardingCompleted: boolean }
 }
 
 // Update comprehensive student profile
@@ -503,7 +705,7 @@ export async function updateStudentProfile(token: string, profileData: {
   academicInfo?: Partial<StudentProfile['academicInfo']>
   placementInfo?: Partial<StudentProfile['placementInfo']>
 }) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/students/profile/comprehensive`
+  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/profile/comprehensive`
 
   const res = await fetch(url, {
     method: 'PUT',
@@ -520,12 +722,12 @@ export async function updateStudentProfile(token: string, profileData: {
     throw new Error(data?.error || data?.message || 'Failed to update profile')
   }
   
-  return data as { success: boolean; message: string; completion: ProfileCompletion }
+  return data as { success: boolean; message: string; profileCompletion: number }
 }
 
 // Update student skills
 export async function updateStudentSkills(token: string, skills: string[]) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/students/profile/skills`
+  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/profile/skills`
 
   const res = await fetch(url, {
     method: 'PUT',
@@ -542,12 +744,12 @@ export async function updateStudentSkills(token: string, skills: string[]) {
     throw new Error(data?.error || data?.message || 'Failed to update skills')
   }
   
-  return data as { success: boolean; message: string; skills: string[]; completion: ProfileCompletion }
+  return data as { success: boolean; message: string; skills: string[]; profileCompletion: number }
 }
 
 // Update student projects
 export async function updateStudentProjects(token: string, projects: string[]) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/students/profile/projects`
+  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/profile/projects`
 
   const res = await fetch(url, {
     method: 'PUT',
@@ -564,7 +766,29 @@ export async function updateStudentProjects(token: string, projects: string[]) {
     throw new Error(data?.error || data?.message || 'Failed to update projects')
   }
   
-  return data as { success: boolean; message: string; projects: string[]; completion: ProfileCompletion }
+  return data as { success: boolean; message: string; projects: string[]; profileCompletion: number }
+}
+
+// Update single profile field
+export async function updateProfileField(token: string, field: string, value: string | number | string[]) {
+  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/profile/field`
+
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ field, value }),
+    credentials: 'include',
+  })
+
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(data?.error || data?.message || 'Failed to update field')
+  }
+  
+  return data as { success: boolean; message: string; field: string; value: any; profileCompletion: number }
 }
 
 // Legacy functions for backward compatibility

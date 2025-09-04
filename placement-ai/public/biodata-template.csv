@@ -1,0 +1,5 @@
+Name,Email,Branch,Section,Roll Number,Phone,Year,Gender,Date of Birth,Address,GPA,Specialization,Skills,Projects,Attendance %,Backlogs,Academic Requirements,Other Eligibility
+John Doe,john.doe@college.edu,CSE,A,CS001,9876543210,2024,male,2000-01-15,123 Main St,8.5,AI/ML,"JavaScript;Python;React","E-commerce App;ML Model",85,0,Minimum 7.0 CGPA,No active backlogs
+Jane Smith,jane.smith@college.edu,ECE,B,EC002,9876543211,2024,female,2000-03-20,456 Oak Ave,9.2,Embedded Systems,"C++;Arduino;IoT","Smart Home System;IoT Project",92,0,Minimum 8.0 CGPA,Good communication skills
+Mike Johnson,mike.johnson@college.edu,IT,A,IT003,9876543212,2024,male,1999-12-10,789 Pine Rd,7.8,Web Development,"HTML;CSS;JavaScript;Node.js","Portfolio Website;Blog App",78,1,Minimum 7.5 CGPA,One backlog in Mathematics
+

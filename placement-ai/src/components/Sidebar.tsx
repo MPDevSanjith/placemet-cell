@@ -22,10 +22,11 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const navigate = useNavigate();
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const { auth, logout, userRole } = useAuth();
+  const effectiveRole = userRole || auth?.user.role || null;
 
   // Dynamic navigation items based on user role
   const getNavigationItems = () => {
-    if (userRole === 'placement_officer') {
+    if (effectiveRole === 'placement_officer') {
       return [
         {
           name: "Dashboard",
@@ -36,12 +37,28 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
           bgColor: "from-blue-50 to-cyan-50"
         },
         {
+          name: "Analytics",
+          icon: FiGrid,
+          path: "/placement-officer/analytics",
+          description: "Placement Insights",
+          color: "from-indigo-500 to-purple-500",
+          bgColor: "from-indigo-50 to-purple-50"
+        },
+        {
           name: "Bulk Upload",
           icon: FiUpload,
           path: "/placement-officer/bulk-upload",
           description: "Upload Student Data",
           color: "from-green-500 to-emerald-500",
           bgColor: "from-green-50 to-emerald-50"
+        },
+        {
+          name: "Students",
+          icon: FiUsers,
+          path: "/placement-officer/students",
+          description: "Manage Students",
+          color: "from-pink-500 to-purple-500",
+          bgColor: "from-pink-50 to-purple-50"
         },
         {
           name: "Create Officer",
@@ -58,7 +75,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         {
           name: "Dashboard",
           icon: FiHome,
-          path: "/student/dashboard",
+          path: "/student",
           description: "Overview & Analytics",
           color: "from-pink-500 to-purple-500",
           bgColor: "from-pink-50 to-purple-50"
@@ -94,7 +111,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
   // Get title based on role
   const getTitle = () => {
-    if (userRole === 'placement_officer') {
+    if (effectiveRole === 'placement_officer') {
       return 'Officer Portal';
     }
     return 'Student Portal';
@@ -129,20 +146,21 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         `}
       >
         {/* Professional Header - Matching Navbar */}
-        <div className="relative p-6 border-b border-gray-200/60 bg-gradient-to-r from-white to-gray-50/30">
+        <div className="relative p-6 border-b border-gray-200/60 bg-white">
           <div className="flex items-center justify-between">
             {/* Professional Logo */}
             <motion.div 
               className="flex items-center space-x-4"
               layout
+              onClick={()=>handleNavigation(effectiveRole==='placement_officer'?'/placement-officer':'/student')}
             >
               <motion.div 
-                className="relative w-12 h-12 rounded-2xl bg-gradient-to-r from-pink-500 to-purple-500 shadow-lg cursor-pointer"
+                className="relative w-12 h-12 rounded-2xl bg-brand-accent shadow-lg cursor-pointer"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleNavigation(userRole === 'placement_officer' ? '/placement-officer' : '/student')}
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-pink-500/10 to-purple-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <FiGrid className="text-white text-xl" />
                 </div>
@@ -171,7 +189,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
             </motion.div>
 
             {/* Professional Toggle Button - Matching Navbar Style */}
-            {onToggle && (
+            {/* {onToggle && (
               <motion.button
                 onClick={onToggle}
                 className="relative w-12 h-12 rounded-2xl bg-gradient-to-r from-pink-100 to-purple-100 hover:from-pink-200 hover:to-purple-200 transition-all duration-300 flex items-center justify-center group shadow-lg hover:shadow-xl"
@@ -185,7 +203,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                 </div>
                 <div className="absolute inset-0 bg-gradient-to-r from-pink-500/10 to-purple-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
               </motion.button>
-            )}
+            )} */}
           </div>
         </div>
 
@@ -206,8 +224,8 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                   group relative flex items-center w-full rounded-2xl transition-all duration-300 text-left
                   ${isOpen ? 'px-4 py-4' : 'px-2 py-3 justify-center'}
                   ${isActive(item.path)
-                    ? 'bg-gradient-to-r from-pink-500 via-purple-500 to-orange-500 text-white shadow-lg shadow-pink-500/25'
-                    : 'text-gray-700 hover:bg-gradient-to-r hover:from-pink-50 hover:to-purple-50 hover:shadow-md'
+                    ? 'bg-gray-900 text-white shadow-lg'
+                    : 'text-gray-700 hover:bg-gray-50 hover:shadow-md'
                   }
                 `}
                 whileHover={{ scale: 1.02 }}
@@ -229,7 +247,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
                   relative w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300
                   ${isActive(item.path)
                     ? 'bg-white/20 text-white'
-                    : `bg-gradient-to-r ${item.bgColor} text-gray-700 group-hover:shadow-lg`
+                    : 'bg-gray-100 text-gray-700 group-hover:shadow-lg'
                   }
                 `}>
                   <item.icon className="text-lg" />
@@ -276,13 +294,13 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         </nav>
 
         {/* Professional Footer - Matching Navbar Style */}
-        <div className="p-4 border-t border-gray-200/60 bg-gradient-to-r from-gray-50/50 to-white/50">
+        <div className="p-4 border-t border-gray-200/60 bg-white">
           <div className="space-y-3">
             {/* User Profile Section */}
-            <div className={`flex items-center rounded-2xl bg-gradient-to-r from-gray-100/50 to-gray-200/50 hover:from-gray-200/50 hover:to-gray-300/50 transition-all duration-300 cursor-pointer group
+            <div className={`flex items-center rounded-2xl bg-gray-100 hover:bg-gray-200 transition-all duration-300 cursor-pointer group
               ${isOpen ? 'space-x-3 p-3' : 'p-2 justify-center'}`}
             >
-              <div className="relative w-10 h-10 bg-gradient-to-br from-pink-500 via-purple-500 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300">
+              <div className="relative w-10 h-10 bg-brand-accent rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300">
                 <FiUser className="text-white text-lg" />
                 <motion.div 
                   className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white"
@@ -312,7 +330,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
             {/* Logout Button - Matching Navbar Style */}
             <motion.button 
               onClick={handleLogout}
-              className={`flex items-center rounded-2xl bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 transition-all duration-300 text-white text-sm font-medium shadow-lg hover:shadow-xl
+              className={`flex items-center rounded-2xl bg-red-500 hover:bg-red-600 transition-all duration-300 text-white text-sm font-medium shadow-lg hover:shadow-xl
                 ${isOpen ? 'w-full space-x-2 px-3 py-2' : 'w-10 h-10 justify-center mx-auto'}`}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}

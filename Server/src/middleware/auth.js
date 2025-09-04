@@ -11,7 +11,11 @@ import { verifyJwt } from '../config/jwt.js';
 export const authenticateToken = async (req, res, next) => {
   try {
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    let token = authHeader && authHeader.split(' ')[1];
+    // Fallback to cookie-based session
+    if (!token && req.cookies && typeof req.cookies.auth_token === 'string') {
+      token = req.cookies.auth_token;
+    }
 
     if (!token) {
       logger.warn('Authentication failed: No token provided');

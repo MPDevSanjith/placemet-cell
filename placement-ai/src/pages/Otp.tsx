@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, createRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { verifyStudentOtp, requestStudentOtp, type LoginResponse } from '../global/api'
-import { saveAuth } from '../global/auth'
+import { saveAuth, getAuth } from '../global/auth'
 
 export default function OtpPage() {
   const navigate = useNavigate()
@@ -42,6 +42,20 @@ export default function OtpPage() {
     }
     inputs[0]?.current?.focus()
   }, [email, navigate, inputs, hasNavigated])
+
+  // Check if user is already authenticated
+  useEffect(() => {
+    const localAuth = getAuth()
+    if (localAuth?.token && localAuth?.user?.role === 'student') {
+      console.log('📱 User already authenticated, redirecting to appropriate page')
+      const isAlreadyOnboarded = localStorage.getItem('student_onboarded') === 'true'
+      if (isAlreadyOnboarded) {
+        navigate('/student', { replace: true })
+      } else {
+        navigate('/student/onboarding', { replace: true })
+      }
+    }
+  }, [navigate])
 
   useEffect(() => {
     if (resendTimer > 0) {
@@ -103,10 +117,10 @@ export default function OtpPage() {
       const res = await verifyStudentOtp(email, code) as LoginResponse
       console.log('🔐 OTP verification response:', res)
       
-      if (res?.token && res?.user?.role === 'student') {
+      if (res?.user?.role === 'student') {
         // Save authentication immediately for fast response
         saveAuth({ 
-          token: res.token, 
+          token: res.token || 'cookie-session', 
           user: { 
             id: res.user.id!, 
             email: res.user.email, 
@@ -133,6 +147,11 @@ export default function OtpPage() {
           navigate('/student/onboarding', { replace: true })
         }
         
+        // Force a small delay to ensure auth state is properly set
+        setTimeout(() => {
+          window.location.href = isAlreadyOnboarded ? '/student' : '/student/onboarding'
+        }, 100)
+        
         // Do backend verification in background (non-blocking)
         setTimeout(async () => {
           try {
@@ -140,7 +159,7 @@ export default function OtpPage() {
             const backendRes = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/auth/verify`, {
               method: 'GET',
               headers: {
-                'Authorization': `Bearer ${res.token}`,
+                ...(res.token ? { 'Authorization': `Bearer ${res.token}` } : {}),
                 'Content-Type': 'application/json'
               }
             })
