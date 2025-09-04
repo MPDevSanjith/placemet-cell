@@ -61,7 +61,7 @@ export async function verifyAuthFromBackend(token: string): Promise<{ isValid: b
 // Get user role from backend
 export async function getUserRoleFromBackend(token: string): Promise<string | null> {
   try {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/auth/me`, {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/auth/verify`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,

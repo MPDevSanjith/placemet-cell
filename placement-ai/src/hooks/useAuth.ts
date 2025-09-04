@@ -33,7 +33,7 @@ export function useAuth(): UseAuthReturn {
   const verifyAuth = useCallback(async (): Promise<boolean> => {
     const localAuth = getAuth()
     
-    if (!localAuth?.token) {
+    if (!localAuth?.token || !localAuth?.user?.id) {
       setAuth(null)
       setUserRole(null)
       setIsLoading(false)
@@ -118,7 +118,17 @@ export function useAuth(): UseAuthReturn {
   }, [verifyAuth])
 
   // Calculate isAuthenticated based on current state
-  const isAuthenticated = !!auth && !!auth.token && !!userRole
+  const isAuthenticated = !!auth && !!auth.token && !!userRole && !!auth.user.id
+  
+  // Debug logging for authentication state
+  console.log('🔐 Auth State Debug:', {
+    hasAuth: !!auth,
+    hasToken: !!auth?.token,
+    hasUserRole: !!userRole,
+    hasUserId: !!auth?.user?.id,
+    isAuthenticated,
+    auth: auth ? { token: auth.token ? '***' : null, user: auth.user } : null
+  })
 
   return {
     auth,

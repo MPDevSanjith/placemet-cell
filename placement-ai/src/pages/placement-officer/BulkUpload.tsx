@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { FaUpload, FaDownload, FaEye, FaEyeSlash, FaCheckCircle, FaExclamationTriangle, FaSpinner, FaEnvelope } from 'react-icons/fa'
-import { bulkUploadStudents, sendBulkWelcomeEmails, sendBulkWelcomeEmailsWithCredentials, fetchStudentByEmail, createStudentManual } from '../../global/api'
+import { bulkUploadStudents, sendBulkWelcomeEmails, sendBulkWelcomeEmailsWithCredentials, sendBulkWelcomeEmailsByEmails, fetchStudentByEmail, createStudentManual } from '../../global/api'
 import Layout from '../../components/Layout'
 
 interface StudentData {
@@ -227,14 +227,26 @@ export default function BulkUpload() {
         const studentEmails = uploadResult.accounts
           .filter(account => account.status === 'created')
           .map(account => account.email)
-        result = await sendBulkWelcomeEmails(studentEmails)
+        result = await sendBulkWelcomeEmailsByEmails(studentEmails)
       }
 
-      setEmailResults(result)
-      if (result.success) {
-        alert(`Successfully sent ${result.results.successful} welcome emails!`)
+      setEmailResults({
+        success: result.success,
+        results: {
+          successful: result.results.filter(r => r.status === 'sent').length,
+          failed: result.results.filter(r => r.status !== 'sent').length,
+          total: result.results.length
+        },
+        raw: result.results
+      })
+      const sentCount = result.results.filter(r => r.status === 'sent').length
+      const failCount = result.results.filter(r => r.status !== 'sent').length
+      if (failCount === 0) {
+        alert(`Successfully sent ${sentCount} welcome emails!`)
+      } else if (sentCount > 0) {
+        alert(`Sent ${sentCount} emails, ${failCount} failed. Check details below.`)
       } else {
-        alert('Failed to send some emails. Check the results for details.')
+        alert('Failed to send welcome emails. Please check details below.')
       }
       
     } catch (error) {

@@ -138,11 +138,20 @@ export const login = async (req, res) => {
         name: userAccount.name 
       });
 
+      // Issue cookie session
+      res.cookie('auth_token', token, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/',
+      });
+
       logger.success(`User login successful: ${userAccount.email}`);
       return res.json({
         success: true,
         message: 'Login successful',
-        token,
+        token, // still return token for backward compatibility
         user: {
           id: userAccount._id,
           name: userAccount.name,
@@ -247,11 +256,20 @@ export const verifyOtp = async (req, res) => {
       name: studentAccount.name 
     });
 
+    // Issue cookie session
+    res.cookie('auth_token', token, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
+    });
+
     logger.success(`Student login successful: ${studentAccount.email}`);
     return res.json({
       success: true,
       message: 'Login successful',
-      token,
+      token, // still return token for backward compatibility
       user: {
         id: studentAccount._id,
         name: studentAccount.name,

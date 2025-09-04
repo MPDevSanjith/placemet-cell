@@ -4,8 +4,17 @@ const User = require('../models/User')
 
 const protect = async (req, res, next) => {
   try {
+<<<<<<< HEAD
     const authHeader = req.headers['authorization']
     const token = authHeader && authHeader.split(' ')[1]
+=======
+    const authHeader = req.headers['authorization'];
+    let token = authHeader && authHeader.split(' ')[1];
+    // Fallback to cookie-based session
+    if (!token && req.cookies && typeof req.cookies.auth_token === 'string') {
+      token = req.cookies.auth_token;
+    }
+>>>>>>> 3da8d6aa0e12f39bcc5fc1199e86f94589560efe
 
     if (!token) {
       return res.status(401).json({ success: false, error: 'Access token required' })

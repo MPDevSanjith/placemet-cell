@@ -2,7 +2,7 @@
 import express from 'express';
 import multer from 'multer';
 import cloudinaryService from '../utils/cloudinaryService.js';
-import { authenticateToken, authorizeStudent } from '../middleware/auth.js';
+import { authenticateToken, authorizeStudent, authorizeAdmin } from '../middleware/auth.js';
 import Student from '../models/Student.js';
 import Resume from '../models/Resume.js';
 import fs from 'fs';
@@ -299,6 +299,45 @@ router.post('/analyze-ats', authenticateToken, authorizeStudent, async (req, res
   }
 });
 
+// Get ATS analysis for a specific resume
+router.get('/analysis/:id', authenticateToken, authorizeStudent, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ success: false, error: 'Resume id is required' });
+
+    const resumeDoc = await Resume.findById(id).lean();
+    if (!resumeDoc) return res.status(404).json({ success: false, error: 'Resume not found' });
+
+    // Ensure ownership
+    if (String(resumeDoc.student) !== String(req.user.id)) {
+      return res.status(403).json({ success: false, error: 'Not authorized to access this resume' });
+    }
+
+    if (!resumeDoc.hasAtsAnalysis || !resumeDoc.atsAnalysis) {
+      return res.status(404).json({ success: false, error: 'ATS analysis not found' });
+    }
+
+    return res.json({ success: true, resume: { atsAnalysis: resumeDoc.atsAnalysis } });
+  } catch (error) {
+    console.error('❌ Get ATS analysis error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to get ATS analysis' });
+  }
+});
+
+// Get ATS analysis for active resume of the current student (fallback)
+router.get('/analysis', authenticateToken, authorizeStudent, async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const doc = await Resume.findOne({ student: studentId, isActive: true, hasAtsAnalysis: true }).sort({ updatedAt: -1 }).lean();
+    if (!doc) return res.status(404).json({ success: false, error: 'ATS analysis not found' });
+
+    return res.json({ success: true, resume: { atsAnalysis: doc.atsAnalysis } });
+  } catch (error) {
+    console.error('❌ Get ATS analysis (active) error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to get ATS analysis' });
+  }
+});
+
 // List current student's resumes
 router.get('/list', authenticateToken, authorizeStudent, async (req, res) => {
   try {
@@ -311,8 +350,11 @@ router.get('/list', authenticateToken, authorizeStudent, async (req, res) => {
       id: d._id.toString(),
       filename: d.fileName,
       originalName: d.originalName,
+      size: d.size, // Include file size
       // signed short-lived URL to avoid auth issues
       cloudinaryUrl: cloudinaryService.generateSignedDownloadUrl(d.cloudinaryId, { ttlSeconds: 1800 }),
+      // view URL for embedding (no forced download)
+      viewUrl: cloudinaryService.generateViewUrl(d.cloudinaryId, 'image', 'pdf'),
       uploadDate: d.createdAt?.toISOString?.() || new Date().toISOString(),
       hasAtsAnalysis: !!d.hasAtsAnalysis
     }));
@@ -321,6 +363,116 @@ router.get('/list', authenticateToken, authorizeStudent, async (req, res) => {
   } catch (error) {
     console.error('❌ List resumes error:', error);
     res.status(500).json({ success: false, error: 'Failed to list resumes' });
+  }
+});
+
+// Admin/Officer: Get active resume view URL for a student
+router.get('/admin/student/:studentId/active-view', authenticateToken, authorizeAdmin, async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    if (!studentId) return res.status(400).json({ success: false, error: 'studentId is required' });
+
+    // Find latest active resume for the student
+    const doc = await Resume.findOne({ student: studentId, isActive: true }).sort({ createdAt: -1 }).lean();
+    if (!doc) return res.status(404).json({ success: false, error: 'Active resume not found for student' });
+
+    if (!doc.cloudinaryId) return res.status(400).json({ success: false, error: 'Resume missing Cloudinary id' });
+
+    // Generate view URL for inline viewing
+    const url = cloudinaryService.generateViewUrl(doc.cloudinaryId, 'image', 'pdf');
+    return res.json({ success: true, url, resume: { id: doc._id, originalName: doc.originalName, fileName: doc.fileName } });
+  } catch (error) {
+    console.error('❌ Admin get active resume view url error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to get resume view url' });
+  }
+});
+
+// Admin/Officer: List all resumes for a student with inline view URLs
+router.get('/admin/student/:studentId/list', authenticateToken, authorizeAdmin, async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    if (!studentId) return res.status(400).json({ success: false, error: 'studentId is required' });
+
+    const docs = await Resume.find({ student: studentId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const resumes = docs.map(d => ({
+      id: d._id.toString(),
+      fileName: d.fileName,
+      originalName: d.originalName,
+      size: d.size, // Include file size
+      // signed short-lived URL to avoid auth issues
+      cloudinaryUrl: cloudinaryService.generateSignedDownloadUrl(d.cloudinaryId, { ttlSeconds: 1800 }),
+      // view URL for embedding (no forced download)
+      viewUrl: cloudinaryService.generateViewUrl(d.cloudinaryId, 'image', 'pdf'),
+      uploadDate: d.createdAt?.toISOString?.() || new Date().toISOString(),
+      hasAtsAnalysis: !!d.hasAtsAnalysis
+    }));
+
+    return res.json({ success: true, resumes });
+  } catch (error) {
+    console.error('❌ Admin list student resumes error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to list resumes' });
+  }
+});
+
+// Download a resume by id (force download)
+router.get('/:id/download', authenticateToken, authorizeStudent, async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ success: false, error: 'Resume id is required' });
+    }
+
+    const resumeDoc = await Resume.findById(id);
+    if (!resumeDoc) {
+      return res.status(404).json({ success: false, error: 'Resume not found' });
+    }
+
+    // Ensure ownership
+    if (String(resumeDoc.student) !== String(studentId)) {
+      return res.status(403).json({ success: false, error: 'Not authorized to download this resume' });
+    }
+
+    if (!resumeDoc.cloudinaryId) {
+      return res.status(400).json({ success: false, error: 'Resume missing Cloudinary id' });
+    }
+
+    // Generate short-lived signed URL with attachment filename
+    const attachmentName = resumeDoc.fileName || resumeDoc.originalName || 'resume.pdf';
+    const fileUrl = await cloudinaryService.generateAutoDownloadUrl(
+      resumeDoc.cloudinaryId,
+      { signed: true, ttlSeconds: 300, attachment: attachmentName }
+    );
+
+    // Stream the file through our server to set headers consistently
+    const dl = await fetch(fileUrl);
+    if (!dl.ok) {
+      return res.status(400).json({ success: false, error: `Failed to fetch resume (${dl.status} ${dl.statusText})` });
+    }
+
+    const contentType = dl.headers.get('content-type') || (resumeDoc.mimeType || 'application/pdf');
+    const contentLength = dl.headers.get('content-length') || resumeDoc.size;
+    
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${attachmentName}"`);
+    if (contentLength) {
+      res.setHeader('Content-Length', contentLength);
+    }
+
+    // Pipe the response body to the client
+    if (dl.body && typeof dl.body.pipe === 'function') {
+      dl.body.pipe(res);
+    } else {
+      const buffer = Buffer.from(await dl.arrayBuffer());
+      res.send(buffer);
+    }
+  } catch (error) {
+    console.error('❌ Download resume error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to download resume' });
   }
 });
 
@@ -404,7 +556,7 @@ router.post('/upload', authenticateToken, authorizeStudent, upload.single('resum
       fileName: uploadResult.fileName,
       originalName: req.file.originalname,
       mimeType: req.file.mimetype,
-      size: uploadResult.size,
+      size: req.file.size, // Use actual file size from multer
       cloudinaryId: uploadResult.fileId,
       url: cloudinaryService.generateSignedDownloadUrl(uploadResult.fileId, { ttlSeconds: 3600 }),
       cloudinaryFolder: uploadResult.folder

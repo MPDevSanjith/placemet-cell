@@ -70,12 +70,12 @@ export default function Navbar({
           {showSidebarToggle && (
             <motion.button
               onClick={onSidebarToggle}
-              className="relative w-12 h-12 rounded-2xl bg-gradient-to-r from-pink-100 to-purple-100 hover:from-pink-200 hover:to-purple-200 transition-all duration-300 flex items-center justify-center group shadow-lg hover:shadow-xl"
+              className="relative w-12 h-12 rounded-2xl bg-gray-100 hover:bg-gray-200 transition-all duration-300 flex items-center justify-center group shadow-lg hover:shadow-xl"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              <FiMenu className="w-6 h-6 text-pink-600 group-hover:text-purple-600 transition-colors" />
-              <div className="absolute inset-0 bg-gradient-to-r from-pink-500/10 to-purple-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
+              <FiMenu className="w-6 h-6 text-brand-text group-hover:text-gray-700 transition-colors" />
+              <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
             </motion.button>
           )}
           
@@ -88,14 +88,14 @@ export default function Navbar({
             <motion.div
               className={`relative rounded-2xl transition-all duration-300 ${
                 searchFocused 
-                  ? 'bg-white shadow-xl ring-2 ring-pink-500/20' 
-                  : 'bg-gradient-to-r from-pink-50 to-purple-50 hover:from-pink-100 hover:to-purple-100'
+                  ? 'bg-white shadow-xl ring-2 ring-brand-accent/20' 
+                  : 'bg-gray-50 hover:bg-gray-100'
               }`}
               whileHover={{ scale: 1.02 }}
             >
               <div className="absolute left-4 top-1/2 -translate-y-1/2">
                 <FiSearch className={`w-5 h-5 transition-colors ${
-                  searchFocused ? 'text-pink-500' : 'text-gray-400'
+                  searchFocused ? 'text-brand-accent' : 'text-gray-400'
                 }`} />
               </div>
               <input
@@ -127,14 +127,14 @@ export default function Navbar({
           <div className="relative">
             <motion.button 
               onClick={() => setNotificationOpen(!notificationOpen)}
-              className="relative p-3 rounded-2xl bg-gradient-to-r from-pink-100 to-purple-100 hover:from-pink-200 hover:to-purple-200 transition-all duration-300 shadow-lg hover:shadow-xl"
+              className="relative p-3 rounded-2xl bg-gray-100 hover:bg-gray-200 transition-all duration-300 shadow-lg hover:shadow-xl"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              <FiBell className="w-5 h-5 text-pink-600" />
+              <FiBell className="w-5 h-5 text-brand-text" />
               {unreadCount > 0 && (
                 <motion.span 
-                  className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-red-500 to-pink-500 rounded-full border-2 border-white text-white text-xs font-bold flex items-center justify-center"
+                  className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full border-2 border-white text-white text-xs font-bold flex items-center justify-center"
                   animate={{ scale: [1, 1.2, 1] }}
                   transition={{ duration: 2, repeat: Infinity }}
                 >
@@ -153,7 +153,7 @@ export default function Navbar({
                   transition={{ duration: 0.2 }}
                   className="absolute right-0 mt-3 w-80 bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl py-2 z-50 border border-gray-200/60"
                 >
-                  <div className="px-4 py-3 border-b border-gray-200/60 bg-gradient-to-r from-pink-50/50 to-purple-50/50">
+                  <div className="px-4 py-3 border-b border-gray-200/60 bg-gray-50/50">
                     <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
                     <p className="text-xs text-gray-500">{unreadCount} unread</p>
                   </div>
@@ -163,8 +163,8 @@ export default function Navbar({
                       <motion.div
                         key={notification.id}
                         onClick={() => markNotificationAsRead(notification.id)}
-                        className={`flex items-start space-x-3 px-4 py-3 hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100 transition-all duration-200 cursor-pointer ${
-                          !notification.read ? 'bg-pink-50/50' : ''
+                        className={`flex items-start space-x-3 px-4 py-3 hover:bg-gray-50 transition-all duration-200 cursor-pointer ${
+                          !notification.read ? 'bg-gray-50' : ''
                         }`}
                         whileHover={{ x: 5 }}
                       >
@@ -186,7 +186,7 @@ export default function Navbar({
                   </div>
                   
                   <div className="border-t border-gray-200/60 pt-2">
-                    <button className="w-full text-center text-sm text-pink-600 hover:text-pink-700 font-medium py-2">
+                    <button className="w-full text-center text-sm text-brand-accent hover:text-brand-primary font-medium py-2">
                       View All Notifications
                     </button>
                   </div>
@@ -199,12 +199,12 @@ export default function Navbar({
           <div className="relative">
             <motion.button
               onClick={() => setUserMenuOpen(!userMenuOpen)}
-              className="flex items-center space-x-3 p-3 rounded-2xl bg-gradient-to-r from-pink-100 to-purple-100 hover:from-pink-200 hover:to-purple-200 transition-all duration-300 shadow-lg hover:shadow-xl group"
+              className="flex items-center space-x-3 p-3 rounded-2xl bg-gray-100 hover:bg-gray-200 transition-all duration-300 shadow-lg hover:shadow-xl group"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
               {/* Enhanced User Avatar */}
-              <div className="relative w-10 h-10 bg-gradient-to-br from-pink-500 via-purple-500 to-orange-500 rounded-2xl flex items-center justify-center text-white text-sm font-bold shadow-lg">
+              <div className="relative w-10 h-10 bg-brand-accent rounded-2xl flex items-center justify-center text-white text-sm font-bold shadow-lg">
                 {auth?.user?.name?.charAt(0) || 'U'}
                 <motion.div 
                   className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white"
@@ -241,9 +241,9 @@ export default function Navbar({
                   className="absolute right-0 mt-3 w-64 bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl py-2 z-50 border border-gray-200/60"
                 >
                   {/* User Header */}
-                  <div className="px-4 py-3 border-b border-gray-200/60 bg-gradient-to-r from-pink-50/50 to-purple-50/50">
+                  <div className="px-4 py-3 border-b border-gray-200/60 bg-gray-50/50">
                     <div className="flex items-center space-x-3">
-                      <div className="w-12 h-12 bg-gradient-to-br from-pink-500 via-purple-500 to-orange-500 rounded-2xl flex items-center justify-center text-white font-bold">
+                      <div className="w-12 h-12 bg-brand-accent rounded-2xl flex items-center justify-center text-white font-bold">
                         {auth?.user?.name?.charAt(0) || 'U'}
                       </div>
                       <div>
@@ -266,20 +266,20 @@ export default function Navbar({
                     {auth?.user?.role === 'student' && (
                       <motion.a
                         href="/student/profile"
-                        className="flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-pink-50 hover:to-purple-50 transition-all duration-200 group"
+                        className="flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-all duration-200 group"
                         whileHover={{ x: 5 }}
                       >
-                        <FiUser className="w-4 h-4 text-gray-500 group-hover:text-pink-500" />
+                        <FiUser className="w-4 h-4 text-gray-500 group-hover:text-brand-accent" />
                         <span className="font-medium">View Profile</span>
                       </motion.a>
                     )}
                     
                     <motion.a
                       href="/settings"
-                      className="flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-pink-50 hover:to-purple-50 transition-all duration-200 group"
+                      className="flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-all duration-200 group"
                       whileHover={{ x: 5 }}
                     >
-                      <FiSettings className="w-4 h-4 text-gray-500 group-hover:text-pink-500" />
+                      <FiSettings className="w-4 h-4 text-gray-500 group-hover:text-brand-accent" />
                       <span className="font-medium">Settings</span>
                     </motion.a>
                   </div>
@@ -288,7 +288,7 @@ export default function Navbar({
                   <div className="border-t border-gray-200/60 pt-2">
                     <motion.button
                       onClick={handleLogout}
-                      className="flex items-center space-x-3 px-4 py-3 text-sm text-red-600 hover:bg-gradient-to-r hover:from-red-50 hover:to-pink-50 transition-all duration-200 group w-full"
+                      className="flex items-center space-x-3 px-4 py-3 text-sm text-red-600 hover:bg-gray-50 transition-all duration-200 group w-full"
                       whileHover={{ x: 5 }}
                     >
                       <FiLogOut className="w-4 h-4 text-red-500" />

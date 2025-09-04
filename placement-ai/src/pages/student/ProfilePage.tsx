@@ -1,118 +1,30 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { 
-  getStudentProfile, StudentProfile, 
+  getStudentProfile, 
   listResumes, deleteResume, uploadResume, getResumeAnalysis,
-  updateStudentProfile, updateStudentSkills, updateStudentProjects
+  updateStudentProfile, updateStudentSkills, updateStudentProjects, updateProfileField
 } from '../../global/api'
+import type { StudentProfile } from '../../global/api'
 import { getAuth } from '../../global/auth'
 import Layout from '../../components/Layout'
 import { 
   FiUser, FiMail, FiPhone, FiMapPin, FiBookOpen, FiAward, 
   FiBriefcase, FiDownload, FiEdit3, FiCheckCircle, FiAlertCircle, 
-  FiStar, FiTrendingUp, FiTarget, FiCalendar, FiPlus, FiTrash2,
-  FiEye, FiUpload, FiX, FiCheck, FiClock, FiAlertTriangle
+  FiStar, FiTrendingUp, FiTarget, FiCalendar, FiTrash2,
+  FiEye, FiUpload, FiX
 } from 'react-icons/fi'
 
-// Resume Viewer Content Component with Error Handling
-const ResumeViewerContent: React.FC<{ resume: any }> = ({ resume }) => {
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [iframeKey, setIframeKey] = useState(0)
-
-  useEffect(() => {
-    // Reset states when resume changes
-    setLoading(true)
-    setError(null)
-    setIframeKey(prev => prev + 1)
-    
-    // Simulate loading time for better UX
-    const timer = setTimeout(() => setLoading(false), 1000)
-    return () => clearTimeout(timer)
-  }, [resume.id])
-
-  const handleIframeLoad = () => {
-    setLoading(false)
-    setError(null)
-  }
-
-  const handleIframeError = () => {
-    setLoading(false)
-    setError('Failed to load resume. The file may be corrupted or inaccessible.')
-  }
-
-  const retryLoad = () => {
-    setLoading(true)
-    setError(null)
-    setIframeKey(prev => prev + 1)
-  }
-
-  if (loading) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-50 rounded-lg">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">Loading resume...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-red-50 rounded-lg">
-        <div className="text-center max-w-md">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <FiAlertTriangle className="h-8 w-8 text-red-500" />
-          </div>
-          <h3 className="text-lg font-semibold text-red-800 mb-2">Failed to Load Resume</h3>
-          <p className="text-red-600 mb-4">{error}</p>
-          <div className="space-y-3">
-            <button
-              onClick={retryLoad}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-            >
-              <FiEye className="mr-2 h-4 w-4" />
-              Retry Loading
-            </button>
-            <a
-              href={resume.cloudinaryUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-            >
-              <FiDownload className="mr-2 h-4 w-4" />
-              Download Instead
-            </a>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="w-full h-full relative">
-      <iframe
-        key={iframeKey}
-        src={resume.cloudinaryUrl}
-        className="w-full h-full border-0 rounded-lg"
-        title={resume.originalName}
-        onLoad={handleIframeLoad}
-        onError={handleIframeError}
-        sandbox="allow-same-origin allow-scripts allow-forms"
-      />
-      
-      {/* Loading overlay */}
-      {loading && (
-        <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-            <p className="text-sm text-gray-600">Loading...</p>
-          </div>
-        </div>
-      )}
-    </div>
-  )
+// Resume item type definition
+type ResumeItem = {
+  id: string
+  filename: string
+  originalName: string
+  cloudinaryUrl: string
+  viewUrl?: string
+  uploadDate: string
+  size?: number
+  hasAtsAnalysis?: boolean
 }
 
 const ProfilePage: React.FC = () => {
@@ -120,16 +32,34 @@ const ProfilePage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState('overview')
-  const [resumes, setResumes] = useState<any[]>([])
+  const [resumes, setResumes] = useState<ResumeItem[]>([])
   const [uploading, setUploading] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [editing, setEditing] = useState<{ section: string; field: string } | null>(null)
   const [editValue, setEditValue] = useState('')
   const [saving, setSaving] = useState(false)
-  const [resumeViewer, setResumeViewer] = useState<{ show: boolean; resume: any | null }>({ show: false, resume: null })
+  const [resumeViewer, setResumeViewer] = useState<{ show: boolean; resume: ResumeItem | null }>({ show: false, resume: null })
   
   // ATS Analysis State
-  const [atsPopup, setAtsPopup] = useState<{ show: boolean; data: any; resumeId: string | null }>({ show: false, data: null, resumeId: null })
+  type ATSAnalysis = {
+    score?: number
+    overallScore?: number
+    jobRole?: string
+    keywordMatch?: { matched?: number; total?: number }
+    readability?: { score?: number; level?: string }
+    improvements?: {
+      skills?: string[]
+      keywords?: string[]
+      formatting?: string[]
+      clarity?: string[]
+    }
+    suggestions?: string[]
+    mistakes?: string[]
+    keywords?: string[]
+    overall?: string
+    detailedAnalysis?: { name?: string; analysis?: string; score?: number }[]
+  }
+  const [atsPopup, setAtsPopup] = useState<{ show: boolean; data: ATSAnalysis | null; resumeId: string | null }>({ show: false, data: null, resumeId: null })
   const [atsRolePopup, setAtsRolePopup] = useState<{ show: boolean; resumeId: string | null }>({ show: false, resumeId: null })
   const [selectedJobRole, setSelectedJobRole] = useState('')
   const [customJobRole, setCustomJobRole] = useState('')
@@ -163,7 +93,7 @@ const ProfilePage: React.FC = () => {
 
   useEffect(() => {
     fetchProfile()
-  }, [])
+  }, [auth?.token])
 
   const fetchProfile = async () => {
     if (!auth?.token) {
@@ -181,7 +111,7 @@ const ProfilePage: React.FC = () => {
       console.log('🔍 Profile structure:', {
         hasProfile: !!response.profile,
         profileKeys: response.profile ? Object.keys(response.profile) : [],
-        profileId: response.profile?._id || response.profile?.id,
+        profileId: response.profile ? 'Profile loaded' : 'No profile',
         authUserId: auth.user?.id
       })
       setProfile(response.profile)
@@ -279,11 +209,9 @@ const ProfilePage: React.FC = () => {
     }
   }
 
-  const handleViewResume = (resume: any) => {
+  const handleViewResume = (resume: ResumeItem) => {
     setResumeViewer({ show: true, resume })
   }
-
-
 
   const showAtsAnalysis = async (resumeId: string) => {
     if (!auth?.token) return
@@ -292,7 +220,7 @@ const ProfilePage: React.FC = () => {
       const response = await getResumeAnalysis(auth.token, resumeId)
       setAtsPopup({
         show: true,
-        data: response.resume.atsAnalysis,
+        data: response?.resume?.atsAnalysis as ATSAnalysis,
         resumeId
       })
     } catch (err) {
@@ -342,7 +270,7 @@ const ProfilePage: React.FC = () => {
       // Show ATS results popup
       setAtsPopup({
         show: true,
-        data: result.atsAnalysis,
+        data: result?.atsAnalysis as ATSAnalysis,
         resumeId: atsRolePopup.resumeId
       })
       
@@ -362,9 +290,9 @@ const ProfilePage: React.FC = () => {
     }
   }
 
-  const handleEdit = (section: string, field: string, currentValue: string) => {
+  const handleEdit = (section: string, field: string, currentValue: string | number) => {
     setEditing({ section, field })
-    setEditValue(currentValue)
+    setEditValue(String(currentValue ?? ''))
   }
 
   const handleSave = async () => {
@@ -384,9 +312,8 @@ const ProfilePage: React.FC = () => {
         // Refresh profile
         await fetchProfile()
       } else {
-        // For other fields, update the profile
-        const updateData = { [editing.field]: editValue }
-        await updateStudentProfile(auth.token, updateData)
+        // For individual fields, use the new updateProfileField function
+        await updateProfileField(auth.token, editing.field, editValue)
         // Refresh profile
         await fetchProfile()
       }
@@ -407,19 +334,7 @@ const ProfilePage: React.FC = () => {
     return profile.status?.profileCompletion || 0
   }
 
-  const getCompletionBreakdown = () => {
-    if (!profile) return {}
-    
-    return {
-      personal: profile.basicInfo?.name && profile.basicInfo?.phone && profile.basicInfo?.address ? 100 : 
-                (profile.basicInfo?.name || profile.basicInfo?.phone || profile.basicInfo?.address ? 50 : 0),
-      academic: profile.academicInfo?.branch && profile.academicInfo?.year ? 100 : 
-                (profile.academicInfo?.branch || profile.academicInfo?.year ? 50 : 0),
-      skills: profile.placementInfo?.skills?.length > 0 ? 100 : 0,
-      resume: resumes.length > 0 ? 100 : 0,
-      projects: profile.placementInfo?.projects?.length > 0 ? 100 : 0
-    }
-  }
+
 
   if (loading) {
     return (
@@ -479,61 +394,7 @@ const ProfilePage: React.FC = () => {
   return (
     <Layout title="Profile" subtitle="Your complete student profile and progress tracking">
       <div className="max-w-7xl mx-auto p-6 space-y-8">
-                 {/* Debug Info */}
-         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-           <h3 className="text-sm font-semibold text-blue-900 mb-2">Debug Information</h3>
-           <div className="text-xs text-blue-700 space-y-1">
-             <p>Auth Token: {auth?.token ? 'Present' : 'Missing'}</p>
-             <p>User Role: {auth?.user?.role || 'Unknown'}</p>
-             <p>Profile Data: {profile ? 'Loaded' : 'Not loaded'}</p>
-             <p>Profile Completion: {profile.status?.profileCompletion || 0}%</p>
-           </div>
-                       <div className="mt-3 pt-3 border-t border-blue-200 space-y-2">
-              <button
-                onClick={async () => {
-                  try {
-                    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/resume/test-cloudinary`, {
-                      headers: { Authorization: `Bearer ${auth?.token}` }
-                    })
-                    const data = await response.json()
-                    console.log('🔧 Cloudinary Test Result:', data)
-                    alert(`Cloudinary Test: ${data.success ? '✅ Success' : '❌ Failed'}\n${data.message}`)
-                  } catch (err) {
-                    console.error('❌ Cloudinary test failed:', err)
-                    alert('Cloudinary test failed. Check console for details.')
-                  }
-                }}
-                className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded transition-colors"
-              >
-                Test Cloudinary
-              </button>
-              <button
-                onClick={async () => {
-                  if (!auth?.user?.id) {
-                    alert('User ID not found. Please try logging in again.')
-                    return
-                  }
-                  
-                  try {
-                    const { regenerateResumeUrls } = await import('../../global/api')
-                    const response = await regenerateResumeUrls(auth.token, auth.user.id.toString())
-                    console.log('🔧 Regenerate URLs Result:', response)
-                    alert(`URL Regeneration: ${response.success ? '✅ Success' : '❌ Failed'}\n${response.message}\nFixed: ${response.fixedCount}/${response.totalCount}`)
-                    
-                    // Refresh resumes to show updated URLs
-                    await fetchResumes()
-                  } catch (err) {
-                    console.error('❌ URL regeneration failed:', err)
-                    alert(`URL regeneration failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
-                  }
-                }}
-                className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded transition-colors"
-              >
-                Regenerate URLs
-              </button>
-            </div>
-         </div>
-
+        
         {/* Profile Header with Progress */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
@@ -544,34 +405,43 @@ const ProfilePage: React.FC = () => {
           <div className="absolute inset-0 bg-black/10"></div>
           <div className="relative z-10">
             <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 className="text-3xl font-bold mb-2">
-                  {profile.basicInfo?.name || 'Student Profile'}
-                </h1>
-                <p className="text-purple-100 text-lg">
-                  {profile.basicInfo?.email || 'student@college.edu'}
-                </p>
+              <div className="flex items-center space-x-4">
+                <div className="w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center ring-2 ring-white/30">
+                  <span className="text-white text-xl font-bold">
+                    {(profile.basicInfo?.name || 'SP').split(' ').map(s => s[0]).slice(0,2).join('').toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold">
+                    {profile.basicInfo?.name || 'Student Profile'}
+                  </h1>
+                  <p className="text-purple-100/90 text-sm md:text-base">
+                    {profile.basicInfo?.email || 'student@college.edu'}
+                  </p>
+                </div>
               </div>
-              <div className="text-right">
-                                 <div className="text-4xl font-bold mb-1">{getBackendProfileCompletion()}%</div>
-                <div className="text-purple-100">Complete</div>
+              <div className="flex items-center space-x-3">
+                <div className="px-4 py-2 rounded-full bg-white/15 text-white">
+                  <span className="text-lg font-semibold">{getBackendProfileCompletion()}%</span>
+                  <span className="ml-2 text-purple-100/80">Complete</span>
+                </div>
               </div>
             </div>
-            
+
             {/* Progress Bar */}
-            <div className="w-full bg-white/20 rounded-full h-3 mb-4">
-              <motion.div 
-                className="bg-white h-3 rounded-full"
+            <div className="w-full bg-white/20 rounded-full h-2.5 mb-4">
+              <motion.div
+                className="bg-white h-2.5 rounded-full"
                 initial={{ width: 0 }}
-                                 animate={{ width: `${getBackendProfileCompletion()}%` }}
-                transition={{ duration: 1, delay: 0.5 }}
+                animate={{ width: `${getBackendProfileCompletion()}%` }}
+                transition={{ duration: 1, delay: 0.4 }}
               />
             </div>
-            
+
             <div className="flex items-center space-x-4 text-sm">
               <div className="flex items-center space-x-2">
                 <FiCheckCircle className="text-green-300" />
-                                 <span>Profile {getBackendProfileCompletion()}% Complete</span>
+                <span>Profile {getBackendProfileCompletion()}% Complete</span>
               </div>
               <div className="flex items-center space-x-2">
                 <FiTarget className="text-yellow-300" />
@@ -615,21 +485,10 @@ const ProfilePage: React.FC = () => {
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-8">
-              {/* Overall Completion */}
-              <div className="bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] rounded-2xl p-8 text-white text-center">
-                <h2 className="text-3xl font-bold mb-4">Profile Completion</h2>
-                                 <div className="text-6xl font-bold mb-2">{getBackendProfileCompletion()}%</div>
-                <p className="text-xl opacity-90">
-                                     {getBackendProfileCompletion() >= 80 ? 'Excellent! Your profile is well-completed.' :
-                    getBackendProfileCompletion() >= 60 ? 'Good progress! Keep adding more details.' :
-                    getBackendProfileCompletion() >= 40 ? 'Getting there! Complete more sections.' :
-                    'Getting started! Add your information to improve your profile.'}
-                </p>
-              </div>
-              
+              {/* Welcome Section */}
               {/* Quick Stats Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200/60">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200/60 hover:shadow-lg transition-shadow">
                   <div className="flex items-center space-x-3">
                     <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
                       <FiUser className="text-white text-xl" />
@@ -643,7 +502,7 @@ const ProfilePage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200/60">
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200/60 hover:shadow-lg transition-shadow">
                   <div className="flex items-center space-x-3">
                     <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
                       <FiBookOpen className="text-white text-xl" />
@@ -657,7 +516,7 @@ const ProfilePage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200/60">
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200/60 hover:shadow-lg transition-shadow">
                   <div className="flex items-center space-x-3">
                     <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center">
                       <FiAward className="text-white text-xl" />
@@ -671,7 +530,7 @@ const ProfilePage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-6 border border-orange-200/60">
+                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-6 border border-orange-200/60 hover:shadow-lg transition-shadow">
                   <div className="flex items-center space-x-3">
                     <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center">
                       <FiBriefcase className="text-white text-xl" />
@@ -686,215 +545,267 @@ const ProfilePage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Completion Breakdown */}
-              <div className="bg-gray-50 rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Profile Completion Breakdown</h3>
-                <div className="space-y-4">
-                  {Object.entries(getCompletionBreakdown()).map(([key, value]) => (
-                    <div key={key} className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-700 capitalize">
-                        {key.replace(/([A-Z])/g, ' $1').trim()}
-                      </span>
-                      <div className="flex items-center space-x-3">
-                        <div className="w-32 bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-purple-500 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${value}%` }}
-                          />
-                        </div>
-                        <span className="text-sm font-medium text-gray-900 w-12 text-right">
-                          {value}%
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              {/* Quick Actions */}
+              
             </div>
           )}
-
           {/* Personal Info Tab */}
           {activeTab === 'personal' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-gray-900">Personal Information</h2>
-                <button 
-                  onClick={() => handleEdit('personal', 'name', profile.basicInfo?.name || '')}
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] hover:shadow-lg transform hover:scale-105 transition duration-200"
-                >
-                  <FiEdit3 className="mr-2 h-4 w-4" />
-                  Edit Profile
-                </button>
+  <div className="space-y-8">
+    {/* Header */}
+    <div className="flex items-center justify-between">
+      <h2 className="text-2xl font-bold text-gray-800">Personal Information</h2>
+      <button
+        onClick={() =>
+          handleEdit('personal', 'name', profile.basicInfo?.name || '')
+        }
+        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-medium shadow-md hover:shadow-xl transition-transform hover:scale-105"
+      >
+        <FiEdit3 className="w-4 h-4" />
+        Edit Profile
+      </button>
+    </div>
+
+    {editing?.section === 'personal' ? (
+      // Edit Mode
+      <div className="bg-gradient-to-tr from-white to-gray-50 rounded-2xl border border-gray-200 shadow-sm p-8">
+        <h3 className="text-lg font-semibold text-gray-800 mb-6 border-b pb-3">
+          Edit Personal Information
+        </h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Name */}
+          <div className="flex flex-col">
+            <label className="text-sm font-medium text-gray-600 mb-2">
+              Full Name
+            </label>
+            <input
+              type="text"
+              value={
+                editing.field === 'name'
+                  ? editValue
+                  : profile.basicInfo?.name || ''
+              }
+              onChange={(e) => setEditValue(e.target.value)}
+              placeholder="Enter your full name"
+              className="px-4 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all"
+            />
+          </div>
+
+          {/* Phone */}
+          <div className="flex flex-col">
+            <label className="text-sm font-medium text-gray-600 mb-2">
+              Phone Number
+            </label>
+            <input
+              type="tel"
+              value={
+                editing.field === 'phone'
+                  ? editValue
+                  : profile.basicInfo?.phone || ''
+              }
+              onChange={(e) => setEditValue(e.target.value)}
+              placeholder="Enter your phone number"
+              className="px-4 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all"
+            />
+          </div>
+
+          {/* Address */}
+          <div className="col-span-1 md:col-span-2 flex flex-col">
+            <label className="text-sm font-medium text-gray-600 mb-2">
+              Address
+            </label>
+            <textarea
+              value={
+                editing.field === 'address'
+                  ? editValue
+                  : profile.basicInfo?.address || ''
+              }
+              onChange={(e) => setEditValue(e.target.value)}
+              placeholder="Enter your address"
+              rows={3}
+              className="px-4 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all"
+            />
+          </div>
+        </div>
+
+        {/* Buttons */}
+        <div className="flex gap-4 mt-8">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-6 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white font-medium shadow-sm transition disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+          <button
+            onClick={() => setEditing(null)}
+            className="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-medium hover:bg-gray-100 transition"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    ) : (
+      // View Mode
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Left Column */}
+        <div className="space-y-6">
+          {/* Name */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-indigo-500 text-white">
+                <FiUser />
               </div>
-              
-              {editing?.section === 'personal' ? (
-                <div className="bg-white rounded-xl border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Edit Personal Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
-                      <input
-                        type="text"
-                        value={editing.field === 'name' ? editValue : profile.basicInfo?.name || ''}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        placeholder="Enter your full name"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
-                      <input
-                        type="tel"
-                        value={editing.field === 'phone' ? editValue : profile.basicInfo?.phone || ''}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        placeholder="Enter your phone number"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
-                      <textarea
-                        value={editing.field === 'address' ? editValue : profile.basicInfo?.address || ''}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        placeholder="Enter your address"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        rows={3}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex space-x-3 mt-6">
-                    <button
-                      onClick={handleSave}
-                      disabled={saving}
-                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
-                    >
-                      {saving ? 'Saving...' : 'Save Changes'}
-                    </button>
-                    <button
-                      onClick={() => setEditing(null)}
-                      className="px-4 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
+              <div>
+                <div className="text-xs text-gray-500 uppercase">
+                  Full Name
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                      <div className="flex items-center space-x-3">
-                        <FiUser className="text-purple-500 text-xl" />
-                        <div>
-                          <div className="text-sm text-gray-500">Full Name</div>
-                          <div className="font-medium text-gray-900">
-                            {profile.basicInfo?.name || 'Not provided'}
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleEdit('personal', 'name', profile.basicInfo?.name || '')}
-                        className="text-purple-600 hover:text-purple-700 p-1 rounded"
-                      >
-                        <FiEdit3 className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                      <div className="flex items-center space-x-3">
-                        <FiMail className="text-purple-500 text-xl" />
-                        <div>
-                          <div className="text-sm text-gray-500">Email</div>
-                          <div className="font-medium text-gray-900">
-                            {profile.basicInfo?.email || 'Not provided'}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-gray-400 text-xs">Cannot edit</div>
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                      <div className="flex items-center space-x-3">
-                        <FiPhone className="text-purple-500 text-xl" />
-                        <div>
-                          <div className="text-sm text-gray-500">Phone</div>
-                          <div className="font-medium text-gray-900">
-                            {profile.basicInfo?.phone || 'Not provided'}
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleEdit('personal', 'phone', profile.basicInfo?.phone || '')}
-                        className="text-purple-600 hover:text-purple-700 p-1 rounded"
-                      >
-                        <FiEdit3 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                      <div className="flex items-center space-x-3">
-                        <FiMapPin className="text-purple-500 text-xl" />
-                        <div>
-                          <div className="text-sm text-gray-500">Address</div>
-                          <div className="font-medium text-gray-900">
-                            {profile.basicInfo?.address || 'Not provided'}
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleEdit('personal', 'address', profile.basicInfo?.address || '')}
-                        className="text-purple-600 hover:text-purple-700 p-1 rounded"
-                      >
-                        <FiEdit3 className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-xl">
-                      <FiCalendar className="text-purple-500 text-xl" />
-                      <div>
-                        <div className="text-sm text-gray-500">Date of Birth</div>
-                        <div className="font-medium text-gray-900">
-                          {profile.basicInfo?.dateOfBirth || 'Not provided'}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-xl">
-                      <FiTarget className="text-purple-500 text-xl" />
-                      <div>
-                        <div className="text-sm text-gray-500">Gender</div>
-                        <div className="font-medium text-gray-900">
-                          {profile.basicInfo?.gender || 'Not provided'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                <div className="font-semibold text-gray-800">
+                  {profile.basicInfo?.name || 'Not provided'}
                 </div>
-              )}
+              </div>
             </div>
-          )}
+            <button
+              onClick={() =>
+                handleEdit('personal', 'name', profile.basicInfo?.name || '')
+              }
+              className="text-indigo-600 hover:text-indigo-800"
+              title="Edit name"
+            >
+              <FiEdit3 />
+            </button>
+          </div>
+
+          {/* Phone */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-indigo-500 text-white">
+                <FiPhone />
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 uppercase">Phone</div>
+                <div className="font-semibold text-gray-800">
+                  {profile.basicInfo?.phone || 'Not provided'}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() =>
+                handleEdit('personal', 'phone', profile.basicInfo?.phone || '')
+              }
+              className="text-indigo-600 hover:text-indigo-800"
+              title="Edit phone"
+            >
+              <FiEdit3 />
+            </button>
+          </div>
+
+          {/* Address */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-indigo-500 text-white">
+                <FiMapPin />
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 uppercase">Address</div>
+                <div className="font-semibold text-gray-800">
+                  {profile.basicInfo?.address || 'Not provided'}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() =>
+                handleEdit(
+                  'personal',
+                  'address',
+                  profile.basicInfo?.address || ''
+                )
+              }
+              className="text-indigo-600 hover:text-indigo-800"
+              title="Edit address"
+            >
+              <FiEdit3 />
+            </button>
+          </div>
+        </div>
+
+        {/* Right Column */}
+        <div className="space-y-6">
+          {/* Email */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-indigo-500 text-white">
+              <FiMail />
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 uppercase">Email</div>
+              <div className="font-semibold text-gray-800">
+                {profile.basicInfo?.email || 'Not provided'}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">Cannot edit</div>
+            </div>
+          </div>
+
+          {/* DOB */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-indigo-500 text-white">
+              <FiCalendar />
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 uppercase">
+                Date of Birth
+              </div>
+              <div className="font-semibold text-gray-800">
+                {profile.basicInfo?.dateOfBirth || 'Not provided'}
+              </div>
+            </div>
+          </div>
+
+          {/* Gender */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-indigo-500 text-white">
+              <FiTarget />
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 uppercase">Gender</div>
+              <div className="font-semibold text-gray-800">
+                {profile.basicInfo?.gender || 'Not provided'}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+)}
+
 
           {/* Academic Info Tab */}
           {activeTab === 'academic' && (
-            <div className="space-y-6">
+            <div className="space-y-8">
+              {/* Header */}
               <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-gray-900">Academic Information</h2>
-                <button 
+                <h2 className="text-2xl font-bold text-gray-800">Academic Information</h2>
+                <button
                   onClick={() => handleEdit('academic', 'gpa', profile.academicInfo?.gpa || '')}
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] hover:shadow-lg transform hover:scale-105 transition duration-200"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-medium shadow-md hover:shadow-xl transition-transform hover:scale-105"
                 >
-                  <FiEdit3 className="mr-2 h-4 w-4" />
+                  <FiEdit3 className="w-4 h-4" />
                   Edit Academic Info
                 </button>
               </div>
               
               {editing?.section === 'academic' ? (
-                <div className="bg-white rounded-xl border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Edit Academic Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">GPA</label>
+                // Edit Mode
+                <div className="bg-gradient-to-tr from-white to-gray-50 rounded-2xl border border-gray-200 shadow-sm p-8">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-6 border-b pb-3">
+                    Edit Academic Information
+                  </h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* GPA */}
+                    <div className="flex flex-col">
+                      <label className="text-sm font-medium text-gray-600 mb-2">GPA</label>
                       <input
                         type="number"
                         step="0.01"
@@ -903,114 +814,141 @@ const ProfilePage: React.FC = () => {
                         value={editing.field === 'gpa' ? editValue : profile.academicInfo?.gpa || ''}
                         onChange={(e) => setEditValue(e.target.value)}
                         placeholder="Enter your GPA (0-10)"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="px-4 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Specialization</label>
+
+                    {/* Specialization */}
+                    <div className="flex flex-col">
+                      <label className="text-sm font-medium text-gray-600 mb-2">Specialization</label>
                       <input
                         type="text"
                         value={editing.field === 'specialization' ? editValue : profile.academicInfo?.specialization || ''}
                         onChange={(e) => setEditValue(e.target.value)}
                         placeholder="Enter your specialization"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="px-4 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all"
                       />
                     </div>
                   </div>
-                  <div className="flex space-x-3 mt-6">
+
+                  {/* Buttons */}
+                  <div className="flex gap-4 mt-8">
                     <button
                       onClick={handleSave}
                       disabled={saving}
-                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+                      className="px-6 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white font-medium shadow-sm transition disabled:opacity-50"
                     >
                       {saving ? 'Saving...' : 'Save Changes'}
                     </button>
                     <button
                       onClick={() => setEditing(null)}
-                      className="px-4 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                      className="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-medium hover:bg-gray-100 transition"
                     >
                       Cancel
                     </button>
                   </div>
                 </div>
               ) : (
+                // View Mode
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-xl">
-                      <FiBookOpen className="text-purple-500 text-xl" />
+                  {/* Left Column */}
+                  <div className="space-y-6">
+                    {/* Roll Number */}
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border flex items-center gap-4">
+                      <div className="p-3 rounded-xl bg-indigo-500 text-white">
+                        <FiBookOpen />
+                      </div>
                       <div>
-                        <div className="text-sm text-gray-500">Roll Number</div>
-                        <div className="font-medium text-gray-900">
+                        <div className="text-xs text-gray-500 uppercase">Roll Number</div>
+                        <div className="font-semibold text-gray-800">
                           {profile.academicInfo?.rollNumber || 'Not provided'}
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-xl">
-                      <FiAward className="text-purple-500 text-xl" />
+                    {/* Branch */}
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border flex items-center gap-4">
+                      <div className="p-3 rounded-xl bg-indigo-500 text-white">
+                        <FiAward />
+                      </div>
                       <div>
-                        <div className="text-sm text-gray-500">Branch</div>
-                        <div className="font-medium text-gray-900">
+                        <div className="text-xs text-gray-500 uppercase">Branch</div>
+                        <div className="font-semibold text-gray-800">
                           {profile.academicInfo?.branch || 'Not provided'}
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-xl">
-                      <FiTrendingUp className="text-purple-500 text-xl" />
+                    {/* Section */}
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border flex items-center gap-4">
+                      <div className="p-3 rounded-xl bg-indigo-500 text-white">
+                        <FiTrendingUp />
+                      </div>
                       <div>
-                        <div className="text-sm text-gray-500">Section</div>
-                        <div className="font-medium text-gray-900">
+                        <div className="text-xs text-gray-500 uppercase">Section</div>
+                        <div className="font-semibold text-gray-800">
                           {profile.academicInfo?.section || 'Not provided'}
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-xl">
-                      <FiStar className="text-purple-500 text-xl" />
+                  {/* Right Column */}
+                  <div className="space-y-6">
+                    {/* Year */}
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border flex items-center gap-4">
+                      <div className="p-3 rounded-xl bg-indigo-500 text-white">
+                        <FiStar />
+                      </div>
                       <div>
-                        <div className="text-sm text-gray-500">Year</div>
-                        <div className="font-medium text-gray-900">
+                        <div className="text-xs text-gray-500 uppercase">Year</div>
+                        <div className="font-semibold text-gray-800">
                           {profile.academicInfo?.year || 'Not provided'}
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                      <div className="flex items-center space-x-3">
-                        <FiAward className="text-purple-500 text-xl" />
+                    {/* GPA */}
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 rounded-xl bg-indigo-500 text-white">
+                          <FiAward />
+                        </div>
                         <div>
-                          <div className="text-sm text-gray-500">GPA</div>
-                          <div className="font-medium text-gray-900">
+                          <div className="text-xs text-gray-500 uppercase">GPA</div>
+                          <div className="font-semibold text-gray-800">
                             {profile.academicInfo?.gpa || 'Not provided'}
                           </div>
                         </div>
                       </div>
                       <button
                         onClick={() => handleEdit('academic', 'gpa', profile.academicInfo?.gpa || '')}
-                        className="text-purple-600 hover:text-purple-700 p-1 rounded"
+                        className="text-indigo-600 hover:text-indigo-800"
+                        title="Edit GPA"
                       >
-                        <FiEdit3 className="h-4 w-4" />
+                        <FiEdit3 />
                       </button>
                     </div>
 
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                      <div className="flex items-center space-x-3">
-                        <FiBookOpen className="text-purple-500 text-xl" />
+                    {/* Specialization */}
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 rounded-xl bg-indigo-500 text-white">
+                          <FiBookOpen />
+                        </div>
                         <div>
-                          <div className="text-sm text-gray-500">Specialization</div>
-                          <div className="font-medium text-gray-900">
+                          <div className="text-xs text-gray-500 uppercase">Specialization</div>
+                          <div className="font-semibold text-gray-800">
                             {profile.academicInfo?.specialization || 'Not provided'}
                           </div>
                         </div>
                       </div>
                       <button
                         onClick={() => handleEdit('academic', 'specialization', profile.academicInfo?.specialization || '')}
-                        className="text-purple-600 hover:text-purple-700 p-1 rounded"
+                        className="text-indigo-600 hover:text-indigo-800"
+                        title="Edit specialization"
                       >
-                        <FiEdit3 className="h-4 w-4" />
+                        <FiEdit3 />
                       </button>
                     </div>
                   </div>
@@ -1021,82 +959,100 @@ const ProfilePage: React.FC = () => {
 
           {/* Skills Tab */}
           {activeTab === 'skills' && (
-            <div className="space-y-6">
+            <div className="space-y-8">
+              {/* Header */}
               <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-gray-900">Skills & Technologies</h2>
-                <button 
+                <h2 className="text-2xl font-bold text-gray-800">Skills & Technologies</h2>
+                <button
                   onClick={() => handleEdit('skills', 'skills', profile.placementInfo?.skills?.join(', ') || '')}
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] hover:shadow-lg transform hover:scale-105 transition duration-200"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-medium shadow-md hover:shadow-xl transition-transform hover:scale-105"
                 >
-                  <FiEdit3 className="mr-2 h-4 w-4" />
+                  <FiEdit3 className="w-4 h-4" />
                   {profile.placementInfo?.skills?.length ? 'Edit Skills' : 'Add Skills'}
                 </button>
               </div>
               
               {editing?.section === 'skills' ? (
-                <div className="bg-white rounded-xl border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                // Edit Mode
+                <div className="bg-gradient-to-tr from-white to-gray-50 rounded-2xl border border-gray-200 shadow-sm p-8">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-6 border-b pb-3">
                     {profile.placementInfo?.skills?.length ? 'Edit Skills' : 'Add Skills'}
                   </h3>
+
                   <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <div className="flex flex-col">
+                      <label className="text-sm font-medium text-gray-600 mb-2">
                         Skills (comma-separated)
                       </label>
                       <textarea
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
                         placeholder="e.g., JavaScript, React, Node.js, MongoDB"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all"
                         rows={4}
                       />
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="text-sm text-gray-500 mt-2">
                         Separate multiple skills with commas
                       </p>
                     </div>
-                    <div className="flex space-x-3">
-                      <button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
-                      >
-                        {saving ? 'Saving...' : 'Save Skills'}
-                      </button>
-                      <button
-                        onClick={() => setEditing(null)}
-                        className="px-4 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
+                  </div>
+
+                  {/* Buttons */}
+                  <div className="flex gap-4 mt-8">
+                    <button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="px-6 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white font-medium shadow-sm transition disabled:opacity-50"
+                    >
+                      {saving ? 'Saving...' : 'Save Skills'}
+                    </button>
+                    <button
+                      onClick={() => setEditing(null)}
+                      className="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-medium hover:bg-gray-100 transition"
+                    >
+                      Cancel
+                    </button>
                   </div>
                 </div>
               ) : profile.placementInfo?.skills && profile.placementInfo.skills.length > 0 ? (
-                <div className="space-y-6">
-                  <div className="bg-gray-50 rounded-xl p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">All Skills</h3>
-                    <div className="flex flex-wrap gap-3">
-                      {profile.placementInfo.skills.map((skill, index) => (
-                        <span
-                          key={index}
-                          className="bg-purple-100 text-purple-700 px-4 py-2 rounded-full text-sm font-medium"
-                        >
-                          {skill}
-                        </span>
-                      ))}
+                // View Mode - Skills Present
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="p-3 rounded-xl bg-indigo-500 text-white">
+                      <FiAward />
                     </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800">Your Skills</h3>
+                      <p className="text-sm text-gray-600">Technical skills and technologies you've added</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-3">
+                    {profile.placementInfo.skills.map((skill, index) => (
+                      <span
+                        key={index}
+                        className="bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 px-4 py-2 rounded-full text-sm font-medium border border-indigo-200"
+                      >
+                        {skill}
+                      </span>
+                    ))}
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-12">
-                  <div className="text-gray-400 text-6xl mb-4">🎯</div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Skills Added Yet</h3>
-                  <p className="text-gray-500 mb-6">Add your technical skills and technologies to improve your profile</p>
+                // Empty State
+                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border border-gray-200 p-12 text-center">
+                  <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <FiAward className="text-indigo-500 text-2xl" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-800 mb-3">No Skills Added Yet</h3>
+                  <p className="text-gray-600 mb-8 max-w-md mx-auto">
+                    Add your technical skills and technologies to showcase your expertise and improve your profile
+                  </p>
                   <button 
                     onClick={() => handleEdit('skills', 'skills', '')}
-                    className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200"
+                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-medium shadow-md hover:shadow-xl transition-transform hover:scale-105"
                   >
-                    Add Skills
+                    Add Your First Skills
                   </button>
                 </div>
               )}
@@ -1105,83 +1061,103 @@ const ProfilePage: React.FC = () => {
 
           {/* Projects Tab */}
           {activeTab === 'projects' && (
-            <div className="space-y-6">
+            <div className="space-y-8">
+              {/* Header */}
               <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-gray-900">Projects & Experience</h2>
-                <button 
+                <h2 className="text-2xl font-bold text-gray-800">Projects & Experience</h2>
+                <button
                   onClick={() => handleEdit('projects', 'projects', profile.placementInfo?.projects?.join(', ') || '')}
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] hover:shadow-lg transform hover:scale-105 transition duration-200"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-medium shadow-md hover:shadow-xl transition-transform hover:scale-105"
                 >
-                  <FiEdit3 className="mr-2 h-4 w-4" />
+                  <FiEdit3 className="w-4 h-4" />
                   {profile.placementInfo?.projects?.length ? 'Edit Projects' : 'Add Projects'}
                 </button>
               </div>
               
               {editing?.section === 'projects' ? (
-                <div className="bg-white rounded-xl border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                // Edit Mode
+                <div className="bg-gradient-to-tr from-white to-gray-50 rounded-2xl border border-gray-200 shadow-sm p-8">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-6 border-b pb-3">
                     {profile.placementInfo?.projects?.length ? 'Edit Projects' : 'Add Projects'}
                   </h3>
+
                   <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <div className="flex flex-col">
+                      <label className="text-sm font-medium text-gray-600 mb-2">
                         Projects (comma-separated)
                       </label>
                       <textarea
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
                         placeholder="e.g., E-commerce Website, Student Management System, Mobile App"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all"
                         rows={4}
                       />
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="text-sm text-gray-500 mt-2">
                         Separate multiple projects with commas
                       </p>
                     </div>
-                    <div className="flex space-x-3">
-                      <button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
-                      >
-                        {saving ? 'Saving...' : 'Save Projects'}
-                      </button>
-                      <button
-                        onClick={() => setEditing(null)}
-                        className="px-4 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
+                  </div>
+
+                  {/* Buttons */}
+                  <div className="flex gap-4 mt-8">
+                    <button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="px-6 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white font-medium shadow-sm transition disabled:opacity-50"
+                    >
+                      {saving ? 'Saving...' : 'Save Projects'}
+                    </button>
+                    <button
+                      onClick={() => setEditing(null)}
+                      className="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-medium hover:bg-gray-100 transition"
+                    >
+                      Cancel
+                    </button>
                   </div>
                 </div>
               ) : profile.placementInfo?.projects && profile.placementInfo.projects.length > 0 ? (
-                <div className="space-y-6">
-                  <div className="bg-gray-50 rounded-xl p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">All Projects</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {profile.placementInfo.projects.map((project, index) => (
-                        <div key={index} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
-                          <div className="flex items-center space-x-2 mb-2">
-                            <FiBriefcase className="text-purple-500" />
-                            <span className="font-medium text-gray-900">Project {index + 1}</span>
-                          </div>
-                          <p className="text-gray-700">{project}</p>
-                        </div>
-                      ))}
+                // View Mode - Projects Present
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="p-3 rounded-xl bg-indigo-500 text-white">
+                      <FiBriefcase />
                     </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800">Your Projects</h3>
+                      <p className="text-sm text-gray-600">Projects and experience you've added</p>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {profile.placementInfo.projects.map((project, index) => (
+                      <div key={index} className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl border border-indigo-200 p-5 hover:shadow-md transition-shadow">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="p-2 rounded-lg bg-indigo-500 text-white">
+                            <FiBriefcase className="text-sm" />
+                          </div>
+                          <span className="font-medium text-gray-800">Project {index + 1}</span>
+                        </div>
+                        <p className="text-gray-700 text-sm">{project}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-12">
-                  <div className="text-gray-400 text-6xl mb-4">🚀</div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Projects Added Yet</h3>
-                  <p className="text-gray-500 mb-6">Add your projects and experience to showcase your work</p>
+                // Empty State
+                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border border-gray-200 p-12 text-center">
+                  <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <FiBriefcase className="text-indigo-500 text-2xl" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-800 mb-3">No Projects Added Yet</h3>
+                  <p className="text-gray-600 mb-8 max-w-md mx-auto">
+                    Add your projects and experience to showcase your work and demonstrate your capabilities
+                  </p>
                   <button 
                     onClick={() => handleEdit('projects', 'projects', '')}
-                    className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200"
+                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-medium shadow-md hover:shadow-xl transition-transform hover:scale-105"
                   >
-                    Add Projects
+                    Add Your First Project
                   </button>
                 </div>
               )}
@@ -1190,11 +1166,12 @@ const ProfilePage: React.FC = () => {
 
           {/* Resume Tab */}
           {activeTab === 'resume' && (
-            <div className="space-y-6">
+            <div className="space-y-8">
+              {/* Header */}
               <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-gray-900">Resume & Documents</h2>
-                <label className="cursor-pointer inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] hover:shadow-lg transform hover:scale-105 transition duration-200">
-                  <FiUpload className="mr-2 h-4 w-4" />
+                <h2 className="text-2xl font-bold text-gray-800">Resume & Documents</h2>
+                <label className="cursor-pointer flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-medium shadow-md hover:shadow-xl transition-transform hover:scale-105">
+                  <FiUpload className="w-4 h-4" />
                   Upload New Resume
                   <input
                     type="file"
@@ -1359,15 +1336,8 @@ const ProfilePage: React.FC = () => {
             <div className="bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] text-white p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-2xl font-bold">
-                    {atsRolePopup.file ? 'New Resume ATS Analysis' : 'Resume ATS Analysis'}
-                  </h2>
-                  <p className="text-white/80 mt-1">
-                    {atsRolePopup.file 
-                      ? 'Select job role for detailed resume analysis' 
-                      : 'Select job role to re-analyze your resume'
-                    }
-                  </p>
+                  <h2 className="text-2xl font-bold">Resume ATS Analysis</h2>
+                  <p className="text-white/80 mt-1">Select job role for detailed resume analysis</p>
                 </div>
                 <button
                   onClick={() => setAtsRolePopup({ show: false, resumeId: null })}
@@ -1521,9 +1491,9 @@ const ProfilePage: React.FC = () => {
                       </div>
                       <div className="text-green-700 font-medium">Overall ATS Score</div>
                       <div className="text-sm text-green-600 mt-2">
-                        {(atsPopup.data.score || atsPopup.data.overallScore) >= 80 ? '🌟 Excellent' : 
-                         (atsPopup.data.score || atsPopup.data.overallScore) >= 60 ? '👍 Good' : 
-                         (atsPopup.data.score || atsPopup.data.overallScore) >= 40 ? '⚠️ Fair' : '❌ Needs Improvement'}
+                        {((atsPopup.data?.score || atsPopup.data?.overallScore) ?? 0) >= 80 ? '🌟 Excellent' : 
+                         ((atsPopup.data?.score || atsPopup.data?.overallScore) ?? 0) >= 60 ? '👍 Good' : 
+                         ((atsPopup.data?.score || atsPopup.data?.overallScore) ?? 0) >= 40 ? '⚠️ Fair' : '❌ Needs Improvement'}
                       </div>
                     </div>
                   </div>
@@ -1736,7 +1706,7 @@ const ProfilePage: React.FC = () => {
                 <div className="mt-6">
                   <h3 className="text-xl font-semibold text-gray-900 mb-4">Detailed Analysis</h3>
                   <div className="space-y-4">
-                    {atsPopup.data.detailedAnalysis.map((section: any, index: number) => (
+                    {atsPopup.data.detailedAnalysis?.map((section: { name?: string; analysis?: string; score?: number }, index: number) => (
                       <div key={index} className="bg-white rounded-xl border border-gray-200 p-4">
                         <h4 className="font-medium text-gray-900 mb-3">{section.name}</h4>
                         <div className="space-y-2">
@@ -1826,7 +1796,7 @@ const ProfilePage: React.FC = () => {
              <div className="p-6 overflow-hidden">
                <div className="w-full h-[calc(95vh-200px)]">
                  <iframe
-                   src={resumeViewer.resume.cloudinaryUrl}
+                   src={resumeViewer.resume.viewUrl || resumeViewer.resume.cloudinaryUrl}
                    className="w-full h-full border-0 rounded-lg"
                    title={resumeViewer.resume.originalName}
                  />

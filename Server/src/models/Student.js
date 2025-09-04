@@ -13,9 +13,11 @@ const studentSchema = new mongoose.Schema({
   rollNumber: String,
   phone: String,
   year: String,
+  course: String,
   
   // Profile & Status
   isActive: { type: Boolean, default: true },
+  isPlaced: { type: Boolean, default: false },
   lastLogin: Date,
   profileImage: String,
   
@@ -48,6 +50,82 @@ const studentSchema = new mongoose.Schema({
     },
     onboardingStep: { type: String, enum: ['pending', 'personal_info', 'academic_info', 'completed'], default: 'pending' }
   },
+  
+  // Eligibility Criteria
+  eligibilityCriteria: {
+    attendancePercentage: Number,
+    backlogs: Number,
+    academicRequirements: String,
+    otherEligibility: String
+  },
+  
+  // Comprehensive Biodata Fields
+  // Physical & Personal Details
+  bloodGroup: { type: String, enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] },
+  height: Number, // in cm
+  weight: Number, // in kg
+  nationality: String,
+  religion: String,
+  caste: String,
+  category: { type: String, enum: ['General', 'OBC', 'SC', 'ST', 'EWS'] },
+  
+  // Family Information
+  parentName: String,
+  parentPhone: String,
+  parentOccupation: String,
+  familyIncome: Number, // in rupees
+  
+  // Academic History
+  tenthPercentage: Number,
+  twelfthPercentage: Number,
+  diplomaPercentage: Number,
+  entranceExamScore: Number,
+  entranceExamRank: Number,
+  
+  // Living & Transportation
+  hostelStatus: { type: String, enum: ['Day Scholar', 'Hostel Resident', 'Paying Guest', 'Own House'] },
+  transportMode: { type: String, enum: ['Public Transport', 'College Bus', 'Own Vehicle', 'Walking', 'Cycling'] },
+  
+  // Medical Information
+  medicalConditions: String,
+  allergies: String,
+  disabilities: String,
+  
+  // Skills & Languages
+  languagesKnown: [String],
+  hobbies: [String],
+  extraCurricularActivities: [String],
+  sports: [String],
+  
+  // Certifications & Achievements
+  technicalCertifications: [String],
+  nonTechnicalCertifications: [String],
+  internships: [String],
+  workshopsAttended: [String],
+  paperPublications: [String],
+  patentApplications: Number,
+  startupExperience: Number,
+  leadershipRoles: Number,
+  communityService: Number,
+  
+  // Online Presence
+  socialMediaPresence: [String],
+  linkedinProfile: String,
+  portfolioWebsite: String,
+  githubProfile: String,
+  
+  // Career Preferences
+  expectedSalary: Number, // in rupees
+  preferredLocation: [String],
+  willingToRelocate: { type: Boolean, default: false },
+  
+  // Documents & Identity
+  passportNumber: String,
+  drivingLicense: String,
+  vehicleOwnership: { type: Boolean, default: false },
+  bankAccount: String,
+  panCard: String,
+  aadharNumber: String,
   
   // Timestamps
   createdAt: { type: Date, default: Date.now },
