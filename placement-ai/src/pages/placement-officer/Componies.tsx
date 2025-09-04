@@ -1,5 +1,5 @@
 import Layout from '../../components/Layout'
-import NewJobPost from '../../componies/NewJobPost'
+import NewJobPost from './NewJobPost'
 
 export default function ComponiesPage() {
   return (
