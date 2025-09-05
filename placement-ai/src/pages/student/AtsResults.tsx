@@ -83,7 +83,7 @@ function computeScores(draft: Draft) {
 
 export default function StudentAtsResults() {
   const navigate = useNavigate()
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  // removed unused sidebar state
   const draft: Draft = useMemo(() => {
     try { return JSON.parse(localStorage.getItem('onboarding_draft') || '{}') } catch { return {} }
   }, [])

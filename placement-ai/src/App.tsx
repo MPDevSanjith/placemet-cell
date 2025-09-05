@@ -171,13 +171,43 @@ function AppRoutes() {
       {/* Student Routes */}
       <Route path="/student" element={
         isAuthenticated && userRole === 'student'
-          ? <StudentDashboard />
+          ? (
+            isLoadingStatus || !studentStatus
+              ? (
+                <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Loading your status...</p>
+                  </div>
+                </div>
+              )
+              : (
+                studentStatus.hasResume
+                  ? <StudentDashboard />
+                  : <Navigate to="/student/onboarding" replace />
+              )
+          )
           : <Navigate to="/login" replace />
       } />
       
       <Route path="/student/onboarding" element={
         isAuthenticated && userRole === 'student'
-          ? <StudentOnboarding />
+          ? (
+            isLoadingStatus || !studentStatus
+              ? (
+                <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Preparing onboarding...</p>
+                  </div>
+                </div>
+              )
+              : (
+                studentStatus.hasResume
+                  ? <Navigate to="/student" replace />
+                  : <StudentOnboarding />
+              )
+          )
           : <Navigate to="/login" replace />
       } />
       

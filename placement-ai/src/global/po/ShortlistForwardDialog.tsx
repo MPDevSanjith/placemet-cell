@@ -8,8 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { cn } from "@/lib/utils"
-import { MatchCandidate } from "@/types"
+// cn imported by ui components; local import not used
+// import { cn } from "@/lib/utils"
+import type { MatchCandidate } from "@/types"
 
 interface ShortlistForwardDialogProps {
   open: boolean

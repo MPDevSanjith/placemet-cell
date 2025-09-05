@@ -21,8 +21,8 @@ interface NavbarProps {
 
 export default function Navbar({
   onSidebarToggle,
-  title = "Dashboard",
-  subtitle = "Welcome back!",
+  title: _title = "Dashboard",
+  subtitle: _subtitle = "Welcome back!",
   showSidebarToggle = false,
 }: NavbarProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false)

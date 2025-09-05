@@ -60,7 +60,7 @@ export default function StudentDashboard() {
             basicInfo: response.profile?.basicInfo,
             academicInfo: response.profile?.academicInfo,
             placementInfo: response.profile?.placementInfo,
-            resumes: response.profile?.resumes
+            resume: response.profile?.resume
           })
           
           if (response.profile) {
@@ -70,20 +70,20 @@ export default function StudentDashboard() {
             
             // Also get breakdown from backend if available
             const breakdown = response.profile.status?.completionBreakdown || {
-              personal: response.profile.basicInfo?.name ? 100 : 0,
-              academic: response.profile.academicInfo?.branch ? 100 : 0,
-              resume: response.profile.resumes?.length > 0 ? 100 : 0,
-              skills: response.profile.placementInfo?.skills?.length > 0 ? 100 : 0,
-              projects: response.profile.placementInfo?.projects?.length > 0 ? 100 : 0
+              basicInfo: response.profile.basicInfo?.name ? 100 : 0,
+              academicInfo: response.profile.academicInfo?.branch ? 100 : 0,
+              resume: response.profile.resume ? 100 : 0,
+              skillsProjects: response.profile.placementInfo?.skills?.length > 0 ? 100 : 0,
+              applicationsEligibility: response.profile.placementInfo?.projects?.length > 0 ? 100 : 0
             }
             
             setProfileCompletion({
               overall: completion,
               breakdown: {
-                basicInfo: breakdown.personal || 0,
-                academic: breakdown.academic || 0,
+                basicInfo: (breakdown as any).basicInfo || (breakdown as any).personal || 0,
+                academic: (breakdown as any).academicInfo || (breakdown as any).academic || 0,
                 resume: breakdown.resume || 0,
-                skills: breakdown.skills || 0,
+                skills: (breakdown as any).skillsProjects || (breakdown as any).skills || 0,
                 applications: 0
               },
               status: completion >= 80 ? 'Excellent' : completion >= 60 ? 'Good' : completion >= 40 ? 'Fair' : 'Poor'

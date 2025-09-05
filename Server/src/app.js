@@ -1,4 +1,6 @@
 import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
@@ -20,9 +22,47 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Middleware
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        "default-src": ["'self'"],
+        "frame-src": [
+          "'self'",
+          "https://res.cloudinary.com",
+          "https://api.cloudinary.com",
+          "https://*.cloudinary.com"
+        ],
+        "img-src": [
+          "'self'",
+          "data:",
+          "blob:",
+          "https://res.cloudinary.com",
+          "https://*.cloudinary.com"
+        ],
+        "script-src": ["'self'"],
+        "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
+        "style-src-elem": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
+        "connect-src": [
+          "'self'",
+          "https://api.cloudinary.com",
+          "https://res.cloudinary.com"
+        ],
+        "object-src": ["'none'"],
+        "media-src": [
+          "'self'",
+          "https://res.cloudinary.com",
+          "https://*.cloudinary.com"
+        ]
+      }
+    },
+  })
+);
 
 // Enhanced CORS configuration
 app.use(
@@ -37,7 +77,8 @@ app.use(
         'http://127.0.0.1:5173',
         'http://127.0.0.1:3000',
         'http://localhost:4173', // Vite preview
-        'http://127.0.0.1:4173'
+        'http://127.0.0.1:4173',
+       ' https://placement-final.vercel.app'
       ];
       
       if (allowedOrigins.indexOf(origin) !== -1) {
@@ -78,6 +119,16 @@ app.use('/api/students', studentsRoutes);
 app.use('/api/placement-officer', placementOfficerRoutes);
 app.use('/api/resume', resumeRoutes);
 app.use('/api/profile', profileRoutes);
+
+// Static frontend hosting
+const frontendDistPath = path.resolve(__dirname, '../frontend/dist');
+app.use(express.static(frontendDistPath));
+
+// SPA fallback for non-API routes
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api')) return next();
+  res.sendFile(path.join(frontendDistPath, 'index.html'));
+});
 
 // Error handling middleware (must be last)
 app.use(notFound);

@@ -16,7 +16,7 @@ const router = express.Router();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fileSize: 1 * 1024 * 1024, // 1MB limit
   },
   fileFilter: (req, file, cb) => {
     console.log('🔍 Multer file filter:', {
@@ -353,8 +353,10 @@ router.get('/list', authenticateToken, authorizeStudent, async (req, res) => {
       size: d.size, // Include file size
       // signed short-lived URL to avoid auth issues
       cloudinaryUrl: cloudinaryService.generateSignedDownloadUrl(d.cloudinaryId, { ttlSeconds: 1800 }),
-      // view URL for embedding (no forced download)
+      // view URL for embedding (no forced download) - try public first, signed as fallback
       viewUrl: cloudinaryService.generateViewUrl(d.cloudinaryId, 'image', 'pdf'),
+      // signed view URL as fallback
+      signedViewUrl: cloudinaryService.generateSignedViewUrl(d.cloudinaryId, 'image', 'pdf'),
       uploadDate: d.createdAt?.toISOString?.() || new Date().toISOString(),
       hasAtsAnalysis: !!d.hasAtsAnalysis
     }));
@@ -476,6 +478,187 @@ router.get('/:id/download', authenticateToken, authorizeStudent, async (req, res
   }
 });
 
+// Test endpoint to verify PDF serving
+router.get('/test-pdf/*', async (req, res) => {
+  try {
+    const fullPath = req.params[0];
+    console.log('🧪 Test PDF endpoint called:', { fullPath });
+    
+    // Generate signed URL for the PDF
+    const signedUrl = cloudinaryService.generateSignedDownloadUrl(fullPath, {
+      ttlSeconds: 300,
+      attachment: false,
+      resourceType: 'image',
+      format: 'pdf'
+    });
+
+    console.log('🧪 Test signed URL:', signedUrl);
+    
+    // Test if we can fetch the PDF
+    const response = await fetch(signedUrl);
+    console.log('🧪 Test fetch response:', {
+      status: response.status,
+      statusText: response.statusText,
+      contentType: response.headers.get('content-type'),
+      contentLength: response.headers.get('content-length')
+    });
+
+    if (!response.ok) {
+      return res.json({ 
+        success: false, 
+        error: `Failed to fetch PDF: ${response.status} ${response.statusText}`,
+        signedUrl 
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'PDF is accessible',
+      signedUrl,
+      contentType: response.headers.get('content-type'),
+      contentLength: response.headers.get('content-length')
+    });
+
+  } catch (error) {
+    console.error('🧪 Test PDF error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Server-side proxy for PDF viewing to avoid Cloudinary auth issues
+router.get('/view/*', async (req, res) => {
+  try {
+    // Get the full path after /view/
+    const fullPath = req.params[0];
+    
+    if (!fullPath) {
+      return res.status(400).json({ success: false, error: 'Public ID is required' });
+    }
+
+    console.log('🔍 PDF View Proxy Request:', { fullPath });
+
+    // Try different approaches to get the PDF
+    let signedUrl;
+    let response;
+    
+    // First try: image resource type
+    try {
+      signedUrl = cloudinaryService.generateSignedDownloadUrl(fullPath, {
+        ttlSeconds: 300,
+        attachment: false,
+        resourceType: 'image',
+        format: 'pdf'
+      });
+      
+      console.log('🔗 Trying image resource type:', signedUrl);
+      response = await fetch(signedUrl);
+      
+      if (response.ok) {
+        console.log('✅ Image resource type worked');
+      } else {
+        throw new Error(`Image resource failed: ${response.status}`);
+      }
+    } catch (error) {
+      console.log('❌ Image resource failed, trying raw resource type');
+      
+      // Second try: raw resource type
+      try {
+        signedUrl = cloudinaryService.generateSignedDownloadUrl(fullPath, {
+          ttlSeconds: 300,
+          attachment: false,
+          resourceType: 'raw',
+          format: 'pdf'
+        });
+        
+        console.log('🔗 Trying raw resource type:', signedUrl);
+        response = await fetch(signedUrl);
+        
+        if (response.ok) {
+          console.log('✅ Raw resource type worked');
+        } else {
+          throw new Error(`Raw resource failed: ${response.status}`);
+        }
+      } catch (rawError) {
+        console.error('❌ Both resource types failed:', { imageError: error.message, rawError: rawError.message });
+        return res.status(500).json({ 
+          success: false, 
+          error: 'Failed to fetch PDF with any resource type' 
+        });
+      }
+    }
+
+    console.log('🔗 Generated signed URL for proxy:', signedUrl);
+    
+    if (!response.ok) {
+      console.error('❌ Failed to fetch PDF from Cloudinary:', response.status, response.statusText);
+      return res.status(response.status).json({ 
+        success: false, 
+        error: `Failed to fetch PDF: ${response.status} ${response.statusText}` 
+      });
+    }
+
+    // Set appropriate headers for PDF viewing in iframe
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="resume.pdf"');
+    res.setHeader('Cache-Control', 'public, max-age=300'); // Cache for 5 minutes
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN'); // Allow iframe embedding
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Content-Transfer-Encoding', 'binary');
+    
+    // Get content length if available
+    const contentLength = response.headers.get('content-length');
+    if (contentLength) {
+      res.setHeader('Content-Length', contentLength);
+    }
+
+    // Get the actual content type from Cloudinary response
+    const actualContentType = response.headers.get('content-type');
+    console.log('📄 Cloudinary response headers:', {
+      'content-type': actualContentType,
+      'content-length': response.headers.get('content-length'),
+      'status': response.status
+    });
+
+    // Use the actual content type from Cloudinary, fallback to application/pdf
+    const contentType = actualContentType || 'application/pdf';
+    res.setHeader('Content-Type', contentType);
+
+    console.log('📄 Serving PDF with headers:', {
+      'Content-Type': contentType,
+      'Content-Disposition': 'inline; filename="resume.pdf"',
+      'X-Frame-Options': 'SAMEORIGIN',
+      'Content-Length': contentLength
+    });
+
+    // Stream the PDF to the client
+    if (response.body && typeof response.body.pipe === 'function') {
+      response.body.pipe(res);
+    } else {
+      const buffer = Buffer.from(await response.arrayBuffer());
+      console.log('📄 PDF buffer size:', buffer.length);
+      
+      // Check if the buffer looks like a PDF (starts with %PDF)
+      const bufferStart = buffer.toString('ascii', 0, 4);
+      console.log('📄 Buffer starts with:', bufferStart);
+      
+      if (!bufferStart.startsWith('%PDF')) {
+        console.error('❌ Warning: Buffer does not appear to be a valid PDF file');
+        console.log('📄 First 100 bytes:', buffer.toString('hex', 0, 100));
+      }
+      
+      res.send(buffer);
+    }
+
+  } catch (error) {
+    console.error('❌ PDF view proxy error:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Failed to serve PDF' 
+    });
+  }
+});
+
 // Upload resume route
 router.post('/upload', authenticateToken, authorizeStudent, upload.single('resume'), async (req, res) => {
   try {
@@ -524,6 +707,12 @@ router.post('/upload', authenticateToken, authorizeStudent, upload.single('resum
       return res.status(400).json({ error: 'File is empty' });
     }
 
+    if (req.file.size > 1 * 1024 * 1024) { // 1MB limit
+      return res.status(400).json({ 
+        error: 'File size too large. Maximum allowed size is 1MB. Please compress your resume and try again.' 
+      });
+    }
+
     // Validate file type
     const allowedMimeTypes = [
       'application/pdf',
@@ -538,6 +727,16 @@ router.post('/upload', authenticateToken, authorizeStudent, upload.single('resum
     }
 
     console.log('✅ File validation passed, proceeding with upload');
+
+    // Check resume count limit (max 2 resumes per student)
+    const existingResumeCount = await Resume.countDocuments({ student: studentId });
+    if (existingResumeCount >= 2) {
+      return res.status(400).json({ 
+        error: 'Maximum resume limit reached. You can only upload 2 resumes. Please delete an existing resume before uploading a new one.' 
+      });
+    }
+
+    console.log(`📊 Resume count check: ${existingResumeCount}/2 resumes for student ${studentId}`);
 
     // Upload to Cloudinary
     const uploadResult = await cloudinaryService.uploadResume(

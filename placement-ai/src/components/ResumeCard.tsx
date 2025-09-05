@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { uploadResume } from '../global/api'
+import { uploadResume, listResumes } from '../global/api'
 
 interface ResumeCardProps {
   resume: {
@@ -32,10 +32,22 @@ const ResumeCard: React.FC<ResumeCardProps> = ({ resume, onResumeUpdate, token }
       return
     }
 
-    // Validate file size (10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      alert('File size must be less than 10MB')
+    // Validate file size (1MB)
+    if (file.size > 1 * 1024 * 1024) {
+      alert('File size must be less than 1MB. Please compress your resume and try again.')
       return
+    }
+
+    // Check resume count limit (max 2 resumes)
+    try {
+      const currentResumes = await listResumes(token)
+      if (currentResumes.resumes && currentResumes.resumes.length >= 2) {
+        alert('Maximum resume limit reached. You can only upload 2 resumes. Please delete an existing resume before uploading a new one.')
+        return
+      }
+    } catch (error) {
+      console.error('Failed to check resume count:', error)
+      // Continue with upload if we can't check the count
     }
 
     setIsUploading(true)
@@ -131,7 +143,8 @@ const ResumeCard: React.FC<ResumeCardProps> = ({ resume, onResumeUpdate, token }
               <button
                 type="button"
                 onClick={() => {
-                  const url = (resume as any).viewUrl || (resume as any).viewerUrl || resume.cloudinaryUrl
+                  // Try viewUrl first, then signedViewUrl, then cloudinaryUrl as fallback
+                  const url = (resume as any).viewUrl || (resume as any).signedViewUrl || (resume as any).viewerUrl || resume.cloudinaryUrl
                   setViewerUrl(url)
                   setIsViewerOpen(true)
                 }}
@@ -250,6 +263,9 @@ const ResumeCard: React.FC<ResumeCardProps> = ({ resume, onResumeUpdate, token }
                 src={viewerUrl}
                 className="w-full h-full"
                 allow="fullscreen"
+                sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
+                referrerPolicy="no-referrer-when-downgrade"
+                loading="lazy"
               />
             </div>
           </div>

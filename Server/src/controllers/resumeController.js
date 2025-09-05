@@ -8,13 +8,14 @@ import Resume from '../models/Resume.js';
 import cloudinaryService from '../utils/cloudinaryService.js';
 import geminiClient from '../utils/geminiClient.js';
 import logger from '../utils/logger.js';
+import fetch from 'node-fetch';
 
 // Configure multer for file upload
 const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fileSize: 1 * 1024 * 1024, // 1MB limit
   },
   fileFilter: (req, file, cb) => {
     // Allow only PDF and Word documents
@@ -51,6 +52,14 @@ export const uploadResume = async (req, res) => {
       const { file } = req;
       const studentId = req.user.id;
 
+      // Validate file size
+      if (file.size > 1 * 1024 * 1024) { // 1MB limit
+        return res.status(400).json({
+          success: false,
+          error: 'File size too large. Maximum allowed size is 1MB. Please compress your resume and try again.'
+        });
+      }
+
       logger.info(`Resume upload started for student ${studentId}: ${file.originalname}`);
 
       try {
@@ -75,6 +84,17 @@ export const uploadResume = async (req, res) => {
           logger.warn(`Could not extract student name for ${studentId}, using default`);
           studentName = 'Unknown';
         }
+
+        // Check resume count limit (max 2 resumes per student)
+        const existingResumeCount = await Resume.countDocuments({ student: studentId });
+        if (existingResumeCount >= 2) {
+          return res.status(400).json({
+            success: false,
+            error: 'Maximum resume limit reached. You can only upload 2 resumes. Please delete an existing resume before uploading a new one.'
+          });
+        }
+
+        logger.info(`Resume count check: ${existingResumeCount}/2 resumes for student ${studentId}`);
 
         // Upload to Cloudinary
         let cloudinaryResult;
@@ -151,6 +171,28 @@ export const uploadResume = async (req, res) => {
       details: error.message
     });
   }
+
+  // Helper method to get resume buffer from Cloudinary
+  async getResumeBuffer(cloudinaryId) {
+    try {
+      // Generate a signed URL for the resume
+      const resumeUrl = cloudinaryService.generateSignedDownloadUrl(cloudinaryId, { ttlSeconds: 300 });
+      
+      // Fetch the resume file
+      const response = await fetch(resumeUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch resume: ${response.status} ${response.statusText}`);
+      }
+      
+      // Convert to buffer
+      const buffer = await response.buffer();
+      return buffer;
+      
+    } catch (error) {
+      logger.error('Failed to get resume buffer:', error);
+      return null;
+    }
+  }
 };
 
 // Analyze resume with ATS
@@ -187,15 +229,20 @@ export const analyzeResumeATS = async (req, res) => {
     }
 
     try {
-      // Extract text from resume using Gemini
-      const extractedText = await geminiClient.extractTextFromResume(resume.url);
+      // Get the resume file from Cloudinary for analysis
+      const resumeBuffer = await this.getResumeBuffer(resume.cloudinaryId);
       
-      if (!extractedText) {
-        throw new Error('Failed to extract text from resume');
+      if (!resumeBuffer) {
+        throw new Error('Failed to retrieve resume file for analysis');
       }
 
-      // Analyze with ATS using Gemini
-      const atsAnalysis = await geminiClient.analyzeResumeATS(extractedText, jobRole, student);
+      // Analyze with ATS using enhanced Gemini client
+      const atsAnalysis = await geminiClient.analyzeResumeATS(
+        resumeBuffer, 
+        resume.mimeType, 
+        resume.originalName, 
+        jobRole
+      );
 
       // Update resume with ATS analysis
       resume.atsAnalysis = atsAnalysis;

@@ -1,7 +1,6 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { motion } from "framer-motion"
 import { Download, Send, Bot, BarChart3, Users, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,7 +17,7 @@ interface AIInsightsPanelProps {
   onShare?: (opts?: { messageOverride?: string }) => Promise<void>
 }
 
-export function AIInsightsPanel({ requestId, role, companyName, candidates, onShare }: AIInsightsPanelProps) {
+export function AIInsightsPanel({ requestId: _requestId, role, companyName, candidates, onShare }: AIInsightsPanelProps) {
   const { toast } = useToast()
   const [isExporting, setIsExporting] = useState(false)
   const [isSharing, setIsSharing] = useState(false)

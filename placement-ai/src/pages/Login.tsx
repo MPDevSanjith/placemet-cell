@@ -64,6 +64,12 @@ export default function Login() {
         }
         console.log('📱 OTP page state:', otpState)
         
+        // Persist pending OTP info to survive reloads/navigation
+        try {
+          localStorage.setItem('pending_otp_email', otpState.email)
+          localStorage.setItem('pending_otp_name', otpState.name)
+        } catch {}
+
         // Set navigation flag to prevent multiple navigations
         setHasNavigated(true)
         

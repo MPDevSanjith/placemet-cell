@@ -32,7 +32,8 @@ export function isStudent() {
 // Verify authentication from backend
 export async function verifyAuthFromBackend(token: string): Promise<{ isValid: boolean; user?: AuthUser; role?: string }> {
   try {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/auth/verify`, {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+    const response = await fetch(`${baseUrl}/api/auth/verify`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -61,7 +62,8 @@ export async function verifyAuthFromBackend(token: string): Promise<{ isValid: b
 // Get user role from backend
 export async function getUserRoleFromBackend(token: string): Promise<string | null> {
   try {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/auth/verify`, {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+    const response = await fetch(`${baseUrl}/api/auth/verify`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
