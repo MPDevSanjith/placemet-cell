@@ -1,7 +1,7 @@
-const User = require('../models/User');
-const { createPaginationResponse } = require('../utils/helpers');
-const logger = require('../utils/logger');
-const CompanyRequest = require('../models/CompanyRequest');
+import User from '../models/User.js';
+import { createPaginationResponse } from '../utils/helpers.js';
+import logger from '../utils/logger.js';
+import CompanyRequest from '../models/CompanyRequest.js';
 
 // @desc    Get all companies
 // @route   GET /api/companies
@@ -82,8 +82,7 @@ const getCompany = async (req, res) => {
   }
 };
 
-module.exports = {
+export {
   getCompanies,
   getCompany,
-  // placeholder export to avoid unused import warnings
 };

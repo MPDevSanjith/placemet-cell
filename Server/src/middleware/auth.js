@@ -1,26 +1,23 @@
-const jwt = require('jsonwebtoken')
-const Student = require('../models/Student')
-const User = require('../models/User')
+import jwt from 'jsonwebtoken'
+import { verifyJwt } from '../config/jwt.js'
+import Student from '../models/Student.js'
+import User from '../models/User.js'
 
-const protect = async (req, res, next) => {
+export const protect = async (req, res, next) => {
   try {
-<<<<<<< HEAD
-    const authHeader = req.headers['authorization']
-    const token = authHeader && authHeader.split(' ')[1]
-=======
     const authHeader = req.headers['authorization'];
     let token = authHeader && authHeader.split(' ')[1];
+
     // Fallback to cookie-based session
     if (!token && req.cookies && typeof req.cookies.auth_token === 'string') {
       token = req.cookies.auth_token;
     }
->>>>>>> 3da8d6aa0e12f39bcc5fc1199e86f94589560efe
 
     if (!token) {
       return res.status(401).json({ success: false, error: 'Access token required' })
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret')
+    const decoded = verifyJwt(token)
 
     let user = await Student.findById(decoded.id).select('-password')
     let userType = 'student'
@@ -44,6 +41,13 @@ const protect = async (req, res, next) => {
 
     next()
   } catch (error) {
+    console.warn('Auth protect error:', {
+      name: error.name,
+      message: error.message,
+      headerPresent: !!req.headers['authorization'],
+      cookiePresent: !!(req.cookies && req.cookies.auth_token),
+      tokenPrefix: (req.headers['authorization'] || '').slice(0, 20)
+    })
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({ success: false, error: 'Invalid token - please login again' })
     }
@@ -54,7 +58,7 @@ const protect = async (req, res, next) => {
   }
 }
 
-const authorize = (...roles) => {
+export const authorize = (...roles) => {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ success: false, error: 'Not authenticated' })
@@ -66,8 +70,10 @@ const authorize = (...roles) => {
   }
 }
 
-module.exports = {
-  protect,
-  authorize,
-  authenticateToken: protect
-}
+
+
+
+
+export const authenticateToken = protect
+export const authorizeStudent = authorize('student')
+export const authorizeAdmin = authorize('admin')

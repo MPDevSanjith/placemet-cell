@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const externalJobSchema = new mongoose.Schema({
   companyName: {
@@ -155,4 +155,4 @@ externalJobSchema.pre('save', function(next) {
   next();
 });
 
-module.exports = mongoose.model('ExternalJob', externalJobSchema);
+export default mongoose.model('ExternalJob', externalJobSchema);

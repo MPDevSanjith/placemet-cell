@@ -4,8 +4,7 @@ const router = express.Router()
 // Import MongoDB models
 import Company from '../models/Company.js'
 import CompanyRequest from '../models/CompanyRequest.js'
-import authModule from '../middleware/auth.js'
-const { protect, authorize } = authModule
+import { protect, authorize } from '../middleware/auth.js'
 
 // Get companies list
 router.get('/', async (req, res) => {
@@ -100,7 +99,8 @@ router.post('/', async (req, res) => {
 })
 
 // Get company details
-router.get('/:id', async (req, res) => {
+// Use ObjectId regex to avoid conflicting with '/requests'
+router.get('/:id([0-9a-fA-F]{24})', async (req, res) => {
   try {
     const { id } = req.params
 
@@ -122,7 +122,7 @@ router.get('/:id', async (req, res) => {
 })
 
 // Update company
-router.put('/:id', async (req, res) => {
+router.put('/:id([0-9a-fA-F]{24})', async (req, res) => {
   try {
     const { id } = req.params
     const updateData = req.body
@@ -157,7 +157,7 @@ router.put('/:id', async (req, res) => {
 })
 
 // Delete company
-router.delete('/:id', async (req, res) => {
+router.delete('/:id([0-9a-fA-F]{24})', async (req, res) => {
   try {
     const { id } = req.params
 

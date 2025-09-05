@@ -1,4 +1,5 @@
-const createPaginationResponse = (items, total, page, limit) => {
+// utils/helpers.js
+export const createPaginationResponse = (items, total, page, limit) => {
   return {
     items,
     total,
@@ -10,6 +11,6 @@ const createPaginationResponse = (items, total, page, limit) => {
   }
 }
 
-module.exports = { createPaginationResponse }
-
-
+export default {
+  createPaginationResponse
+}

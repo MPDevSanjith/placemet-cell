@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 /**
  * Validate if a string is a valid MongoDB ObjectId
@@ -157,7 +157,7 @@ const buildFilter = (query, allowedFilters = {}) => {
   return filter;
 };
 
-module.exports = {
+export {
   validateObjectId,
   validateEmail,
   validateUrl,

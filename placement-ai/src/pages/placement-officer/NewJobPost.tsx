@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { createExternalJob as apiCreateExternalJob, listExternalJobs, createCompanyRequest as apiCreateCompanyRequest, listCompanyRequests, createJob as apiCreateJob, listJobs as apiListJobs } from '../../global/api';
+import { getAuth } from '../../global/auth';
 import { 
 
   User, 
@@ -170,30 +172,30 @@ const NewJobPost: React.FC = () => {
   // API call to create external job
   const handleAddExternalJob = async (): Promise<void> => {
     try {
-      const response = await fetch('http://localhost:5000/api/external-jobs/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // Get token from localStorage
-        },
-        body: JSON.stringify(externalJobForm)
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        console.log('External job created successfully:', data.data);
+      // Basic client-side validation to match backend requirements
+      if (!externalJobForm.companyName || !externalJobForm.jobTitle || !externalJobForm.description || !externalJobForm.location || !externalJobForm.jobType || !externalJobForm.externalUrl) {
+        alert('Please fill all required fields and provide a valid external URL.');
+        return;
+      }
+      if (!/^https?:\/\//i.test(externalJobForm.externalUrl)) {
+        alert('External URL must start with http:// or https://');
+        return;
+      }
+      const token = getAuth()?.token || '';
+      const data = await apiCreateExternalJob(token, externalJobForm as any);
+      if (data?.success) {
         // You can add a success notification here
         closeAddExternalJobModal();
         // Refresh the external jobs list
         fetchExternalJobs();
       } else {
-        console.error('Failed to create external job:', data.message);
-        // You can add an error notification here
+        console.error('Failed to create external job:', data);
+        alert(`Create external job failed: ${(data as any)?.message || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error creating external job:', error);
-      // You can add an error notification here
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Error creating external job: ${message}`);
     }
   };
 
@@ -201,13 +203,11 @@ const NewJobPost: React.FC = () => {
   const fetchExternalJobs = async (): Promise<void> => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5000/api/external-jobs?status=Active&limit=10');
-      const data = await response.json();
-
-      if (data.success) {
-        setExternalJobs(data.data);
+      const data = await listExternalJobs({ status: 'Active', limit: 10 });
+      if ((data as any)?.success) {
+        setExternalJobs((data as any).data);
       } else {
-        console.error('Failed to fetch external jobs:', data.message);
+        console.error('Failed to fetch external jobs:', (data as any)?.message);
       }
     } catch (error) {
       console.error('Error fetching external jobs:', error);
@@ -237,11 +237,7 @@ const NewJobPost: React.FC = () => {
   // Create internal job posting
   const handleCreateJobPosting = async (): Promise<void> => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        alert('You must be logged in as placement officer/admin to create a job.');
-        return;
-      }
+      const token = getAuth()?.token || null;
       const payload = {
         company: newJobPostingForm.company,
         title: newJobPostingForm.jobTitle,
@@ -251,21 +247,13 @@ const NewJobPost: React.FC = () => {
         ctc: newJobPostingForm.ctc,
         deadline: newJobPostingForm.deadline
       };
-      const res = await fetch('http://localhost:5000/api/jobs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.success) {
+      const data = await apiCreateJob(token, payload as any);
+      if (data?.success) {
         closeNewJobPostingModal();
         fetchJobPostings();
       } else {
         console.error('Failed to create job posting:', data);
-        alert(`Create job failed (${res.status}): ${data?.message || data?.error || 'Unknown error'}`);
+        alert(`Create job failed: ${(data as any)?.message || (data as any)?.error || 'Unknown error'}`);
       }
     } catch (err) {
       console.error('Error creating job posting:', err);
@@ -283,11 +271,7 @@ const NewJobPost: React.FC = () => {
   // Create company request
   const handleCreateCompanyRequest = async (): Promise<void> => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        alert('You must be logged in as placement officer/admin to create a request.');
-        return;
-      }
+      const token = getAuth()?.token || null;
       const payload = {
         company: companyRequestForm.company,
         jobRole: companyRequestForm.jobRole,
@@ -297,21 +281,13 @@ const NewJobPost: React.FC = () => {
         startDate: companyRequestForm.startDate,
         endDate: companyRequestForm.endDate
       };
-      const res = await fetch('http://localhost:5000/api/companies/requests', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.success) {
+      const data = await apiCreateCompanyRequest(token, payload as any);
+      if (data?.success) {
         closeCompanyRequestModal();
         fetchCompanyRequests();
       } else {
         console.error('Failed to create company request:', data);
-        alert(`Create request failed (${res.status}): ${data?.message || data?.error || 'Unknown error'}`);
+        alert(`Create request failed: ${(data as any)?.message || (data as any)?.error || 'Unknown error'}`);
       }
     } catch (err) {
       console.error('Error creating company request:', err);
@@ -323,13 +299,12 @@ const NewJobPost: React.FC = () => {
   const fetchJobPostings = async (): Promise<void> => {
     try {
       setLoading(true);
-      const res = await fetch('http://localhost:5000/api/jobs?limit=10');
-      const data = await res.json();
-      if (data.success) {
-        const items = Array.isArray(data.data?.items) ? data.data.items : (Array.isArray(data.data) ? data.data : []);
-        setJobPostings(items);
+      const data = await apiListJobs({ limit: 10 });
+      if ((data as any)?.success) {
+        const items = Array.isArray((data as any).data?.items) ? (data as any).data.items : (Array.isArray((data as any).data) ? (data as any).data : []);
+        setJobPostings(items as any[]);
       } else {
-        console.error('Failed to fetch job postings:', data.message || data.error);
+        console.error('Failed to fetch job postings:', (data as any)?.message || (data as any)?.error);
       }
     } catch (err) {
       console.error('Error fetching job postings:', err);
@@ -342,13 +317,12 @@ const NewJobPost: React.FC = () => {
   const fetchCompanyRequests = async (): Promise<void> => {
     try {
       setLoading(true);
-      const res = await fetch('http://localhost:5000/api/companies/requests?limit=10');
-      const data = await res.json();
-      if (data.success) {
-        const items = Array.isArray(data.data) ? data.data : (Array.isArray(data.requests) ? data.requests : []);
-        setCompanyRequests(items);
+      const data = await listCompanyRequests({ limit: 10 });
+      if ((data as any)?.success) {
+        const items = Array.isArray((data as any).data) ? (data as any).data : (Array.isArray((data as any).requests) ? (data as any).requests : []);
+        setCompanyRequests(items as any[]);
       } else {
-        console.error('Failed to fetch company requests:', data.message || data.error);
+        console.error('Failed to fetch company requests:', (data as any)?.message || (data as any)?.error);
       }
     } catch (err) {
       console.error('Error fetching company requests:', err);
@@ -369,12 +343,12 @@ const NewJobPost: React.FC = () => {
   
 
   return (
-    <div className="h-screen w-full bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 overflow-hidden">
+    <div className="min-h-screen w-full bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 overflow-auto">
       {/* Header */}
       
 
       {/* Main Content */}
-      <div className="w-full h-[calc(100vh-4rem)] overflow-y-hidden">
+      <div className="w-full min-h-[calc(100vh-4rem)] overflow-y-auto">
         <div className="w-full max-w-none px-2 sm:px-6 py-6">
           {/* Title + Actions */}
           <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">

@@ -9,8 +9,9 @@ import {
   getExternalJobsStats,
   bulkUpdateExpiredJobs
 } from '../controllers/externalJobController.js';
-import authModule from '../middleware/auth.js';
-const { protect, authorize } = authModule;
+import { protect, authorize } from '../middleware/auth.js';
+
+const router = express.Router();
 
 // Public routes
 router.get('/', getAllExternalJobs);

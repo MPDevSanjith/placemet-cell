@@ -1,4 +1,5 @@
 import express from 'express'
+const router = express.Router()
 import {
   login,
   verifyOtp,
@@ -9,9 +10,9 @@ import {
   getProfile,
   verify
 } from '../controllers/authController.js'
-import authModule from '../middleware/auth.js'
+import { protect, authorize, authenticateToken } from '../middleware/auth.js'
 
-const { authenticateToken } = authModule
+// const { authenticateToken } = authModule
 
 // Public routes
 router.post('/login', login)

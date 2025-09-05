@@ -139,10 +139,12 @@ export const login = async (req, res) => {
       });
 
       // Issue cookie session
+      const isProd = process.env.NODE_ENV === 'production'
       res.cookie('auth_token', token, {
         httpOnly: true,
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
+        // In dev, allow cross-site POSTs from Vite (5173)
+        sameSite: isProd ? 'lax' : 'none',
+        secure: isProd ? true : false,
         maxAge: 7 * 24 * 60 * 60 * 1000,
         path: '/',
       });
@@ -257,10 +259,11 @@ export const verifyOtp = async (req, res) => {
     });
 
     // Issue cookie session
+    const isProd = process.env.NODE_ENV === 'production'
     res.cookie('auth_token', token, {
       httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      sameSite: isProd ? 'lax' : 'none',
+      secure: isProd ? true : false,
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/',
     });

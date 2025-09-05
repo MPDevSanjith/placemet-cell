@@ -1,5 +1,5 @@
-const ExternalJob = require('../models/ExternalJob');
-const { validateObjectId } = require('../utils/validation');
+import ExternalJob from '../models/ExternalJob.js';
+import { validateObjectId } from '../utils/validation.js';
 
 // @desc    Create a new external job
 // @route   POST /api/external-jobs
@@ -453,7 +453,7 @@ const bulkUpdateExpiredJobs = async (req, res) => {
   }
 };
 
-module.exports = {
+export {
   createExternalJob,
   getAllExternalJobs,
   getExternalJobById,

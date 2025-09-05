@@ -1,4 +1,4 @@
-const mongoose = require('mongoose')
+import mongoose from 'mongoose'
 
 const companyRequestSchema = new mongoose.Schema({
   company: { type: String, required: true },
@@ -12,6 +12,6 @@ const companyRequestSchema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true })
 
-module.exports = mongoose.model('CompanyRequest', companyRequestSchema)
+export default mongoose.model('CompanyRequest', companyRequestSchema)
 
 

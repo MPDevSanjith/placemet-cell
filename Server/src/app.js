@@ -14,6 +14,9 @@ import authRoutes from './routes/auth.js';
 import studentsRoutes from './routes/students.js';
 import placementOfficerRoutes from './routes/placementOfficer.js';
 import resumeRoutes from './routes/resume.js';
+import jobsRoutes from './routes/jobs.js';
+import externalJobsRoutes from './routes/externalJobs.js';
+import companiesRoutes from './routes/companies.js';
 import profileRoutes from './routes/profile.js';
 
 dotenv.config();
@@ -78,6 +81,9 @@ app.use('/api/students', studentsRoutes);
 app.use('/api/placement-officer', placementOfficerRoutes);
 app.use('/api/resume', resumeRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/jobs', jobsRoutes);
+app.use('/api/external-jobs', externalJobsRoutes);
+app.use('/api/companies', companiesRoutes);
 
 // Error handling middleware (must be last)
 app.use(notFound);

@@ -28,6 +28,15 @@ async function request<TResponse>(path: string, options: RequestInit = {}): Prom
   return data as TResponse
 }
 
+// Helper: only attach bearer if token looks like a real JWT (avoid 'cookie-session')
+function buildAuthHeaders(token?: string | null): Record<string, string> {
+  const headers: Record<string, string> = {}
+  if (token && token !== 'cookie-session' && token.split('.').length === 3) {
+    headers.Authorization = `Bearer ${token}`
+  }
+  return headers
+}
+
 // ------------------- AUTH ------------------- //
 
 export type LoginPayload = {
@@ -54,6 +63,12 @@ export type LoginResponse = {
 
 export function login(payload: LoginPayload) {
   return request<LoginResponse>('/auth/login', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export function verifyAuth(token?: string | null) {
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  return request<{ success: boolean; user?: { role?: string } }>('/auth/verify', { method: 'GET', headers })
 }
 
 export function verifyStudentOtp(email: string, otp: string) {
@@ -314,7 +329,7 @@ export function bulkOfficerStudentAction(action: 'block'|'unblock'|'place'|'unpl
 export function submitOnboarding(payload: Record<string, unknown>, token: string) {
   return request<{ success: boolean }>('/students/onboarding', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { ...buildAuthHeaders(token) },
     body: JSON.stringify(payload),
   })
 }
@@ -378,7 +393,7 @@ export async function uploadResume(file: File, token: string) {
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { ...buildAuthHeaders(token) },
     body: form,
     credentials: 'include',
   })
@@ -413,7 +428,7 @@ export async function analyzeATS(file: File, token: string, jobRole: string = 'S
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { ...buildAuthHeaders(token) },
     body: form,
     credentials: 'include',
   })
@@ -434,7 +449,7 @@ export async function getResumeAnalysis(token: string, resumeId?: string) {
 
   const res = await fetch(url, {
     method: 'GET',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { ...buildAuthHeaders(token) },
     credentials: 'include',
   })
 
@@ -452,7 +467,7 @@ export async function listResumes(token: string) {
 
   const res = await fetch(url, {
     method: 'GET',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { ...buildAuthHeaders(token) },
     credentials: 'include',
   })
 
@@ -469,7 +484,7 @@ export async function getStudentActiveResumeViewUrl(token: string, studentId: st
   const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/resume/admin/student/${studentId}/active-view`
   const res = await fetch(url, {
     method: 'GET',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { ...buildAuthHeaders(token) },
     credentials: 'include',
   })
   const data = await res.json()
@@ -499,7 +514,7 @@ export async function deleteResume(token: string, resumeId: string) {
 
   const res = await fetch(url, {
     method: 'DELETE',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { ...buildAuthHeaders(token) },
     credentials: 'include',
   })
 
@@ -517,7 +532,7 @@ export async function fixResumeUrl(token: string, resumeId: string) {
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { ...buildAuthHeaders(token) },
     credentials: 'include',
   })
 
@@ -536,7 +551,7 @@ export async function fixAllResumeUrls(token: string, studentId: string) {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 
-      Authorization: `Bearer ${token}`,
+      ...buildAuthHeaders(token),
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({ studentId }),
@@ -570,7 +585,7 @@ export async function regenerateResumeUrls(token: string, studentId: string) {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 
-      Authorization: `Bearer ${token}`,
+      ...buildAuthHeaders(token),
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({ studentId }),
@@ -669,7 +684,7 @@ export async function getStudentProfile(token: string) {
 
   const res = await fetch(url, {
     method: 'GET',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { ...buildAuthHeaders(token) },
     credentials: 'include',
   })
 
@@ -687,7 +702,7 @@ export async function getCompletionStatus(token: string) {
 
   const res = await fetch(url, {
     method: 'GET',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { ...buildAuthHeaders(token) },
     credentials: 'include',
   })
 
@@ -711,7 +726,7 @@ export async function updateStudentProfile(token: string, profileData: {
     method: 'PUT',
     headers: { 
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`
+      ...buildAuthHeaders(token)
     },
     body: JSON.stringify(profileData),
     credentials: 'include',
@@ -733,7 +748,7 @@ export async function updateStudentSkills(token: string, skills: string[]) {
     method: 'PUT',
     headers: { 
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`
+      ...buildAuthHeaders(token)
     },
     body: JSON.stringify({ skills }),
     credentials: 'include',
@@ -755,7 +770,7 @@ export async function updateStudentProjects(token: string, projects: string[]) {
     method: 'PUT',
     headers: { 
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`
+      ...buildAuthHeaders(token)
     },
     body: JSON.stringify({ projects }),
     credentials: 'include',
@@ -777,7 +792,7 @@ export async function updateProfileField(token: string, field: string, value: st
     method: 'PUT',
     headers: { 
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`
+      ...buildAuthHeaders(token)
     },
     body: JSON.stringify({ field, value }),
     credentials: 'include',
@@ -795,7 +810,7 @@ export async function updateProfileField(token: string, field: string, value: st
 export function saveAtsScore(payload: { role: string; overall: number; breakdown: Record<string, number>; matched: string[]; missing: string[] }, token: string) {
   return request<{ success: boolean }>('/students/ats-score', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { ...buildAuthHeaders(token) },
     body: JSON.stringify(payload),
   })
 }
@@ -803,7 +818,91 @@ export function saveAtsScore(payload: { role: string; overall: number; breakdown
 export function analyzeAtsOnServer(payload: { role?: string; skillsTech?: string[]; gpa?: string }, token: string) {
   return request<{ success: boolean; result: { role: string; overall: number; breakdown: Record<string, number>; matched: string[]; missing: string[]; suggestions: string[] } }>('/resume/analyze-ats', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { ...buildAuthHeaders(token) },
+    body: JSON.stringify(payload),
+  })
+}
+
+// ------------------- JOBS (Internal) ------------------- //
+
+export type CreateJobPayload = {
+  company: string
+  title: string
+  description: string
+  location: string
+  jobType: string
+  ctc?: string
+  deadline?: string
+}
+
+export function createJob(token: string | null | undefined, payload: CreateJobPayload) {
+  const headers: Record<string, string> = { ...buildAuthHeaders(token || undefined) }
+  return request<{ success: boolean; data: any }>(`/jobs`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  })
+}
+
+export function listJobs(params: Record<string, string | number | undefined> = {}) {
+  const qs = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== '') qs.set(k, String(v)) })
+  return request<{ success: boolean; data: any }>(`/jobs?${qs.toString()}`)
+}
+
+// ------------------- EXTERNAL JOBS ------------------- //
+
+export type CreateExternalJobPayload = {
+  companyName: string
+  jobTitle: string
+  description: string
+  location: string
+  jobType: string
+  externalUrl: string
+  salary?: string
+  requirements?: string[]
+  tags?: string[]
+  applicationDeadline?: string
+}
+
+export function createExternalJob(token: string | null | undefined, payload: CreateExternalJobPayload) {
+  const headers: Record<string, string> = { ...buildAuthHeaders(token || undefined) }
+  return request<{ success: boolean; data: any }>(`/external-jobs`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  })
+}
+
+export function listExternalJobs(params: Record<string, string | number | undefined> = {}) {
+  const qs = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== '') qs.set(k, String(v)) })
+  return request<{ success: boolean; data: any[]; pagination: any }>(`/external-jobs?${qs.toString()}`)
+}
+
+// ------------------- COMPANY REQUESTS ------------------- //
+
+export type CreateCompanyRequestPayload = {
+  company: string
+  jobRole: string
+  description: string
+  studentsRequired: number
+  minimumCGPA: number
+  startDate?: string
+  endDate?: string
+}
+
+export function listCompanyRequests(params: Record<string, string | number | undefined> = {}) {
+  const qs = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== '') qs.set(k, String(v)) })
+  return request<{ success: boolean; data: any[]; pagination: any }>(`/companies/requests?${qs.toString()}`)
+}
+
+export function createCompanyRequest(token: string | null | undefined, payload: CreateCompanyRequestPayload) {
+  const headers: Record<string, string> = { ...buildAuthHeaders(token || undefined) }
+  return request<{ success: boolean; data: any }>(`/companies/requests`, {
+    method: 'POST',
+    headers,
     body: JSON.stringify(payload),
   })
 }

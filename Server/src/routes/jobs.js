@@ -1,7 +1,6 @@
 import express from 'express';
 import { getJobs, getJob, createJob } from '../controllers/jobController.js';
-import authModule from '../middleware/auth.js';
-const { protect, authorize } = authModule;
+import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 
