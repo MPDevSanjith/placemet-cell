@@ -1,5 +1,5 @@
 import React from 'react'
-import { StudentProfile } from '../../global/api'
+import type { StudentProfile } from '../global/api'
 
 interface ProfileDetailsProps {
   profile: StudentProfile
@@ -150,7 +150,7 @@ const ProfileDetails: React.FC<ProfileDetailsProps> = ({ profile }) => {
             <div className="mt-4">
               <h5 className="font-medium text-gray-800 mb-2">Projects:</h5>
               <div className="space-y-2">
-                {profile.placementInfo.projects.map((project, index) => (
+                {profile.placementInfo.projects.map((project: string, index: number) => (
                   <div key={index} className="bg-gray-50 rounded-lg p-3">
                     <span className="text-gray-900">{project}</span>
                   </div>

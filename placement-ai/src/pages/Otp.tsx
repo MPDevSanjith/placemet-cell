@@ -9,9 +9,9 @@ export default function OtpPage() {
   const state = (location.state as { email?: string; name?: string } | null) || null
   const searchParams = new URLSearchParams(location.search)
   
-  // Get email from state, URL params, or fallback
-  const email = state?.email || searchParams.get('email') || ''
-  const name = state?.name || searchParams.get('name') || email.split('@')[0] || ''
+  // Get email from state, URL params, or localStorage fallback (prevents bouncing back to login)
+  const email = state?.email || searchParams.get('email') || localStorage.getItem('pending_otp_email') || ''
+  const name = state?.name || searchParams.get('name') || localStorage.getItem('pending_otp_name') || (email.split('@')[0] || '')
   
   console.log('📱 OTP Page Debug:', {
     location: location.pathname,
@@ -147,6 +147,12 @@ export default function OtpPage() {
           navigate('/student/onboarding', { replace: true })
         }
         
+        // Clear pending OTP storage now that we're verified
+        try {
+          localStorage.removeItem('pending_otp_email')
+          localStorage.removeItem('pending_otp_name')
+        } catch {}
+
         // Force a small delay to ensure auth state is properly set
         setTimeout(() => {
           window.location.href = isAlreadyOnboarded ? '/student' : '/student/onboarding'

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { 
   getStudentProfile, 
   listResumes, deleteResume, uploadResume, getResumeAnalysis,
-  updateStudentProfile, updateStudentSkills, updateStudentProjects, updateProfileField
+  updateStudentSkills, updateStudentProjects, updateProfileField
 } from '../../global/api'
 import type { StudentProfile } from '../../global/api'
 import { getAuth } from '../../global/auth'
@@ -141,6 +141,19 @@ const ProfilePage: React.FC = () => {
 
     const handleResumeUpload = async (file: File) => {
     if (!auth?.token) return
+    
+    // Validate file size (1MB)
+    if (file.size > 1 * 1024 * 1024) {
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+      alert(`File size too large: ${fileSizeMB}MB. Maximum allowed size is 1MB. Please compress your resume using an online PDF compressor and try again.`)
+      return
+    }
+
+    // Check resume count limit (max 2 resumes)
+    if (resumes.length >= 2) {
+      alert('Maximum resume limit reached. You can only upload 2 resumes. Please delete an existing resume before uploading a new one.')
+      return
+    }
     
     try {
       setUploading(true)
@@ -1170,18 +1183,35 @@ const ProfilePage: React.FC = () => {
               {/* Header */}
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-gray-800">Resume & Documents</h2>
-                <label className="cursor-pointer flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-medium shadow-md hover:shadow-xl transition-transform hover:scale-105">
-                  <FiUpload className="w-4 h-4" />
-                  Upload New Resume
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx"
-                    className="hidden"
-                    onChange={(e) => e.target.files?.[0] && handleResumeUpload(e.target.files[0])}
-                    disabled={uploading}
-                  />
-                </label>
+                {resumes.length < 2 ? (
+                  <label className="cursor-pointer flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-medium shadow-md hover:shadow-xl transition-transform hover:scale-105">
+                    <FiUpload className="w-4 h-4" />
+                    Upload New Resume
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx"
+                      className="hidden"
+                      onChange={(e) => e.target.files?.[0] && handleResumeUpload(e.target.files[0])}
+                      disabled={uploading}
+                    />
+                  </label>
+                ) : (
+                  <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 text-gray-600 font-medium">
+                    <FiUpload className="w-4 h-4" />
+                    Maximum 2 resumes reached
+                  </div>
+                )}
               </div>
+              
+              {/* Upload Restrictions Notice */}
+              {resumes.length > 0 && resumes.length < 2 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-blue-800">
+                    📋 <strong>Upload Requirements:</strong> Max 1MB file size, PDF/DOC/DOCX format. 
+                    You can upload {2 - resumes.length} more resume{2 - resumes.length === 1 ? '' : 's'}.
+                  </p>
+                </div>
+              )}
 
               {uploading && (
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
@@ -1239,29 +1269,19 @@ const ProfilePage: React.FC = () => {
                           
                           {/* ATS Analysis Buttons */}
                           {resume.hasAtsAnalysis ? (
-                            <>
-                              <button
-                                onClick={() => showAtsAnalysis(resume.id)}
-                                className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
-                                title="View ATS Analysis"
-                              >
-                                <FiTarget className="mr-2 h-4 w-4" />
-                                ATS Results
-                              </button>
-                              <button
-                                onClick={() => setAtsRolePopup({ show: true, resumeId: resume.id })}
-                                className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors"
-                                title="New ATS Analysis"
-                              >
-                                <FiTrendingUp className="mr-2 h-4 w-4" />
-                                New Analysis
-                              </button>
-                            </>
+                            <button
+                              onClick={() => showAtsAnalysis(resume.id)}
+                              className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                              title="View ATS Analysis Results"
+                            >
+                              <FiTarget className="mr-2 h-4 w-4" />
+                              View ATS Results
+                            </button>
                           ) : (
                             <button
                               onClick={() => setAtsRolePopup({ show: true, resumeId: resume.id })}
                               className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors"
-                              title="Analyze with ATS"
+                              title="Analyze Resume with ATS"
                             >
                               <FiTarget className="mr-2 h-4 w-4" />
                               Analyze ATS
@@ -1304,7 +1324,18 @@ const ProfilePage: React.FC = () => {
                     <FiUpload className="h-8 w-8 text-gray-400" />
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">No Resumes Uploaded</h3>
-                  <p className="text-gray-500 mb-6">Upload your first resume to get started with ATS analysis and job applications</p>
+                  <p className="text-gray-500 mb-4">Upload your first resume to get started with ATS analysis and job applications</p>
+                  
+                  {/* Upload Restrictions */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                    <h4 className="text-sm font-medium text-blue-900 mb-2">📋 Upload Requirements:</h4>
+                    <ul className="text-sm text-blue-800 space-y-1">
+                      <li>• Maximum file size: <strong>1MB</strong></li>
+                      <li>• Supported formats: PDF, DOC, DOCX</li>
+                      <li>• Maximum resumes: <strong>2 per student</strong></li>
+                      <li>• Each resume can be analyzed <strong>once only</strong></li>
+                    </ul>
+                  </div>
                   <label className="cursor-pointer inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] hover:shadow-lg transform hover:scale-105 transition duration-200">
                     <FiUpload className="mr-2 h-5 w-5" />
                     Upload Resume
@@ -1330,14 +1361,19 @@ const ProfilePage: React.FC = () => {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden"
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
           >
             {/* Header */}
-            <div className="bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] text-white p-6">
+            <div className="bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] text-white p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl font-bold">Resume ATS Analysis</h2>
                   <p className="text-white/80 mt-1">Select job role for detailed resume analysis</p>
+                  <div className="bg-yellow-500/20 border border-yellow-400/30 rounded-lg p-2 mt-3">
+                    <p className="text-yellow-100 text-sm">
+                      ⚠️ <strong>Important:</strong> Each resume can only be analyzed once. Choose your target job role carefully.
+                    </p>
+                  </div>
                 </div>
                 <button
                   onClick={() => setAtsRolePopup({ show: false, resumeId: null })}
@@ -1349,12 +1385,12 @@ const ProfilePage: React.FC = () => {
             </div>
 
             {/* Content */}
-            <div className="p-6">
-              <div className="space-y-6">
+            <div className="p-4">
+              <div className="space-y-4">
                 {/* Job Role Selection */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
-                    Select Job Role
+                    Select Job Role <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={selectedJobRole}
@@ -1362,7 +1398,7 @@ const ProfilePage: React.FC = () => {
                       setSelectedJobRole(e.target.value)
                       if (e.target.value) setCustomJobRole('')
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-900"
                   >
                     <option value="">Choose from list...</option>
                     {jobRoles.map((role) => (
@@ -1371,6 +1407,9 @@ const ProfilePage: React.FC = () => {
                       </option>
                     ))}
                   </select>
+                  {selectedJobRole && (
+                    <p className="text-sm text-green-600 mt-1">✅ Selected: {selectedJobRole}</p>
+                  )}
                 </div>
 
                 {/* Custom Job Role Input */}
@@ -1386,54 +1425,69 @@ const ProfilePage: React.FC = () => {
                       if (e.target.value) setSelectedJobRole('')
                     }}
                     placeholder="e.g., AI Research Engineer, Cloud Architect"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-900"
                   />
                   <p className="text-sm text-gray-500 mt-1">
                     Enter a specific role if not listed above
                   </p>
+                  {customJobRole.trim() && (
+                    <p className="text-sm text-green-600 mt-1">✅ Custom role: {customJobRole}</p>
+                  )}
                 </div>
 
-                {/* Analysis Info */}
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                  <div className="flex items-start space-x-3">
-                    <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-white text-sm">ℹ️</span>
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-blue-900 mb-2">What will be analyzed?</h4>
-                      <ul className="text-sm text-blue-700 space-y-1">
-                        <li>• Keyword matching with job requirements</li>
-                        <li>• Resume formatting and structure</li>
-                        <li>• Skills alignment and gaps</li>
-                        <li>• Overall ATS compatibility score</li>
-                        <li>• Detailed improvement suggestions</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
+                {/* Minimal helper note */}
+                <p className="text-xs text-gray-500">We’ll check keywords, structure and give improvement tips.</p>
 
                 {/* Action Buttons */}
-                <div className="flex justify-end space-x-3 pt-4">
-                  <button
-                    onClick={() => setAtsRolePopup({ show: false, resumeId: null })}
-                    className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleAtsAnalysis}
-                    disabled={isAnalyzing || (!selectedJobRole && !customJobRole.trim())}
-                    className="px-6 py-2 bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] text-white rounded-lg hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isAnalyzing ? (
-                      <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        <span>Analyzing...</span>
+                <div className="pt-6 border-t border-gray-200">
+                  <div className="text-center mb-4">
+                    {(!selectedJobRole && !customJobRole.trim()) && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <span className="text-red-700 font-medium">⚠️ Please select or enter a job role to continue</span>
                       </div>
-                    ) : (
-                      'Start Analysis'
                     )}
-                  </button>
+                    {(selectedJobRole || customJobRole.trim()) && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                        <span className="text-green-700 font-medium">✅ Ready to analyze resume for: {selectedJobRole || customJobRole}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex justify-center space-x-4">
+                    <button
+                      onClick={() => setAtsRolePopup({ show: false, resumeId: null })}
+                      className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleAtsAnalysis}
+                      disabled={isAnalyzing || (!selectedJobRole && !customJobRole.trim())}
+                      className={`px-10 py-4 rounded-xl transition-all duration-200 font-semibold text-lg flex items-center space-x-3 border-2 shadow-lg ${
+                        isAnalyzing
+                          ? 'bg-blue-500 text-white cursor-not-allowed border-blue-500'
+                          : (!selectedJobRole && !customJobRole.trim())
+                          ? 'bg-orange-100 text-orange-700 border-orange-300 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] text-white hover:shadow-xl hover:scale-105 border-transparent'
+                      }`}
+                    >
+                      {isAnalyzing ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <span>Analyzing Resume...</span>
+                        </>
+                      ) : (!selectedJobRole && !customJobRole.trim()) ? (
+                        <>
+                          <FiTarget className="w-5 h-5" />
+                          <span>Select Job Role First</span>
+                        </>
+                      ) : (
+                        <>
+                          <FiTarget className="w-5 h-5" />
+                          <span>Start ATS Analysis</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1796,9 +1850,12 @@ const ProfilePage: React.FC = () => {
              <div className="p-6 overflow-hidden">
                <div className="w-full h-[calc(95vh-200px)]">
                  <iframe
-                   src={resumeViewer.resume.viewUrl || resumeViewer.resume.cloudinaryUrl}
+                   src={resumeViewer.resume.viewUrl || resumeViewer.resume.signedViewUrl || resumeViewer.resume.cloudinaryUrl}
                    className="w-full h-full border-0 rounded-lg"
                    title={resumeViewer.resume.originalName}
+                   sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
+                   referrerPolicy="no-referrer-when-downgrade"
+                   loading="lazy"
                  />
                </div>
              </div>

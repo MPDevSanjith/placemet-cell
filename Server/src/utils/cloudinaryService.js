@@ -104,35 +104,59 @@ class CloudinaryService {
     };
   }
 
-  // Generate a view URL. If attachmentName is provided, Cloudinary may force download; omit for inline viewing
-  generateViewUrl(publicId, resourceType = 'image', format = 'pdf', attachmentName) {
-    // For PDFs stored as images, use the same method as download URLs but without attachment
-    // This ensures the URL works for viewing in browsers
+  // Generate a server-side proxy URL for PDF viewing to avoid Cloudinary auth issues
+  generateViewUrl(publicId, resourceType = 'image', format = 'pdf') {
+    if (format === 'pdf') {
+      // Use server-side proxy instead of direct Cloudinary URL
+      const proxyUrl = `/api/resume/view/${publicId}`;
+      
+      console.log('👁️ Generated Server Proxy View URL for PDF:', { 
+        publicId, 
+        resourceType: 'image', 
+        format: 'pdf', 
+        proxyUrl,
+        cloudName: process.env.CLOUDINARY_CLOUD_NAME
+      });
+      
+      return proxyUrl;
+    }
     
-    const nowUtcSeconds = Math.floor(Date.now() / 1000);
-    const expiresAt = nowUtcSeconds + 3600; // 1 hour expiry
-    
-    // Use cloudinary's private_download_url but without attachment for inline viewing
-    const viewUrl = cloudinary.utils.private_download_url(publicId, format, {
+    // For non-PDFs, use regular public URL
+    const url = cloudinary.url(publicId, {
       secure: true,
       resource_type: resourceType,
       type: 'upload',
-      expires_at: expiresAt,
-      attachment: false, // This is the key difference - no forced download
-      sign_url: true,
-    });
-    
-    console.log('👁️ Generated Cloudinary View URL:', {
-      publicId,
-      resourceType,
       format,
-      attachmentName: attachmentName || 'none (inline view)',
-      url: viewUrl,
-      willForceDownload: !!attachmentName,
-      expiresAt: new Date(expiresAt * 1000).toISOString()
     });
     
-    return viewUrl;
+    console.log('👁️ Generated Cloudinary Public View URL:', { 
+      publicId, 
+      resourceType, 
+      format, 
+      url,
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME
+    });
+    return url;
+  }
+
+  // Generate a signed view URL as fallback for PDFs that don't work with public URLs
+  generateSignedViewUrl(publicId, resourceType = 'image', format = 'pdf') {
+    const signedUrl = this.generateSignedDownloadUrl(publicId, {
+      ttlSeconds: 3600, // 1 hour
+      attachment: false, // Don't force download
+      resourceType: resourceType,
+      format: format
+    });
+    
+    console.log('👁️ Generated Cloudinary Signed View URL:', { 
+      publicId, 
+      resourceType, 
+      format, 
+      url: signedUrl,
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME
+    });
+    
+    return signedUrl;
   }
 
   // Generate short-lived signed download URL with UTC timestamp and skew leeway

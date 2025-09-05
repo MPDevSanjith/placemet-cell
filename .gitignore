@@ -51,3 +51,5 @@ Server/drive.json
 Server/drive.json
 .env
 *.local
+
+.vercel

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { submitOnboarding, analyzeATS, ATSAnalysis } from '../../global/api'
+import { submitOnboarding, analyzeATS, type ATSAnalysis } from '../../global/api'
 import { getAuth } from '../../global/auth'
-import Layout from '../../components/Layout'
+// Full-screen onboarding without app chrome
 
 export default function StudentOnboarding() {
   const navigate = useNavigate()
@@ -24,6 +24,13 @@ export default function StudentOnboarding() {
   const onDropResume = (files: FileList | null) => {
     if (!files || files.length === 0) return
     const f = files[0]
+    
+    // Validate file size (1MB)
+    if (f.size > 1 * 1024 * 1024) {
+      alert('File size must be less than 1MB. Please compress your resume and try again.')
+      return
+    }
+    
     setResumeFile(f)
     const url = URL.createObjectURL(f)
     setResumePreview(url)
@@ -94,7 +101,9 @@ export default function StudentOnboarding() {
         jobRole: atsAnalysis?.jobRole || jobRole
       }, token)
       
+      // Persist flags so app suppresses onboarding and shows dashboard
       localStorage.setItem('student_onboarded', 'true')
+      localStorage.setItem('resume_uploaded', 'true')
       localStorage.setItem('ats_score', String(atsAnalysis?.score || 0))
       
       // Redirect to student dashboard
@@ -343,8 +352,7 @@ export default function StudentOnboarding() {
   }
 
   return (
-    <Layout title="Resume Upload & ATS">
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50">
         <header className="max-w-4xl mx-auto px-4 pt-8">
           <h1 className="text-4xl font-bold text-center bg-gradient-to-r from-purple-600 via-pink-600 to-orange-600 bg-clip-text text-transparent mb-4">
             Resume Upload & ATS Analysis
@@ -456,7 +464,7 @@ export default function StudentOnboarding() {
           </div>
         </div>
       </div>
-    </Layout>
+    </div>
   )
 }
 

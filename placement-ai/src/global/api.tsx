@@ -1,7 +1,8 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string | undefined
 
 async function request<TResponse>(path: string, options: RequestInit = {}): Promise<TResponse> {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api${path}`
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api${path}`
 
   const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
@@ -102,7 +103,8 @@ export type BulkUploadResponse = {
 }
 
 export function bulkUploadStudents(formData: FormData) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/placement-officer/bulk-upload`
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/placement-officer/bulk-upload`
   return fetch(url, { method: 'POST', body: formData, credentials: 'include' }).then(async (res) => {
     const contentType = res.headers.get('content-type') || ''
     const isJson = contentType.includes('application/json')
@@ -254,7 +256,8 @@ export type BiodataUploadResponse = {
 }
 
 export function bulkUploadBiodata(formData: FormData) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/placement-officer/bulk-biodata`
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/placement-officer/bulk-biodata`
   return fetch(url, { method: 'POST', body: formData, credentials: 'include' }).then(async (res) => {
     const contentType = res.headers.get('content-type') || ''
     const isJson = contentType.includes('application/json')
@@ -379,7 +382,8 @@ export type ATSAnalysisResponse = {
 
 // Upload resume to Cloudinary
 export async function uploadResume(file: File, token: string) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/resume/upload`
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/resume/upload`
   const form = new FormData()
   form.append('resume', file)
 
@@ -414,7 +418,8 @@ export async function uploadResume(file: File, token: string) {
 
 // Upload and analyze resume with ATS
 export async function analyzeATS(file: File, token: string, jobRole: string = 'Software Engineer') {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/resume/analyze-ats`
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/resume/analyze-ats`
   const form = new FormData()
   form.append('resume', file)
   form.append('jobRole', jobRole)
@@ -443,9 +448,10 @@ export async function analyzeATS(file: File, token: string, jobRole: string = 'S
 
 // Get resume analysis
 export async function getResumeAnalysis(token: string, resumeId?: string) {
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
   const url = resumeId 
-    ? `${API_BASE_URL ?? 'http://localhost:5000'}/api/resume/analysis/${resumeId}`
-    : `${API_BASE_URL ?? 'http://localhost:5000'}/api/resume/analysis`
+    ? `${baseUrl}/api/resume/analysis/${resumeId}`
+    : `${baseUrl}/api/resume/analysis`
 
   const res = await fetch(url, {
     method: 'GET',
@@ -463,7 +469,8 @@ export async function getResumeAnalysis(token: string, resumeId?: string) {
 
 // List student's resumes
 export async function listResumes(token: string) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/resume/list`
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/resume/list`
 
   const res = await fetch(url, {
     method: 'GET',

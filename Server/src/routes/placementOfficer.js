@@ -2,6 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import csv from 'csv-parser';
 import fs from 'fs';
+import { Readable } from 'stream';
 import bcrypt from 'bcryptjs';
 import nodemailer from 'nodemailer';
 
@@ -14,9 +15,9 @@ import { sendEmail, emailTemplates } from '../email/email.js';
 
 const router = express.Router();
 
-// Configure multer for CSV upload
+// Configure multer for CSV upload (memory storage for serverless/Vercel)
 const upload = multer({
-  dest: 'uploads/',
+  storage: multer.memoryStorage(),
   fileFilter: (req, file, cb) => {
     const allowed = ['text/csv', 'application/vnd.ms-excel'];
     if (allowed.includes(file.mimetype) || file.originalname.toLowerCase().endsWith('.csv')) {
@@ -206,7 +207,7 @@ router.post('/bulk-upload', upload.single('csvFile'), async (req, res) => {
 
     // Parse CSV file
     await new Promise((resolve, reject) => {
-      fs.createReadStream(req.file.path)
+      Readable.from(req.file.buffer)
         .pipe(csv())
         .on('data', (data) => results.push(data))
         .on('end', resolve)
@@ -265,8 +266,7 @@ router.post('/bulk-upload', upload.single('csvFile'), async (req, res) => {
       }
     }
 
-    // Clean up uploaded file
-    fs.unlinkSync(req.file.path);
+    // No file cleanup needed for memory storage
 
     res.json({
       success: true,
@@ -279,10 +279,7 @@ router.post('/bulk-upload', upload.single('csvFile'), async (req, res) => {
   } catch (error) {
     console.error('Bulk upload error:', error);
     
-    // Clean up uploaded file if it exists
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
+    // No file cleanup needed for memory storage
 
     res.status(500).json({ success: false, error: error.message });
   }

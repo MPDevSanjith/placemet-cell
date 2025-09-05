@@ -1,44 +1,42 @@
 // ==========================
-// services/atsAnalysis.js - Lightweight ATS fallback (no external AI)
+// services/atsAnalysis.js - Enhanced ATS analysis using Gemini AI
 // ==========================
 
-// Main ATS analysis function - now uses Gemini AI
-export const analyzeATS = async (fileBuffer, fileName, mimeType, jobRole) => {
-  // Lightweight heuristic analysis to avoid external AI/service crashes
-  const textHints = [fileName, mimeType, jobRole].join(' ').toLowerCase();
-  const keywordPool = ['javascript','react','node','express','mongodb','typescript','html','css','python','java','sql'];
-  const matched = keywordPool.filter(k => textHints.includes(k));
-  const missing = keywordPool.filter(k => !textHints.includes(k)).slice(0, 5);
-  const scoreBase = 40 + Math.min(50, matched.length * 6);
-  const score = Math.max(35, Math.min(95, scoreBase));
-  const suggestions = [
-    'Tailor your resume to the job role and include relevant keywords.',
-    'Quantify achievements (e.g., increased performance by 20%).',
-    'Keep formatting clean: consistent headings, bullet points, and fonts.',
-    'Move most relevant experience and skills to the top.',
-  ];
+import geminiClient from '../utils/geminiClient.js';
+import logger from '../utils/logger.js';
 
-  return {
-    success: true,
-    data: {
-      score,
-      jobRole: jobRole || 'Not specified',
-      keywords: matched,
-      improvements: {
-        skills: matched.slice(0, 5),
-        keywords: missing.slice(0, 5),
-        formatting: ['Ensure consistent section headings','Use bullet lists under each experience'],
-        clarity: ['Prefer active voice and concise statements'],
-      },
-      suggestions,
-      mistakes: missing.length ? ['Missing some common technical keywords'] : ['None critical found'],
-      overall: score >= 80 ? 'Excellent match' : score >= 60 ? 'Good match' : score >= 45 ? 'Fair match' : 'Needs improvement'
-    },
-    metadata: {
-      fileName,
-      analysisDate: new Date().toISOString(),
-      aiModel: 'heuristic-fallback'
-    }
+// Main ATS analysis function - now uses Gemini AI with proper text extraction
+export const analyzeATS = async (fileBuffer, fileName, mimeType, jobRole) => {
+  try {
+    logger.info(`🔍 Starting ATS analysis for ${fileName} (${jobRole})`);
+    
+    // Use the enhanced Gemini client for complete analysis
+    const analysis = await geminiClient.analyzeResumeATS(fileBuffer, mimeType, fileName, jobRole);
+    
+    logger.success(`✅ ATS analysis completed for ${fileName} (Score: ${analysis.score})`);
+    
+    return {
+      success: true,
+      data: analysis,
+      metadata: analysis.metadata
+    };
+    
+  } catch (error) {
+    logger.error(`❌ ATS analysis failed for ${fileName}:`, error);
+    
+    // Return fallback analysis on error
+    return {
+      success: false,
+      error: error.message,
+      data: geminiClient.getFallbackAnalysis(jobRole),
+      metadata: {
+        fileName,
+        jobRole,
+        mimeType,
+        analysisDate: new Date().toISOString(),
+        aiModel: 'fallback-error'
+      }
+    };
   }
 }
 
