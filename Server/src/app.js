@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { existsSync } from 'fs';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
@@ -58,6 +59,8 @@ app.use(
           "http://localhost:3000",
           "http://127.0.0.1:5173",
           "http://127.0.0.1:3000",
+          "http://localhost:5000",
+          "https://placement-final.vercel.app",
           "https://api.cloudinary.com",
           "https://res.cloudinary.com"
         ],

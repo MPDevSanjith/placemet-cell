@@ -202,7 +202,7 @@ router.get('/requests', async (req, res) => {
   }
 })
 
-router.post('/requests', protect, authorize('placement_officer', 'admin'), async (req, res) => {
+router.post('/requests', async (req, res) => {
   try {
     const { company, jobRole, description, studentsRequired, minimumCGPA, startDate, endDate } = req.body
     if (!company || !jobRole || !description) {

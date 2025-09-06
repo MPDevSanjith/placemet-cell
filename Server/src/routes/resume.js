@@ -2,7 +2,7 @@
 import express from 'express';
 import multer from 'multer';
 import cloudinaryService from '../utils/cloudinaryService.js';
-import { authenticateToken, authorizeStudent, authorizeAdmin } from '../middleware/auth.js';
+import { authenticateToken, authorizeStudent, authorizeAdmin, authorize } from '..\/middleware\/auth.js';
 import Student from '../models/Student.js';
 import Resume from '../models/Resume.js';
 import fs from 'fs';
@@ -369,7 +369,7 @@ router.get('/list', authenticateToken, authorizeStudent, async (req, res) => {
 });
 
 // Admin/Officer: Get active resume view URL for a student
-router.get('/admin/student/:studentId/active-view', authenticateToken, authorizeAdmin, async (req, res) => {
+router.get('/admin/student/:studentId/active-view', authenticateToken, authorize('admin', 'placement_officer'), async (req, res) => {
   try {
     const { studentId } = req.params;
     if (!studentId) return res.status(400).json({ success: false, error: 'studentId is required' });
@@ -390,7 +390,7 @@ router.get('/admin/student/:studentId/active-view', authenticateToken, authorize
 });
 
 // Admin/Officer: List all resumes for a student with inline view URLs
-router.get('/admin/student/:studentId/list', authenticateToken, authorizeAdmin, async (req, res) => {
+router.get('/admin/student/:studentId/list', authenticateToken, authorize('admin', 'placement_officer'), async (req, res) => {
   try {
     const { studentId } = req.params;
     if (!studentId) return res.status(400).json({ success: false, error: 'studentId is required' });

@@ -66,103 +66,6 @@ interface JobRecommendation {
   saved?: boolean
 }
 
-// Mock data for demonstration
-const mockStats: DashboardStats = {
-  totalApplications: 12,
-  interviewsScheduled: 3,
-  offersReceived: 1,
-  profileViews: 45,
-  resumeDownloads: 8,
-  skillsCompleted: 7,
-  coursesCompleted: 3,
-  achievements: 5
-}
-
-const mockActivity: RecentActivity[] = [
-  {
-    id: '1',
-    type: 'resume',
-    title: 'Resume Updated',
-    description: 'Your resume has been updated with new skills and achievements',
-    timestamp: '2 hours ago',
-    status: 'success'
-  },
-  {
-    id: '2',
-    type: 'application',
-    title: 'Application Submitted',
-    description: 'Applied for Software Engineer position at TechCorp',
-    timestamp: '1 day ago',
-    status: 'pending'
-  },
-  {
-    id: '3',
-    type: 'interview',
-    title: 'Interview Scheduled',
-    description: 'Interview with Google scheduled for next week',
-    timestamp: '2 days ago',
-    status: 'info'
-  },
-  {
-    id: '4',
-    type: 'achievement',
-    title: 'New Achievement',
-    description: 'Completed React.js certification course',
-    timestamp: '3 days ago',
-    status: 'success'
-  },
-  {
-    id: '5',
-    type: 'skill',
-    title: 'Skill Added',
-    description: 'Added Python programming to your skills',
-    timestamp: '5 days ago',
-    status: 'success'
-  }
-]
-
-const mockJobRecommendations: JobRecommendation[] = [
-  {
-    id: '1',
-    title: 'Frontend Developer',
-    company: 'TechCorp',
-    location: 'San Francisco, CA',
-    salary: '$80k - $120k',
-    match: 95,
-    type: 'Full-time',
-    deadline: '2024-02-15',
-    tags: ['React', 'JavaScript', 'CSS', 'TypeScript'],
-    featured: true,
-    saved: false
-  },
-  {
-    id: '2',
-    title: 'Software Engineer Intern',
-    company: 'Google',
-    location: 'Mountain View, CA',
-    salary: '$6k - $8k/month',
-    match: 88,
-    type: 'Internship',
-    deadline: '2024-02-20',
-    tags: ['Python', 'Machine Learning', 'AI', 'TensorFlow'],
-    featured: false,
-    saved: true
-  },
-  {
-    id: '3',
-    title: 'Full Stack Developer',
-    company: 'StartupXYZ',
-    location: 'Remote',
-    salary: '$70k - $100k',
-    match: 82,
-    type: 'Full-time',
-    deadline: '2024-02-25',
-    tags: ['Node.js', 'MongoDB', 'AWS', 'Docker'],
-    featured: false,
-    saved: false
-  }
-]
-
 export default function StudentDashboard() {
   const [profileCompletion, setProfileCompletion] = useState<ProfileCompletion>({
     overall: 0,
@@ -191,6 +94,103 @@ export default function StudentDashboard() {
   const [jobRecommendations, setJobRecommendations] = useState<JobRecommendation[]>([])
   const [refreshing, setRefreshing] = useState(false)
   const auth = getAuth()
+
+  // Mock data for demonstration
+  const mockStats: DashboardStats = {
+    totalApplications: 12,
+    interviewsScheduled: 3,
+    offersReceived: 1,
+    profileViews: 45,
+    resumeDownloads: 8,
+    skillsCompleted: 7,
+    coursesCompleted: 3,
+    achievements: 5
+  }
+
+  const mockActivity: RecentActivity[] = [
+    {
+      id: '1',
+      type: 'resume',
+      title: 'Resume Updated',
+      description: 'Your resume has been updated with new skills and achievements',
+      timestamp: '2 hours ago',
+      status: 'success'
+    },
+    {
+      id: '2',
+      type: 'application',
+      title: 'Application Submitted',
+      description: 'Applied for Software Engineer position at TechCorp',
+      timestamp: '1 day ago',
+      status: 'pending'
+    },
+    {
+      id: '3',
+      type: 'interview',
+      title: 'Interview Scheduled',
+      description: 'Interview with Google scheduled for next week',
+      timestamp: '2 days ago',
+      status: 'info'
+    },
+    {
+      id: '4',
+      type: 'achievement',
+      title: 'New Achievement',
+      description: 'Completed React.js certification course',
+      timestamp: '3 days ago',
+      status: 'success'
+    },
+    {
+      id: '5',
+      type: 'skill',
+      title: 'Skill Added',
+      description: 'Added Python programming to your skills',
+      timestamp: '5 days ago',
+      status: 'success'
+    }
+  ]
+
+  const mockJobRecommendations: JobRecommendation[] = [
+    {
+      id: '1',
+      title: 'Frontend Developer',
+      company: 'TechCorp',
+      location: 'San Francisco, CA',
+      salary: '$80k - $120k',
+      match: 95,
+      type: 'Full-time',
+      deadline: '2024-02-15',
+      tags: ['React', 'JavaScript', 'CSS', 'TypeScript'],
+      featured: true,
+      saved: false
+    },
+    {
+      id: '2',
+      title: 'Software Engineer Intern',
+      company: 'Google',
+      location: 'Mountain View, CA',
+      salary: '$6k - $8k/month',
+      match: 88,
+      type: 'Internship',
+      deadline: '2024-02-20',
+      tags: ['Python', 'Machine Learning', 'AI', 'TensorFlow'],
+      featured: false,
+      saved: true
+    },
+    {
+      id: '3',
+      title: 'Full Stack Developer',
+      company: 'StartupXYZ',
+      location: 'Remote',
+      salary: '$70k - $100k',
+      match: 82,
+      type: 'Full-time',
+      deadline: '2024-02-25',
+      tags: ['Node.js', 'MongoDB', 'AWS', 'Docker'],
+      featured: false,
+      saved: false
+    }
+  ]
 
   // Fetch dashboard data
   useEffect(() => {

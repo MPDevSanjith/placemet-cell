@@ -17,7 +17,7 @@ import ProfilePage from './pages/student/ProfilePage'
 import PlacementAnalytics from './pages/placement-officer/Analytics'
 import CompanyForm from './pages/CompanyForm'
 import { useAuth } from './hooks/useAuth'
-import { getCompletionStatus } from './global/api'
+import { getCompletionStatus, listResumes } from './global/api'
 import { getAuth } from './global/auth'
 
 // Types for student status
@@ -65,17 +65,20 @@ function AppRoutes() {
             throw new Error('Invalid response')
           }
         } catch {
-          console.log('⚠️ Backend status check failed, using localStorage fallback')
-          
-          // Fast fallback to localStorage
-          const fallbackStatus = localStorage.getItem('student_onboarded') === 'true'
-          const hasResume = localStorage.getItem('resume_uploaded') === 'true'
-          
-          setStudentStatus({
-            hasResume: hasResume || fallbackStatus,
-            isOnboarded: fallbackStatus,
-            completionPercentage: fallbackStatus ? 100 : 0
-          })
+          console.log('⚠️ Completion API failed, attempting resume list fallback (no localStorage)')
+          try {
+            const token = auth?.token as string
+            const list = await listResumes(token)
+            const hasResume = Array.isArray(list?.resumes) && list.resumes.length > 0
+            setStudentStatus({
+              hasResume,
+              isOnboarded: hasResume, // treat resume presence as onboarding complete
+              completionPercentage: hasResume ? 100 : 0
+            })
+          } catch {
+            // As a final safe fallback with no local storage, assume not onboarded
+            setStudentStatus({ hasResume: false, isOnboarded: false, completionPercentage: 0 })
+          }
         } finally {
           setIsLoadingStatus(false)
         }

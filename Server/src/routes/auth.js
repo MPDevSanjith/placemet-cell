@@ -8,7 +8,9 @@ import {
   forgotPassword,
   resetPassword,
   getProfile,
-  verify
+  verify,
+  requestPasswordResetOtp,
+  verifyPasswordResetOtp
 } from '../controllers/authController.js'
 import { protect, authorize, authenticateToken } from '../middleware/auth.js'
 
@@ -19,6 +21,9 @@ router.post('/login', login)
 router.post('/verify-otp', verifyOtp)
 router.post('/forgot-password', forgotPassword)
 router.post('/reset-password', resetPassword)
+// Password reset via OTP (new)
+router.post('/password-reset/request', requestPasswordResetOtp)
+router.post('/password-reset/verify', verifyPasswordResetOtp)
 
 // Logout destroys cookie session
 router.post('/logout', (req, res) => {

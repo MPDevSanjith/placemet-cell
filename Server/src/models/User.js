@@ -33,6 +33,9 @@ const userSchema = new mongoose.Schema({
   // Password reset
   passwordResetToken: String,
   passwordResetExpires: Date,
+  // OTP-based password reset
+  passwordResetOtp: String,
+  passwordResetOtpExpires: Date,
   
   createdAt: {
     type: Date,
