@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { FaUpload, FaDownload, FaEye, FaEyeSlash, FaCheckCircle, FaExclamationTriangle, FaSpinner, FaEnvelope } from 'react-icons/fa'
-import { bulkUploadStudents, sendBulkWelcomeEmails, sendBulkWelcomeEmailsWithCredentials, fetchStudentByEmail, createStudentManual } from '../../global/api'
+import { bulkUploadStudents, sendBulkWelcomeEmailsWithCredentials, sendBulkWelcomeEmailsByEmails, fetchStudentByEmail, createStudentManual } from '../../global/api'
+import Layout from '../../components/Layout'
 
 interface StudentData {
   name: string
@@ -41,65 +42,14 @@ export default function BulkUpload() {
   const [manualLoading, setManualLoading] = useState(false)
   const [manualMessage, setManualMessage] = useState<string | null>(null)
 
-  const generatePassword = (name: string, rollNumber: string): string => {
-    const specialChars = '@#$%&*'
-    const randomChar = specialChars[Math.floor(Math.random() * specialChars.length)]
-    const year = new Date().getFullYear().toString().slice(-2)
-    return `${name.slice(0, 3).toUpperCase()}${rollNumber.slice(-2)}${randomChar}${year}`
-  }
+  // removed unused generatePassword helper
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     return emailRegex.test(email)
   }
 
-  const validateStudentData = (data: StudentData[]): { valid: StudentData[], errors: string[] } => {
-    const valid: StudentData[] = []
-    const errors: string[] = []
-    const emails = new Set<string>()
-
-    data.forEach((student, index) => {
-      const row = index + 2 // +2 because of 0-based index and header row
-
-      if (!student.name?.trim()) {
-        errors.push(`Row ${row}: Name is required`)
-        return
-      }
-
-      if (!student.email?.trim()) {
-        errors.push(`Row ${row}: Email is required`)
-        return
-      }
-
-      if (!validateEmail(student.email)) {
-        errors.push(`Row ${row}: Invalid email format`)
-        return
-      }
-
-      if (emails.has(student.email)) {
-        errors.push(`Row ${row}: Duplicate email address`)
-        return
-      }
-
-      // Make branch and section optional for now
-      if (!student.branch?.trim()) {
-        student.branch = 'Not Specified'
-      }
-
-      if (!student.section?.trim()) {
-        student.section = 'Not Specified'
-      }
-
-      if (!student.rollNumber?.trim()) {
-        student.rollNumber = `ROLL${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`
-      }
-
-      emails.add(student.email)
-      valid.push(student)
-    })
-
-    return { valid, errors }
-  }
+  // removed unused validateStudentData helper
 
   const processCSV = async (file: File): Promise<StudentData[]> => {
     return new Promise((resolve, reject) => {
@@ -226,14 +176,26 @@ export default function BulkUpload() {
         const studentEmails = uploadResult.accounts
           .filter(account => account.status === 'created')
           .map(account => account.email)
-        result = await sendBulkWelcomeEmails(studentEmails)
+        result = await sendBulkWelcomeEmailsByEmails(studentEmails)
       }
 
-      setEmailResults(result)
-      if (result.success) {
-        alert(`Successfully sent ${result.results.successful} welcome emails!`)
+      setEmailResults({
+        success: result.success,
+        results: {
+          successful: result.results.filter(r => r.status === 'sent').length,
+          failed: result.results.filter(r => r.status !== 'sent').length,
+          total: result.results.length
+        },
+        raw: result.results
+      })
+      const sentCount = result.results.filter(r => r.status === 'sent').length
+      const failCount = result.results.filter(r => r.status !== 'sent').length
+      if (failCount === 0) {
+        alert(`Successfully sent ${sentCount} welcome emails!`)
+      } else if (sentCount > 0) {
+        alert(`Sent ${sentCount} emails, ${failCount} failed. Check details below.`)
       } else {
-        alert('Failed to send some emails. Check the results for details.')
+        alert('Failed to send welcome emails. Please check details below.')
       }
       
     } catch (error) {
@@ -254,14 +216,15 @@ export default function BulkUpload() {
       setManualLoading(true)
       const res = await fetchStudentByEmail(manual.email)
       if (res.exists && res.student) {
+        const s = res.student as Partial<StudentData> | Record<string, any>
         setManual(prev => ({
           ...prev,
-          name: res.student.name || prev.name,
-          branch: res.student.branch || prev.branch,
-          section: res.student.section || prev.section,
-          rollNumber: res.student.rollNumber || prev.rollNumber,
-          phone: res.student.phone || prev.phone,
-          year: res.student.year || prev.year,
+          name: (s as any).name || prev.name,
+          branch: (s as any).branch || prev.branch,
+          section: (s as any).section || prev.section,
+          rollNumber: (s as any).rollNumber || prev.rollNumber,
+          phone: (s as any).phone || prev.phone,
+          year: (s as any).year || prev.year,
         }))
         setManualMessage('Details fetched from existing record')
       } else {
@@ -317,13 +280,11 @@ export default function BulkUpload() {
   }
 
   return (
-    <div className="min-h-screen bg-brand-muted p-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="bg-white rounded-xl p-6 mb-6 shadow-lg">
-          <h1 className="text-3xl font-bold text-brand-primary mb-2">Bulk Student Upload</h1>
-          <p className="text-gray-600">Upload CSV file to create student accounts and send login credentials</p>
-        </div>
+    <Layout
+      title="Bulk Student Upload"
+      subtitle="Upload CSV file to create student accounts and send login credentials"
+    >
+      <div className="max-w-6xl mx-auto p-6">
 
         <div className="grid lg:grid-cols-2 gap-6">
           {/* Upload Section */}
@@ -590,6 +551,6 @@ export default function BulkUpload() {
           </div>
         </div>
       </div>
-    </div>
+    </Layout>
   )
 }

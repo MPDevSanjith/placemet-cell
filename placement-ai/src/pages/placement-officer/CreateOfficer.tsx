@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { createOfficer } from '../../global/api'
+import Layout from '../../components/Layout'
 
 export default function CreateOfficerPage() {
   const [name, setName] = useState('')
@@ -32,10 +33,11 @@ export default function CreateOfficerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-brand-muted p-6">
+    <Layout
+      title="Register Placement Officer"
+      subtitle="Create a new officer account. Login credentials will be emailed automatically."
+    >
       <div className="max-w-xl mx-auto bg-white rounded-xl shadow-lg p-6">
-        <h1 className="text-2xl font-bold text-brand-primary mb-2">Register Placement Officer</h1>
-        <p className="text-gray-600 mb-6">Create a new officer account. Login credentials will be emailed automatically.</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm text-gray-700 mb-1">Name</label>
@@ -49,6 +51,6 @@ export default function CreateOfficerPage() {
           <button type="submit" disabled={submitting} className="px-5 py-2 bg-brand-secondary text-white rounded-lg disabled:opacity-50">{submitting ? 'Creating…' : 'Create & Email Login'}</button>
         </form>
       </div>
-    </div>
+    </Layout>
   )
 }
