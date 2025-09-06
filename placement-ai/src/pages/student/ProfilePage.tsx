@@ -22,6 +22,7 @@ type ResumeItem = {
   originalName: string
   cloudinaryUrl: string
   viewUrl?: string
+  signedViewUrl?: string
   uploadDate: string
   size?: number
   hasAtsAnalysis?: boolean

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { submitOnboarding, analyzeATS, type ATSAnalysis } from '../../global/api'
 import { getAuth } from '../../global/auth'
@@ -464,8 +464,7 @@ export default function StudentOnboarding() {
           </div>
         </div>
       </div>
-    </div>
-  )
+  );
 }
 
 

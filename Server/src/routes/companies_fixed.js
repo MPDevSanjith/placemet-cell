@@ -214,8 +214,8 @@ router.post('/requests', async (req, res) => {
       studentsRequired: Number(studentsRequired) || 1,
       minimumCGPA: Number(minimumCGPA) || 0,
       startDate,
-      endDate,
-      createdBy: req.user.id
+      endDate
+      // createdBy is optional, so we omit it for now
     })
     await request.save()
     res.status(201).json({ success: true, data: request })
@@ -249,4 +249,3 @@ router.delete('/requests/:id', protect, authorize('placement_officer', 'admin'),
 })
 
 export default router
- 

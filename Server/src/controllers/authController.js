@@ -17,6 +17,7 @@ import { signJwt, verifyJwt } from '../config/jwt.js';
 
 // Utils
 import logger from '../utils/logger.js';
+import { generateOtp } from '../utils/generateOtp.js';
 
 // ---------- Helpers ----------
 const sendLoginOtpEmail = async (email, name, otp) => {
@@ -27,6 +28,16 @@ const sendLoginOtpEmail = async (email, name, otp) => {
 const sendPasswordResetEmail = async (email, name, token) => {
   const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
   const mailOptions = emailTemplates.passwordReset(name, email, resetUrl);
+  return await sendEmail(mailOptions);
+};
+
+const sendPasswordResetOtpEmail = async (email, name, otp) => {
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: 'Password Reset OTP - Placement ERP',
+    html: `<p>Hello ${name},</p><p>Your password reset OTP is: <strong>${otp}</strong></p><p>This OTP is valid for 10 minutes.</p>`
+  };
   return await sendEmail(mailOptions);
 };
 
@@ -520,6 +531,61 @@ export const resetPassword = async (req, res) => {
       success: false, 
       error: 'Internal server error' 
     });
+  }
+};
+
+// Request password reset via OTP
+export const requestPasswordResetOtp = async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    if (!email) return res.status(400).json({ success: false, error: 'Email is required' });
+    const normalizedEmail = String(email).trim().toLowerCase();
+
+    const user = await User.findOne({ email: normalizedEmail });
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
+    const otp = generateOtp();
+    user.passwordResetOtp = otp;
+    user.passwordResetOtpExpires = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    await sendPasswordResetOtpEmail(user.email, user.name, otp);
+    logger.success(`Password reset OTP sent to: ${user.email}`);
+    return res.json({ success: true, message: 'OTP sent to your email' });
+  } catch (error) {
+    logger.error('Password reset OTP request error:', error);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+// Verify password reset OTP and set new password
+export const verifyPasswordResetOtp = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body || {};
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ success: false, error: 'Email, OTP and new password are required' });
+    }
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail });
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
+    if (!user.passwordResetOtp || !user.passwordResetOtpExpires || new Date() > user.passwordResetOtpExpires) {
+      return res.status(400).json({ success: false, error: 'Invalid or expired OTP' });
+    }
+    if (String(user.passwordResetOtp) !== String(otp)) {
+      return res.status(400).json({ success: false, error: 'Invalid OTP' });
+    }
+
+    user.password = newPassword;
+    user.passwordResetOtp = undefined;
+    user.passwordResetOtpExpires = undefined;
+    await user.save();
+
+    logger.success(`Password reset via OTP successful for: ${user.email}`);
+    return res.json({ success: true, message: 'Password reset successful' });
+  } catch (error) {
+    logger.error('Password reset OTP verify error:', error);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 

@@ -488,7 +488,8 @@ export async function listResumes(token: string) {
 
 // Officer: get active resume view url for a student
 export async function getStudentActiveResumeViewUrl(token: string, studentId: string) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/resume/admin/student/${studentId}/active-view`
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/resume/admin/student/${studentId}/active-view`
   const res = await fetch(url, {
     method: 'GET',
     headers: { ...buildAuthHeaders(token) },
@@ -502,7 +503,8 @@ export async function getStudentActiveResumeViewUrl(token: string, studentId: st
 }
 
 export async function listStudentResumesForOfficer(token: string, studentId: string) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/resume/admin/student/${studentId}/list`
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/resume/admin/student/${studentId}/list`
   const res = await fetch(url, {
     method: 'GET',
     headers: { Authorization: `Bearer ${token}` },
@@ -517,7 +519,8 @@ export async function listStudentResumesForOfficer(token: string, studentId: str
 
 // Delete resume
 export async function deleteResume(token: string, resumeId: string) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/resume/${resumeId}`
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/resume/${resumeId}`
 
   const res = await fetch(url, {
     method: 'DELETE',
@@ -535,7 +538,8 @@ export async function deleteResume(token: string, resumeId: string) {
 
 // Fix Cloudinary URL for existing resume
 export async function fixResumeUrl(token: string, resumeId: string) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/resume/fix-url/${resumeId}`
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/resume/fix-url/${resumeId}`
 
   const res = await fetch(url, {
     method: 'POST',
@@ -553,7 +557,8 @@ export async function fixResumeUrl(token: string, resumeId: string) {
 
 // Fix all resume URLs for a student
 export async function fixAllResumeUrls(token: string, studentId: string) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/resume/fix-all-urls`
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/resume/fix-all-urls`
 
   const res = await fetch(url, {
     method: 'POST',
@@ -587,7 +592,8 @@ export async function fixAllResumeUrls(token: string, studentId: string) {
 
 // Regenerate clean URLs for all resumes (fixes malformed URLs)
 export async function regenerateResumeUrls(token: string, studentId: string) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/resume/regenerate-urls`
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/resume/regenerate-urls`
 
   const res = await fetch(url, {
     method: 'POST',
@@ -687,7 +693,8 @@ export type ProfileCompletion = {
 
 // Get comprehensive student profile
 export async function getStudentProfile(token: string) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/profile/comprehensive`
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/profile/comprehensive`
 
   const res = await fetch(url, {
     method: 'GET',
@@ -705,7 +712,8 @@ export async function getStudentProfile(token: string) {
 
 // Get profile completion status
 export async function getCompletionStatus(token: string) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/profile/completion`
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/profile/completion`
 
   const res = await fetch(url, {
     method: 'GET',
@@ -727,7 +735,8 @@ export async function updateStudentProfile(token: string, profileData: {
   academicInfo?: Partial<StudentProfile['academicInfo']>
   placementInfo?: Partial<StudentProfile['placementInfo']>
 }) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/profile/comprehensive`
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/profile/comprehensive`
 
   const res = await fetch(url, {
     method: 'PUT',
@@ -749,7 +758,8 @@ export async function updateStudentProfile(token: string, profileData: {
 
 // Update student skills
 export async function updateStudentSkills(token: string, skills: string[]) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/profile/skills`
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/profile/skills`
 
   const res = await fetch(url, {
     method: 'PUT',
@@ -771,7 +781,8 @@ export async function updateStudentSkills(token: string, skills: string[]) {
 
 // Update student projects
 export async function updateStudentProjects(token: string, projects: string[]) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/profile/projects`
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/profile/projects`
 
   const res = await fetch(url, {
     method: 'PUT',
@@ -793,7 +804,8 @@ export async function updateStudentProjects(token: string, projects: string[]) {
 
 // Update single profile field
 export async function updateProfileField(token: string, field: string, value: string | number | string[]) {
-  const url = `${API_BASE_URL ?? 'http://localhost:5000'}/api/profile/field`
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/profile/field`
 
   const res = await fetch(url, {
     method: 'PUT',

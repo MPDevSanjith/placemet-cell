@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
@@ -53,6 +54,8 @@ app.use(
         "style-src-elem": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
         "connect-src": [
           "'self'",
+          "http://localhost:5000",
+          "https://placement-final.vercel.app",
           "https://api.cloudinary.com",
           "https://res.cloudinary.com"
         ],
@@ -81,7 +84,7 @@ app.use(
         'http://127.0.0.1:3000',
         'http://localhost:4173', // Vite preview
         'http://127.0.0.1:4173',
-       ' https://placement-final.vercel.app'
+        'https://placement-final.vercel.app'
       ];
       
       if (allowedOrigins.indexOf(origin) !== -1) {
@@ -127,13 +130,45 @@ app.use('/api/external-jobs', externalJobsRoutes);
 app.use('/api/companies', companiesRoutes);
 
 // Static frontend hosting
-const frontendDistPath = path.resolve(__dirname, '../frontend/dist');
-app.use(express.static(frontendDistPath));
+// Check if we're running on Vercel (use frontend/dist) or locally (use placement-ai/dist)
+const isVercel = process.env.VERCEL === '1';
+const frontendDistPath = isVercel 
+  ? path.resolve(__dirname, '../frontend/dist')
+  : path.resolve(__dirname, '../placement-ai/dist');
+console.log('📁 Frontend dist path:', frontendDistPath);
+console.log('🌐 Environment:', isVercel ? 'Vercel' : 'Local');
+
+// Check if the frontend dist directory exists
+if (!existsSync(frontendDistPath)) {
+  console.error('❌ Frontend dist directory not found:', frontendDistPath);
+} else {
+  console.log('✅ Frontend dist directory found');
+}
+
+app.use(express.static(frontendDistPath, {
+  setHeaders: (res, path) => {
+    if (path.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    }
+    if (path.endsWith('.mjs')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    }
+  }
+}));
 
 // SPA fallback for non-API routes
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api')) return next();
-  res.sendFile(path.join(frontendDistPath, 'index.html'));
+  
+  const indexPath = path.join(frontendDistPath, 'index.html');
+  console.log('🔍 SPA fallback - serving index.html from:', indexPath);
+  
+  if (!existsSync(indexPath)) {
+    console.error('❌ index.html not found at:', indexPath);
+    return res.status(404).json({ error: 'Frontend not built or not found' });
+  }
+  
+  res.sendFile(indexPath);
 });
 
 // Error handling middleware (must be last)
