@@ -1,24 +1,41 @@
 import { useState, useEffect } from 'react'
 import Layout from '../../components/Layout'
+import ResumeCard from '../../components/ResumeCard'
 import { getAuth } from '../../global/auth'
-import { getStudentProfile } from '../../global/api'
+import { getStudentProfile, listResumes } from '../../global/api'
 import CircularProgress from '../../components/ui/circular-progress'
 import StatsCard from '../../components/ui/stats-card'
 import ActivityFeed from '../../components/ui/activity-feed'
 import JobCard from '../../components/ui/job-card'
 import { 
   FiFileText, 
+  FiCheckCircle, 
   FiClipboard, 
   FiTarget, 
   FiTrendingUp,
   FiAward,
   FiCalendar,
+  FiUsers,
   FiBookOpen,
+  FiStar,
+  FiZap,
+  FiBarChart3,
+  FiActivity,
   FiClock,
   FiArrowRight,
-  FiRefreshCw
+  FiDownload,
+  FiEye,
+  FiEdit3,
+  FiSettings,
+  FiBell,
+  FiSearch,
+  FiFilter,
+  FiRefreshCw,
+  FiMapPin,
+  FiDollarSign,
+  FiBookmark
 } from 'react-icons/fi'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface ProfileCompletion {
   overall: number
@@ -66,103 +83,6 @@ interface JobRecommendation {
   saved?: boolean
 }
 
-// Mock data for demonstration
-const mockStats: DashboardStats = {
-  totalApplications: 12,
-  interviewsScheduled: 3,
-  offersReceived: 1,
-  profileViews: 45,
-  resumeDownloads: 8,
-  skillsCompleted: 7,
-  coursesCompleted: 3,
-  achievements: 5
-}
-
-const mockActivity: RecentActivity[] = [
-  {
-    id: '1',
-    type: 'resume',
-    title: 'Resume Updated',
-    description: 'Your resume has been updated with new skills and achievements',
-    timestamp: '2 hours ago',
-    status: 'success'
-  },
-  {
-    id: '2',
-    type: 'application',
-    title: 'Application Submitted',
-    description: 'Applied for Software Engineer position at TechCorp',
-    timestamp: '1 day ago',
-    status: 'pending'
-  },
-  {
-    id: '3',
-    type: 'interview',
-    title: 'Interview Scheduled',
-    description: 'Interview with Google scheduled for next week',
-    timestamp: '2 days ago',
-    status: 'info'
-  },
-  {
-    id: '4',
-    type: 'achievement',
-    title: 'New Achievement',
-    description: 'Completed React.js certification course',
-    timestamp: '3 days ago',
-    status: 'success'
-  },
-  {
-    id: '5',
-    type: 'skill',
-    title: 'Skill Added',
-    description: 'Added Python programming to your skills',
-    timestamp: '5 days ago',
-    status: 'success'
-  }
-]
-
-const mockJobRecommendations: JobRecommendation[] = [
-  {
-    id: '1',
-    title: 'Frontend Developer',
-    company: 'TechCorp',
-    location: 'San Francisco, CA',
-    salary: '$80k - $120k',
-    match: 95,
-    type: 'Full-time',
-    deadline: '2024-02-15',
-    tags: ['React', 'JavaScript', 'CSS', 'TypeScript'],
-    featured: true,
-    saved: false
-  },
-  {
-    id: '2',
-    title: 'Software Engineer Intern',
-    company: 'Google',
-    location: 'Mountain View, CA',
-    salary: '$6k - $8k/month',
-    match: 88,
-    type: 'Internship',
-    deadline: '2024-02-20',
-    tags: ['Python', 'Machine Learning', 'AI', 'TensorFlow'],
-    featured: false,
-    saved: true
-  },
-  {
-    id: '3',
-    title: 'Full Stack Developer',
-    company: 'StartupXYZ',
-    location: 'Remote',
-    salary: '$70k - $100k',
-    match: 82,
-    type: 'Full-time',
-    deadline: '2024-02-25',
-    tags: ['Node.js', 'MongoDB', 'AWS', 'Docker'],
-    featured: false,
-    saved: false
-  }
-]
-
 export default function StudentDashboard() {
   const [profileCompletion, setProfileCompletion] = useState<ProfileCompletion>({
     overall: 0,
@@ -189,13 +109,113 @@ export default function StudentDashboard() {
   
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
   const [jobRecommendations, setJobRecommendations] = useState<JobRecommendation[]>([])
+  const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const auth = getAuth()
+
+  // Mock data for demonstration
+  const mockStats: DashboardStats = {
+    totalApplications: 12,
+    interviewsScheduled: 3,
+    offersReceived: 1,
+    profileViews: 45,
+    resumeDownloads: 8,
+    skillsCompleted: 7,
+    coursesCompleted: 3,
+    achievements: 5
+  }
+
+  const mockActivity: RecentActivity[] = [
+    {
+      id: '1',
+      type: 'resume',
+      title: 'Resume Updated',
+      description: 'Your resume has been updated with new skills and achievements',
+      timestamp: '2 hours ago',
+      status: 'success'
+    },
+    {
+      id: '2',
+      type: 'application',
+      title: 'Application Submitted',
+      description: 'Applied for Software Engineer position at TechCorp',
+      timestamp: '1 day ago',
+      status: 'pending'
+    },
+    {
+      id: '3',
+      type: 'interview',
+      title: 'Interview Scheduled',
+      description: 'Interview with Google scheduled for next week',
+      timestamp: '2 days ago',
+      status: 'info'
+    },
+    {
+      id: '4',
+      type: 'achievement',
+      title: 'New Achievement',
+      description: 'Completed React.js certification course',
+      timestamp: '3 days ago',
+      status: 'success'
+    },
+    {
+      id: '5',
+      type: 'skill',
+      title: 'Skill Added',
+      description: 'Added Python programming to your skills',
+      timestamp: '5 days ago',
+      status: 'success'
+    }
+  ]
+
+  const mockJobRecommendations: JobRecommendation[] = [
+    {
+      id: '1',
+      title: 'Frontend Developer',
+      company: 'TechCorp',
+      location: 'San Francisco, CA',
+      salary: '$80k - $120k',
+      match: 95,
+      type: 'Full-time',
+      deadline: '2024-02-15',
+      tags: ['React', 'JavaScript', 'CSS', 'TypeScript'],
+      featured: true,
+      saved: false
+    },
+    {
+      id: '2',
+      title: 'Software Engineer Intern',
+      company: 'Google',
+      location: 'Mountain View, CA',
+      salary: '$6k - $8k/month',
+      match: 88,
+      type: 'Internship',
+      deadline: '2024-02-20',
+      tags: ['Python', 'Machine Learning', 'AI', 'TensorFlow'],
+      featured: false,
+      saved: true
+    },
+    {
+      id: '3',
+      title: 'Full Stack Developer',
+      company: 'StartupXYZ',
+      location: 'Remote',
+      salary: '$70k - $100k',
+      match: 82,
+      type: 'Full-time',
+      deadline: '2024-02-25',
+      tags: ['Node.js', 'MongoDB', 'AWS', 'Docker'],
+      featured: false,
+      saved: false
+    }
+  ]
 
   // Fetch dashboard data
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
+        setLoading(true)
+        
         if (auth?.token) {
           const response = await getStudentProfile(auth.token)
           
@@ -227,8 +247,11 @@ export default function StudentDashboard() {
         setStats(mockStats)
         setRecentActivity(mockActivity)
         setJobRecommendations(mockJobRecommendations)
+        
+        setLoading(false)
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error)
+        setLoading(false)
       }
     }
 
@@ -471,7 +494,7 @@ export default function StudentDashboard() {
               </div>
               
               <div className="space-y-4">
-                {jobRecommendations.map((job) => (
+                {jobRecommendations.map((job, index) => (
                   <JobCard
                     key={job.id}
                     {...job}
@@ -536,7 +559,7 @@ export default function StudentDashboard() {
                   { name: 'Node.js', progress: 65 },
                   { name: 'Python', progress: 72 },
                   { name: 'SQL', progress: 58 }
-                ].map((skill) => (
+                ].map((skill, index) => (
                   <div key={skill.name} className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-700">{skill.name}</span>
@@ -547,7 +570,7 @@ export default function StudentDashboard() {
                         className="h-2 bg-gradient-to-r from-indigo-400 to-purple-600 rounded-full"
                         initial={{ width: 0 }}
                         animate={{ width: `${skill.progress}%` }}
-                        transition={{ duration: 1, delay: 0.9 }}
+                        transition={{ duration: 1, delay: 0.9 + index * 0.1 }}
                       />
                     </div>
                   </div>
