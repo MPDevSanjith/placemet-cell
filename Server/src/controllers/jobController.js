@@ -127,4 +127,54 @@ const getJob = async (req, res) => {
   }
 };
 
-export { createJob, getJobs, getJob };
+// @desc    Update a job posting
+// @route   PUT /api/jobs/:id
+// @access  Private (Placement Officer/Admin)
+const updateJob = async (req, res) => {
+  try {
+    const { company, title, description, location, jobType, ctc, deadline } = req.body;
+
+    if (!company || !title || !description || !location || !jobType) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Missing required fields' 
+      });
+    }
+
+    const job = await Job.findById(req.params.id);
+
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: 'Job not found'
+      });
+    }
+
+    // Update job fields
+    job.company = company;
+    job.title = title;
+    job.description = description;
+    job.location = location;
+    job.jobType = jobType;
+    job.ctc = ctc;
+    job.deadline = deadline;
+    job.updatedAt = new Date();
+
+    await job.save();
+
+    res.json({
+      success: true,
+      message: 'Job updated successfully',
+      data: job
+    });
+
+  } catch (error) {
+    logger.error('Update job error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while updating job'
+    });
+  }
+};
+
+export { createJob, getJobs, getJob, updateJob };

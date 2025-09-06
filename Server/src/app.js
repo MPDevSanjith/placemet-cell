@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
@@ -53,6 +54,10 @@ app.use(
         "style-src-elem": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
         "connect-src": [
           "'self'",
+          "http://localhost:5173",
+          "http://localhost:3000",
+          "http://127.0.0.1:5173",
+          "http://127.0.0.1:3000",
           "https://api.cloudinary.com",
           "https://res.cloudinary.com"
         ],
@@ -81,7 +86,7 @@ app.use(
         'http://127.0.0.1:3000',
         'http://localhost:4173', // Vite preview
         'http://127.0.0.1:4173',
-       ' https://placement-final.vercel.app'
+        'https://placement-final.vercel.app'
       ];
       
       if (allowedOrigins.indexOf(origin) !== -1) {
@@ -126,15 +131,39 @@ app.use('/api/jobs', jobsRoutes);
 app.use('/api/external-jobs', externalJobsRoutes);
 app.use('/api/companies', companiesRoutes);
 
-// Static frontend hosting
-const frontendDistPath = path.resolve(__dirname, '../frontend/dist');
-app.use(express.static(frontendDistPath));
+// Static frontend hosting - Handle both development and production
+const frontendDistPath = path.resolve(__dirname, '../../placement-ai/dist');
+const frontendDevPath = path.resolve(__dirname, '../../placement-ai');
 
-// SPA fallback for non-API routes
-app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api')) return next();
-  res.sendFile(path.join(frontendDistPath, 'index.html'));
-});
+// Check if dist folder exists (production build)
+const distExists = fs.existsSync(frontendDistPath);
+
+if (distExists) {
+  // Production: Serve static files from dist
+  app.use(express.static(frontendDistPath));
+  
+  // SPA fallback for non-API routes
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(frontendDistPath, 'index.html'));
+  });
+} else {
+  // Development: Redirect to frontend dev server
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    
+    // For company form routes, serve a simple HTML page
+    if (req.path.startsWith('/company-form/')) {
+      const linkId = req.path.split('/')[2];
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      res.redirect(`${frontendUrl}/company-form/${linkId}`);
+    } else {
+      // Redirect other routes to frontend dev server
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      res.redirect(frontendUrl);
+    }
+  });
+}
 
 // Error handling middleware (must be last)
 app.use(notFound);

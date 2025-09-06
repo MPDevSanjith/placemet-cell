@@ -464,7 +464,6 @@ export default function StudentOnboarding() {
           </div>
         </div>
       </div>
-    </div>
   )
 }
 

@@ -15,6 +15,7 @@ import StudentOnboarding from './pages/student/Onboarding'
 import StudentAtsResults from './pages/student/AtsResults'
 import ProfilePage from './pages/student/ProfilePage'
 import PlacementAnalytics from './pages/placement-officer/Analytics'
+import CompanyForm from './pages/CompanyForm'
 import { useAuth } from './hooks/useAuth'
 import { getCompletionStatus } from './global/api'
 import { getAuth } from './global/auth'
@@ -264,6 +265,9 @@ function AppRoutes() {
           ? <ComponiesPage />
           : <Navigate to="/login" replace />
       } />
+      
+      {/* Public Company Form Route */}
+      <Route path="/company-form/:linkId" element={<CompanyForm />} />
       
       {/* Catch-all */}
       <Route path="*" element={<Navigate to="/" replace />} />

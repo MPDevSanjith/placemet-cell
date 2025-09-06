@@ -1,5 +1,5 @@
 import express from 'express';
-import { getJobs, getJob, createJob } from '../controllers/jobController.js';
+import { getJobs, getJob, createJob, updateJob } from '../controllers/jobController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -16,5 +16,8 @@ router.get('/:id', getJob);
 
 // Protected create
 router.post('/', protect, authorize('placement_officer', 'admin'), createJob);
+
+// Protected update
+router.put('/:id', protect, authorize('placement_officer', 'admin'), updateJob);
 
 export default router;
