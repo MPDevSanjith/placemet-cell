@@ -1,8 +1,6 @@
-const express = require('express');
-const {
-  getJobs,
-  getJob
-} = require('../controllers/jobController');
+import express from 'express';
+import { getJobs, getJob, createJob, updateJob } from '../controllers/jobController.js';
+import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -16,4 +14,10 @@ router.get('/', getJobs);
 // @access  Public
 router.get('/:id', getJob);
 
-module.exports = router;
+// Protected create
+router.post('/', protect, authorize('placement_officer', 'admin'), createJob);
+
+// Protected update
+router.put('/:id', protect, authorize('placement_officer', 'admin'), updateJob);
+
+export default router;

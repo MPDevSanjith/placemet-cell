@@ -1,36 +1,44 @@
-// ==========================
-// routes/auth.js (clean & organized)
-// ==========================
-const express = require('express')
+import express from 'express'
 const router = express.Router()
-
-// Import auth controller
-const {
+import {
   login,
   verifyOtp,
-  requestOtp,
+  registerOfficer,
+  bulkRegisterStudents,
   forgotPassword,
   resetPassword,
-  clearAuth
-} = require('../controllers/authController')
+  getProfile,
+  verify,
+  requestPasswordResetOtp,
+  verifyPasswordResetOtp
+} from '../controllers/authController.js'
+import { protect, authorize, authenticateToken } from '../middleware/auth.js'
 
-// ---------- Routes ----------
-// Login (officers/admins: password; students: password + OTP)
+// const { authenticateToken } = authModule
+
+// Public routes
 router.post('/login', login)
-
-// Verify OTP (students)
 router.post('/verify-otp', verifyOtp)
-
-// Request OTP for students
-router.post('/request-otp', requestOtp)
-
-// Forgot password (both collections)
 router.post('/forgot-password', forgotPassword)
-
-// Reset password with token (both collections)
 router.post('/reset-password', resetPassword)
+// Password reset via OTP (new)
+router.post('/password-reset/request', requestPasswordResetOtp)
+router.post('/password-reset/verify', verifyPasswordResetOtp)
 
-// Clear auth debug helper
-router.post('/clear-auth', clearAuth)
+// Logout destroys cookie session
+router.post('/logout', (req, res) => {
+  res.clearCookie('auth_token', { path: '/' });
+  return res.json({ success: true, message: 'Logged out' });
+});
 
-module.exports = router
+// Token verification route
+router.get('/verify', verify)
+
+// Protected routes (admin only)
+router.post('/register-officer', authenticateToken, registerOfficer)
+router.post('/bulk-register-students', authenticateToken, bulkRegisterStudents)
+
+// Protected routes (authenticated users)
+router.get('/profile', authenticateToken, getProfile)
+
+export default router

@@ -19,6 +19,14 @@ dist-ssr/
 
 # Secrets (never commit these)
 Server/placement.json
+Server/drive.json
+*.json
+!package.json
+!package-lock.json
+!tsconfig*.json
+!tailwind.config.js
+!postcss.config.js
+!eslint.config.js
 
 # Build output
 *.out
@@ -38,10 +46,10 @@ Server/placement.json
 # OS junk files
 Thumbs.db
 Server/drive.json
-Server/placement.json
-Server/drive.json
 
 
 Server/drive.json
 .env
 *.local
+
+.vercel

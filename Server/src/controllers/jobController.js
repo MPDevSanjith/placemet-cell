@@ -1,6 +1,37 @@
-const Job = require('../models/Job');
-const { createPaginationResponse } = require('../utils/helpers');
-const logger = require('../utils/logger');
+import Job from '../models/Job.js';
+import { createPaginationResponse } from '../utils/helpers.js';
+import logger from '../utils/logger.js';
+
+// @desc    Create a new internal job posting
+// @route   POST /api/jobs
+// @access  Private (Placement Officer/Admin)
+const createJob = async (req, res) => {
+  try {
+    const { company, title, description, location, jobType, ctc, deadline } = req.body
+
+    if (!company || !title || !description || !location || !jobType) {
+      return res.status(400).json({ success: false, message: 'Missing required fields' })
+    }
+
+    const job = new Job({
+      company,
+      title,
+      description,
+      location,
+      jobType,
+      ctc,
+      deadline,
+      createdBy: req.user?.id || null
+    })
+
+    await job.save()
+
+    res.status(201).json({ success: true, data: job })
+  } catch (error) {
+    logger.error('Create job error:', error)
+    res.status(500).json({ success: false, message: 'Server error while creating job' })
+  }
+}
 
 // @desc    Get all jobs
 // @route   GET /api/jobs
@@ -96,7 +127,54 @@ const getJob = async (req, res) => {
   }
 };
 
-module.exports = {
-  getJobs,
-  getJob
+// @desc    Update a job posting
+// @route   PUT /api/jobs/:id
+// @access  Private (Placement Officer/Admin)
+const updateJob = async (req, res) => {
+  try {
+    const { company, title, description, location, jobType, ctc, deadline } = req.body;
+
+    if (!company || !title || !description || !location || !jobType) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Missing required fields' 
+      });
+    }
+
+    const job = await Job.findById(req.params.id);
+
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: 'Job not found'
+      });
+    }
+
+    // Update job fields
+    job.company = company;
+    job.title = title;
+    job.description = description;
+    job.location = location;
+    job.jobType = jobType;
+    job.ctc = ctc;
+    job.deadline = deadline;
+    job.updatedAt = new Date();
+
+    await job.save();
+
+    res.json({
+      success: true,
+      message: 'Job updated successfully',
+      data: job
+    });
+
+  } catch (error) {
+    logger.error('Update job error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while updating job'
+    });
+  }
 };
+
+export { createJob, getJobs, getJob, updateJob };
