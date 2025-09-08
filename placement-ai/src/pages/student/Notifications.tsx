@@ -1,12 +1,38 @@
 import { useEffect, useState } from 'react'
 import Layout from '../../components/layout/Layout'
+import { getAuth } from '../../global/auth'
+import { listMyNotifications, markMyNotificationsRead } from '../../global/api'
 
 export default function StudentNotificationsPage() {
-  const [loading] = useState(false)
-  const [items] = useState<Array<{ id: string; title: string; message: string; createdAt: string; read?: boolean }>>([])
+  const [loading, setLoading] = useState(false)
+  const [items, setItems] = useState<Array<{ id: string; title: string; message: string; createdAt: string; read?: boolean }>>([])
 
   useEffect(() => {
-    // TODO: fetch notifications via API when endpoints are ready
+    const run = async () => {
+      const auth = getAuth()
+      if (!auth?.token) return
+      try {
+        setLoading(true)
+        const res = await listMyNotifications(auth.token)
+        const mapped = (res.items || []).map((n) => ({
+          id: n._id,
+          title: n.title,
+          message: n.message,
+          createdAt: n.createdAt,
+        }))
+        setItems(mapped)
+        // Mark all visible notifications as read
+        try {
+          const ids = mapped.map(m => m.id)
+          if (ids.length) await markMyNotificationsRead(auth.token, ids)
+        } catch {}
+      } catch (e) {
+        console.error(e)
+      } finally {
+        setLoading(false)
+      }
+    }
+    run()
   }, [])
 
   return (

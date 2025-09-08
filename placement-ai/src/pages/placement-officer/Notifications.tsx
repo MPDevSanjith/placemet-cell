@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import Layout from '../../components/layout/Layout'
-import { createNotification, type CreateNotificationPayload } from '../../global/api'
+import { createNotification, getNotificationFilters, previewRecipients, type CreateNotificationPayload, listNotifications, updateNotification, deleteNotification } from '../../global/api'
 import { getAuth } from '../../global/auth'
 import { useToast } from '../../hooks/use-toast'
 
@@ -18,12 +18,47 @@ export default function OfficerNotificationsPage() {
   const [attachments, setAttachments] = useState<Array<{ filename: string; url: string; mimeType?: string; size?: number }>>([])
   const [previewOpen, setPreviewOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [sendEmail, setSendEmail] = useState(true)
 
-  // Mock options; ideally fetch from backend/config
-  const yearOptions = ['2022', '2023', '2024', '2025']
-  const departmentOptions = ['CSE', 'ECE', 'EEE', 'ME', 'CE', 'IT']
-  const sectionOptions = ['A', 'B', 'C', 'D']
-  const specializationOptions = ['AI/ML', 'Data Science', 'Cybersecurity', 'IoT']
+  const [yearOptions, setYearOptions] = useState<string[]>([])
+  const [departmentOptions, setDepartmentOptions] = useState<string[]>([])
+  const [sectionOptions, setSectionOptions] = useState<string[]>([])
+  const [specializationOptions, setSpecializationOptions] = useState<string[]>([])
+  const [recipientCount, setRecipientCount] = useState<number | null>(null)
+  const [existing, setExisting] = useState<Array<{ _id: string; title: string; message: string; createdAt: string }>>([])
+  const [loadingList, setLoadingList] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await getNotificationFilters(auth?.token)
+        setYearOptions(res.filters.years || [])
+        setDepartmentOptions(res.filters.departments || [])
+        setSectionOptions(res.filters.sections || [])
+        setSpecializationOptions(res.filters.specializations || [])
+      } catch (e) {
+        // ignore; page still usable
+      }
+    })()
+  }, [])
+
+  const loadExisting = async () => {
+    try {
+      setLoadingList(true)
+      const res = await listNotifications(auth?.token)
+      const items = (res.items || []).map((n: any) => ({ _id: n._id, title: n.title, message: n.message, createdAt: n.createdAt }))
+      setExisting(items)
+    } catch {
+      setExisting([])
+    } finally {
+      setLoadingList(false)
+    }
+  }
+
+  useEffect(() => {
+    loadExisting()
+  }, [])
 
   const targetSummary = useMemo(() => {
     if (targetAll) return 'All active students'
@@ -33,6 +68,18 @@ export default function OfficerNotificationsPage() {
     if (sections.length) parts.push(`Sections: ${sections.join(', ')}`)
     if (specializations.length) parts.push(`Specs: ${specializations.join(', ')}`)
     return parts.join(' • ') || 'No filters selected'
+  }, [targetAll, years, departments, sections, specializations])
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const target = targetAll ? { all: true } : { years, departments, sections, specializations }
+        const res = await previewRecipients(auth?.token, target)
+        setRecipientCount(res.recipientCount)
+      } catch {
+        setRecipientCount(null)
+      }
+    })()
   }, [targetAll, years, departments, sections, specializations])
 
   const addLink = () => setLinks([...links, { url: '' }])
@@ -78,7 +125,8 @@ export default function OfficerNotificationsPage() {
           departments,
           sections,
           specializations
-        }
+        },
+        sendEmail
       }
       const res = await createNotification(auth?.token, payload)
       toast({ title: 'Notification sent', description: `Delivered to ${res.recipientCount} students.` })
@@ -91,10 +139,49 @@ export default function OfficerNotificationsPage() {
       setLinks([])
       setAttachments([])
       setTargetAll(true)
+      setSendEmail(false)
+      loadExisting()
     } catch (e: any) {
       toast({ title: 'Failed to send', description: e?.message || 'Unexpected error', variant: 'destructive' })
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const startEdit = (n: { _id: string; title: string; message: string }) => {
+    setEditingId(n._id)
+    setTitle(n.title)
+    setMessage(n.message)
+  }
+
+  const saveEdit = async () => {
+    if (!editingId) return
+    try {
+      const res = await updateNotification(auth?.token, editingId, {
+        title: title.trim(),
+        message: message.trim(),
+        links,
+        attachments,
+      })
+      toast({ title: 'Updated', description: res.message })
+      setEditingId(null)
+      setTitle('')
+      setMessage('')
+      setLinks([])
+      setAttachments([])
+      loadExisting()
+    } catch (e: any) {
+      toast({ title: 'Update failed', description: e?.message || 'Unexpected error', variant: 'destructive' })
+    }
+  }
+
+  const removeNotification = async (id: string) => {
+    try {
+      await deleteNotification(auth?.token, id)
+      toast({ title: 'Deleted', description: 'Notification removed' })
+      loadExisting()
+    } catch (e: any) {
+      toast({ title: 'Delete failed', description: e?.message || 'Unexpected error', variant: 'destructive' })
     }
   }
 
@@ -170,12 +257,53 @@ export default function OfficerNotificationsPage() {
             </div>
           </div>
           <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">Target: {targetSummary}</div>
+            <div className="text-sm text-gray-600">Target: {targetSummary}{recipientCount !== null && (<span className="ml-2 text-gray-500">• {recipientCount} recipients</span>)}</div>
             <div className="flex gap-2">
+              <label className="flex items-center gap-2 text-sm text-gray-700 mr-2">
+                <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} />
+                Also send via email
+              </label>
               <button type="button" onClick={() => setPreviewOpen(true)} className="px-4 py-2 rounded-lg border">Preview</button>
-              <button type="button" onClick={handleSubmit} disabled={submitting} className="px-4 py-2 rounded-lg bg-primary-600 text-white disabled:opacity-50">{submitting ? 'Sending…' : 'Send'}</button>
+              {editingId ? (
+                <>
+                  <button type="button" onClick={saveEdit} className="px-4 py-2 rounded-lg bg-primary-600 text-white">Save</button>
+                  <button type="button" onClick={() => { setEditingId(null); setTitle(''); setMessage(''); setLinks([]); setAttachments([]); }} className="px-4 py-2 rounded-lg border">Cancel</button>
+                </>
+              ) : (
+                <button type="button" onClick={handleSubmit} disabled={submitting} className="px-4 py-2 rounded-lg bg-primary-600 text-white disabled:opacity-50">{submitting ? 'Sending…' : 'Send'}</button>
+              )}
             </div>
           </div>
+        </div>
+
+        <div className="mt-6 bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">All Notifications</h2>
+            <button type="button" onClick={loadExisting} className="text-sm text-primary-600">Refresh</button>
+          </div>
+          {loadingList ? (
+            <p className="text-sm text-gray-500">Loading…</p>
+          ) : (
+            <div className="divide-y">
+              {existing.length === 0 ? (
+                <p className="text-sm text-gray-500">No notifications yet.</p>
+              ) : (
+                existing.map((n) => (
+                  <div key={n._id} className="py-3 flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-gray-900 truncate">{n.title}</div>
+                      <div className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{n.message}</div>
+                      <div className="text-xs text-gray-500 mt-1">{new Date(n.createdAt).toLocaleString()}</div>
+                    </div>
+                    <div className="flex-shrink-0 flex gap-2">
+                      <button type="button" onClick={() => startEdit(n)} className="px-3 py-1.5 rounded-lg border">Edit</button>
+                      <button type="button" onClick={() => removeNotification(n._id)} className="px-3 py-1.5 rounded-lg border text-red-600">Delete</button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
 
         {previewOpen && (

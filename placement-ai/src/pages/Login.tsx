@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+// import { useNavigate } from 'react-router-dom'
 import { FaEye, FaEyeSlash } from 'react-icons/fa'
 import { login, requestPasswordReset, requestStudentOtp, verifyStudentOtp, type LoginPayload, type LoginResponse } from '../global/api'
 import { saveAuth } from '../global/auth'
@@ -14,7 +14,7 @@ function StatCard({ value, label }: { value: string; label: string }) {
 }
 
 export default function Login() {
-  const navigate = useNavigate()
+  // const _navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)

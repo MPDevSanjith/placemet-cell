@@ -1,29 +1,18 @@
-import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { 
   Home, 
   User, 
-  FileText, 
   Briefcase, 
   Building2, 
   BarChart3, 
   Users, 
   Settings, 
   HelpCircle,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  GraduationCap,
   Upload,
-  Search,
   MessageSquare,
   Bell,
-  Calendar,
-  BookOpen,
-  Award,
-  TrendingUp,
-  Target
+ 
 } from 'lucide-react'
 import { getAuth } from '../../global/auth'
 
@@ -46,9 +35,9 @@ const Sidebar = ({
   onClose,
   userRole,
   collapsed,
-  onCollapseToggle,
+  onCollapseToggle: _onCollapseToggle,
   studentStatus,
-  isLoadingStatus
+  isLoadingStatus: _isLoadingStatus
 }: SidebarProps) => {
   const location = useLocation()
   const navigate = useNavigate()
