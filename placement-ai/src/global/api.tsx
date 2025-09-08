@@ -948,6 +948,7 @@ export type CreateNotificationPayload = {
   links?: { label?: string; url: string }[]
   attachments?: { filename: string; url: string; mimeType?: string; size?: number }[]
   target: NotificationTarget
+  sendEmail?: boolean
 }
 
 export async function createNotification(token: string | null | undefined, payload: CreateNotificationPayload) {
@@ -963,6 +964,83 @@ export async function listNotifications(token: string | null | undefined) {
     method: 'GET',
     headers: { ...buildAuthHeaders(token || undefined) }
   })
+}
+
+export async function updateNotification(token: string | null | undefined, id: string, payload: { title?: string; message?: string; links?: { label?: string; url: string }[]; attachments?: { filename: string; url: string; mimeType?: string; size?: number }[] }) {
+  return request<{ success: boolean; message: string; notification: any }>(`/notifications/${id}`, {
+    method: 'PUT',
+    headers: { ...buildAuthHeaders(token || undefined) },
+    body: JSON.stringify(payload)
+  })
+}
+
+export async function deleteNotification(token: string | null | undefined, id: string) {
+  return request<{ success: boolean; message: string }>(`/notifications/${id}`, {
+    method: 'DELETE',
+    headers: { ...buildAuthHeaders(token || undefined) }
+  })
+}
+
+export async function getNotificationFilters(token: string | null | undefined) {
+  return request<{ success: boolean; filters: { years: string[]; departments: string[]; sections: string[]; specializations: string[] } }>(`/notifications/filters`, {
+    method: 'GET',
+    headers: { ...buildAuthHeaders(token || undefined) }
+  })
+}
+
+export async function previewRecipients(token: string | null | undefined, target: NotificationTarget) {
+  return request<{ success: boolean; recipientCount: number }>(`/notifications/preview`, {
+    method: 'POST',
+    headers: { ...buildAuthHeaders(token || undefined) },
+    body: JSON.stringify({ target })
+  })
+}
+
+// Student notifications
+export async function listMyNotifications(token: string) {
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/notifications/my`
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { ...buildAuthHeaders(token) },
+    credentials: 'include',
+  })
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(data?.error || data?.message || 'Failed to fetch notifications')
+  }
+  return data as { success: boolean; items: Array<{ _id: string; title: string; message: string; createdAt: string }> }
+}
+
+export async function getMyUnreadNotificationCount(token: string) {
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/notifications/my/unread-count`
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { ...buildAuthHeaders(token) },
+    credentials: 'include',
+  })
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(data?.error || data?.message || 'Failed to fetch unread count')
+  }
+  return data as { success: boolean; unread: number }
+}
+
+export async function markMyNotificationsRead(token: string, ids: string[]) {
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/notifications/my/mark-read`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...buildAuthHeaders(token) },
+    body: JSON.stringify({ ids }),
+    credentials: 'include',
+  })
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(data?.error || data?.message || 'Failed to mark read')
+  }
+  return data as { success: boolean; updated: number }
 }
 
 // ------------------- COMPANY REQUESTS ------------------- //

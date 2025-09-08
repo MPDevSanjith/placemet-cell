@@ -108,6 +108,9 @@ app.use(
   })
 );
 
+// Initialize email transporter (if credentials configured)
+initializeEmail();
+
 // Add preflight handling
 app.options('*', cors());
 

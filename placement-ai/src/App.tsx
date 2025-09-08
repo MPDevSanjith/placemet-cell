@@ -16,9 +16,11 @@ import StudentOnboarding from './pages/student/Onboarding'
 import StudentAtsResults from './pages/student/AtsResults'
 import ProfilePage from './pages/student/ProfilePage'
 import StudentGate from './pages/student/StudentGate'
+import StudentNotificationsPage from './pages/student/Notifications'
 import PlacementAnalytics from './pages/placement-officer/Analytics'
 import CompanyForm from './pages/CompanyForm'
 import PlacementGate from './pages/placement-officer/PlacementGate'
+import OfficerNotificationsPage from './pages/placement-officer/Notifications'
 import JobPortal from './pages/JobPortal'
 import AboutUs from './pages/AboutUs'
 import Contact from './pages/Contact'
@@ -259,10 +261,21 @@ function AppRoutes() {
           : <Navigate to="/login" replace />
       } />
       
+      <Route path="/student/notifications" element={
+        isAuthenticated && userRole === 'student'
+          ? <StudentNotificationsPage />
+          : <Navigate to="/login" replace />
+      } />
+      
       {/* Placement Officer Routes */}
       <Route path="/placement-officer" element={
         isAuthenticated && userRole === 'placement_officer'
           ? <PlacementOfficerDashboard />
+          : <Navigate to="/login" replace />
+      } />
+      <Route path="/placement-officer/notifications" element={
+        isAuthenticated && userRole === 'placement_officer'
+          ? <OfficerNotificationsPage />
           : <Navigate to="/login" replace />
       } />
       <Route path="/placement-officer/analytics" element={

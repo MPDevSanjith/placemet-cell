@@ -6,7 +6,7 @@ import Layout from '../../components/layout/Layout'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { listOfficerStudents, type OfficerStudent, type OfficerStudentListResponse } from '../../global/api'
-import { Download } from 'lucide-react'
+import { Download, Mail, Trophy, CalendarClock } from 'lucide-react'
 import {
   ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend,
@@ -204,7 +204,7 @@ export default function PlacementOfficerDashboard() {
 
   return (
     <Layout>
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6 bg-white">
         {/* Header spacer removed for seamless content */}
         
 
@@ -284,10 +284,7 @@ export default function PlacementOfficerDashboard() {
                     <div className="h-full bg-emerald-500" style={{ width: `${kpis.total ? Math.round((eligible / kpis.total) * 100) : 0}%` }} />
                   </div>
                   <div className="mt-2 text-xs text-secondary-600">{kpis.total ? Math.round((eligible / kpis.total) * 100) : 0}% of total students</div>
-                  <div className="mt-3 flex gap-2">
-                    <button className="btn btn-primary">Email eligible</button>
-                    <button className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-accent-200 text-secondary-700 hover:bg-accent-50">Verify pending</button>
-                  </div>
+                   {/* action buttons removed per request */}
                 </div>
                 <div className="bg-white rounded-2xl p-5 border border-accent-200 shadow-subtle">
                   <div className="text-sm text-secondary-500">Not Eligible</div>
@@ -323,10 +320,7 @@ export default function PlacementOfficerDashboard() {
                   <div className="mt-3 h-2 w-full bg-accent-100 rounded-full overflow-hidden">
                     <div className="h-full bg-emerald-500" style={{ width: `${kpis.total ? Math.round((placed / kpis.total) * 100) : 0}%` }} />
                   </div>
-                  <div className="mt-3 flex gap-2">
-                    <button className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-accent-200 text-secondary-700 hover:bg-accent-50">Congratulate</button>
-                    <button className="btn btn-primary">Email HR list</button>
-                  </div>
+                  {/* action buttons removed per request */}
                 </div>
                 <div className="bg-white rounded-2xl p-5 border border-accent-200 shadow-subtle">
                   <div className="text-sm text-secondary-500">Not Placed</div>
@@ -334,10 +328,7 @@ export default function PlacementOfficerDashboard() {
                   <div className="mt-3 h-2 w-full bg-accent-100 rounded-full overflow-hidden">
                     <div className="h-full bg-red-400" style={{ width: `${kpis.total ? Math.round((notPlaced / kpis.total) * 100) : 0}%` }} />
                   </div>
-                  <div className="mt-3 flex gap-2">
-                    <button className="btn btn-primary">Email unplaced</button>
-                    <button className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-accent-200 text-secondary-700 hover:bg-accent-50">Schedule drive</button>
-                  </div>
+                  {/* action buttons removed per request */}
                 </div>
               </div>
             )

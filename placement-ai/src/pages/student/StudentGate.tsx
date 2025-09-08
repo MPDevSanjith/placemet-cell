@@ -3,18 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { FiUser, FiFileText, FiCheckCircle, FiLoader } from 'react-icons/fi'
 import { getAuth } from '../../global/auth'
-import { mockStudentStatus } from '../../utils/mockApi'
+import { getCompletionStatus, listResumes } from '../../global/api'
 
-interface StudentStatusResponse {
-  isLoggedIn: boolean
-  hasUploadedResume: boolean
-  user?: {
-    id: string
-    name: string
-    email: string
-    role: string
-  }
-}
+type StudentStatusResponse = { isLoggedIn: boolean; hasUploadedResume: boolean }
 
 export default function StudentGate() {
   const [status, setStatus] = useState<'checking' | 'redirecting' | 'error'>('checking')
@@ -34,8 +25,26 @@ export default function StudentGate() {
           return
         }
 
-        // Call API to check student status (using mock for now)
-        const data: StudentStatusResponse = await mockStudentStatus(auth.token)
+        // Call backend to check student status
+        let data: StudentStatusResponse = { isLoggedIn: true, hasUploadedResume: false }
+        try {
+          const completion = await getCompletionStatus(auth.token)
+          if (completion && (completion as any).success) {
+            const percentage = (completion as any).profileCompletion ?? (completion as any).completion?.percentage
+            const resumePart = (completion as any).completion?.breakdown?.resume
+            data = { isLoggedIn: true, hasUploadedResume: (resumePart ?? 0) > 0 || (percentage ?? 0) >= 80 }
+          } else {
+            throw new Error('Invalid completion response')
+          }
+        } catch {
+          // Fallback to listing resumes
+          try {
+            const list = await listResumes(auth.token)
+            data = { isLoggedIn: true, hasUploadedResume: Array.isArray(list?.resumes) && list.resumes.length > 0 }
+          } catch {
+            data = { isLoggedIn: true, hasUploadedResume: false }
+          }
+        }
 
         setStatus('redirecting')
 

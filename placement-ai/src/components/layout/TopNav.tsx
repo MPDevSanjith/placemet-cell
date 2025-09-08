@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Search, 
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { getAuth, logout } from '../../global/auth'
+import { getMyUnreadNotificationCount } from '../../global/api'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
 import Badge from '../ui/Badge'
@@ -45,6 +46,7 @@ const TopNav = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [isDarkMode, setIsDarkMode] = useState(false)
   const auth = getAuth()
+  const [unreadCount, setUnreadCount] = useState<number>(0)
 
   const handleLogout = () => {
     logout()
@@ -122,7 +124,28 @@ const TopNav = ({
   }
 
   const notifications = getNotifications()
-  const unreadCount = notifications.filter(n => n.unread).length
+
+  // Fetch unread count for students from server
+  useEffect(() => {
+    let cancelled = false
+    const fetchCount = async () => {
+      try {
+        if (userRole === 'student' && auth?.token) {
+          const res = await getMyUnreadNotificationCount(auth.token)
+          if (!cancelled) setUnreadCount(res.unread || 0)
+        } else {
+          // fallback to local derived count for non-students
+          if (!cancelled) setUnreadCount(notifications.filter(n => n.unread).length)
+        }
+      } catch {
+        if (!cancelled) setUnreadCount(notifications.filter(n => n.unread).length)
+      }
+    }
+    fetchCount()
+    // Refresh occasionally
+    const id = setInterval(fetchCount, 60_000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [userRole, auth?.token])
 
   return (
     <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 px-4 lg:px-6 py-3 flex items-center justify-between sticky top-0 z-40 shadow-sm">

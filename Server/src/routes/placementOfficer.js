@@ -418,6 +418,7 @@ router.get('/students', async (req, res) => {
       year,
       department,
       section,
+      rollNumber,
       placed,
       blocked,
       page = 1,
@@ -437,6 +438,7 @@ router.get('/students', async (req, res) => {
     if (year) filter.year = String(year);
     if (department) filter.branch = String(department);
     if (section) filter.section = String(section);
+    if (rollNumber) filter.rollNumber = { $regex: String(rollNumber), $options: 'i' };
     if (placed !== undefined) filter.isPlaced = String(placed).toLowerCase() === 'true';
     if (blocked !== undefined) filter.isActive = !(String(blocked).toLowerCase() === 'true');
 
