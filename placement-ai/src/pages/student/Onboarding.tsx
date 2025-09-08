@@ -464,11 +464,7 @@ export default function StudentOnboarding() {
           </div>
         </div>
       </div>
-<<<<<<< HEAD
-  )
-=======
   );
->>>>>>> c236434af65f8445bceaa87c720be34d14a2ca94
 }
 
 
