@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { analyzeAtsOnServer, saveAtsScore, submitOnboarding } from '../../global/api'
 import { getAuth } from '../../global/auth'
-import Layout from '../../components/Layout'
+import Layout from '../../components/layout/Layout'
 
 type Draft = {
   desiredRole?: string
@@ -198,10 +198,10 @@ export default function StudentAtsResults() {
                         stroke="url(#grad)" strokeDasharray={`${Math.max(1, score)} 283`} transform="rotate(-90 50 50)" />
                       <defs>
                         <linearGradient id="grad" x1="0" x2="1" y1="0" y2="0">
-                          <stop offset="0%" stopColor="#f58529" />
-                          <stop offset="40%" stopColor="#dd2a7b" />
-                          <stop offset="70%" stopColor="#8134af" />
-                          <stop offset="100%" stopColor="#515bd4" />
+                          <stop offset="0%" stopColor="#F58529" />
+                          <stop offset="40%" stopColor="#DD2A7B" />
+                          <stop offset="70%" stopColor="#8134AF" />
+                          <stop offset="100%" stopColor="#515BD4" />
                         </linearGradient>
                       </defs>
                       <text x="50" y="54" textAnchor="middle" fontSize="20" fontWeight="700" fill="#111827">{score}/100</text>
@@ -220,10 +220,10 @@ export default function StudentAtsResults() {
                     <div key={c.title} className="bg-white rounded-xl shadow p-4">
                       <div className="flex items-center justify-between">
                         <p className="font-medium text-gray-800">{c.title}</p>
-                        <span className="text-sm font-semibold bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] bg-clip-text text-transparent">{c.score}/100</span>
+                        <span className="text-sm font-semibold bg-gradient-to-r from-insta-1 via-insta-2 to-insta-4 bg-clip-text text-transparent">{c.score}/100</span>
                       </div>
                       <div className="mt-3 h-2 bg-gray-200 rounded-full">
-                        <div className="h-2 rounded-full bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4]" style={{ width: `${c.score}%` }} />
+                        <div className="h-2 rounded-full bg-gradient-to-r from-insta-1 via-insta-2 to-insta-4" style={{ width: `${c.score}%` }} />
                       </div>
                     </div>
                   ))}
@@ -253,7 +253,7 @@ export default function StudentAtsResults() {
                     </ul>
                   </div>
                   <div className="mt-6">
-                    <button onClick={handleSaveAll} disabled={saving} className="px-5 py-2.5 rounded-lg text-white bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] disabled:opacity-60">{saving ? 'Saving…' : 'Save'}</button>
+                    <button onClick={handleSaveAll} disabled={saving} className="px-5 py-2.5 rounded-lg text-white bg-gradient-to-r from-insta-1 via-insta-2 to-insta-4 disabled:opacity-60">{saving ? 'Saving…' : 'Save'}</button>
                   </div>
                 </div>
               </div>

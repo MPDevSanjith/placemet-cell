@@ -20,6 +20,7 @@ import resumeRoutes from './routes/resume.js';
 import jobsRoutes from './routes/jobs.js';
 import externalJobsRoutes from './routes/externalJobs.js';
 import companiesRoutes from './routes/companies.js';
+import notificationsRoutes from './routes/notifications.js';
 import profileRoutes from './routes/profile.js';
 
 dotenv.config();
@@ -128,13 +129,14 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/jobs', jobsRoutes);
 app.use('/api/external-jobs', externalJobsRoutes);
 app.use('/api/companies', companiesRoutes);
+app.use('/api/notifications', notificationsRoutes);
 
 // Static frontend hosting
 // Check if we're running on Vercel (use frontend/dist) or locally (use placement-ai/dist)
 const isVercel = process.env.VERCEL === '1';
 const frontendDistPath = isVercel 
   ? path.resolve(__dirname, '../frontend/dist')
-  : path.resolve(__dirname, '../placement-ai/dist');
+  : path.resolve(__dirname, '../../placement-ai/dist');
 console.log('📁 Frontend dist path:', frontendDistPath);
 console.log('🌐 Environment:', isVercel ? 'Vercel' : 'Local');
 

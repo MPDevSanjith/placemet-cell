@@ -302,6 +302,44 @@ export const verifyOtp = async (req, res) => {
   }
 };
 
+// Request login OTP by email (student only)
+export const requestLoginOtp = async (req, res) => {
+  try {
+    const { email } = req.body || {};
+
+    if (!email) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Email is required' 
+      });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const studentAccount = await Student.findOne({ email: normalizedEmail });
+
+    if (!studentAccount) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Student not found' 
+      });
+    }
+
+    // Generate and email OTP
+    const otp = studentAccount.generateLoginOtp();
+    await studentAccount.save();
+    await sendLoginOtpEmail(studentAccount.email, studentAccount.name, otp);
+
+    return res.json({
+      success: true,
+      message: 'OTP sent to your email',
+      email: studentAccount.email
+    });
+  } catch (error) {
+    logger.error('Request login OTP error:', error);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
 // Register new placement officer (admin only)
 export const registerOfficer = async (req, res) => {
   try {

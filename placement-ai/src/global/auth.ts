@@ -17,6 +17,10 @@ export function clearAuth() {
   localStorage.removeItem(KEY)
 }
 
+export function logout() {
+  clearAuth()
+}
+
 export function isLoggedIn() {
   return !!getAuth()?.token
 }

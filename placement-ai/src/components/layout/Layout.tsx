@@ -1,0 +1,187 @@
+import React, { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
+import { useLocation } from 'react-router-dom'
+import Sidebar from './Sidebar'
+import TopNav from './TopNav'
+import { getAuth } from '../../global/auth'
+import { getCompletionStatus, getStudentProfile } from '../../global/api'
+
+interface LayoutProps {
+  children: React.ReactNode
+  title?: string
+  subtitle?: string
+  hideNav?: boolean
+  userRole?: 'student' | 'placement_officer'
+}
+
+const Layout = ({ 
+  children, 
+  title, 
+  subtitle, 
+  hideNav = false, 
+  userRole 
+}: LayoutProps) => {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [studentStatus, setStudentStatus] = useState<{
+    hasResume: boolean
+    isOnboarded: boolean
+    completionPercentage: number
+  } | null>(null)
+  const [isLoadingStatus, setIsLoadingStatus] = useState(false)
+  const location = useLocation()
+  const auth = getAuth()
+  
+  // Determine user role
+  const currentUserRole = userRole || auth?.user?.role || 'student'
+  
+  // Hide navigation on specific pages
+  const hideNavigation = hideNav || 
+    location.pathname === '/login' || 
+    location.pathname === '/otp' ||
+    location.pathname === '/student-gate' ||
+    location.pathname === '/placement-gate' ||
+    location.pathname === '/onboarding'
+
+  // Fetch real student status from API
+  useEffect(() => {
+    const fetchStudentStatus = async () => {
+      if (auth?.token && currentUserRole === 'student') {
+        try {
+          setIsLoadingStatus(true)
+          
+          // Try to get completion status first
+          const completionResponse = await getCompletionStatus(auth.token)
+          
+          if (completionResponse.success) {
+            // Get full profile to check for resume
+            const profileResponse = await getStudentProfile(auth.token)
+            
+            if (profileResponse.success) {
+              const profile = profileResponse.profile
+              setStudentStatus({
+                hasResume: !!profile.resume,
+                isOnboarded: profile.status.onboardingCompleted,
+                completionPercentage: profile.status.profileCompletion
+              })
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to fetch student status:', error)
+          // Fallback to basic status
+          setStudentStatus({
+            hasResume: false,
+            isOnboarded: false,
+            completionPercentage: 0
+          })
+        } finally {
+          setIsLoadingStatus(false)
+        }
+      }
+    }
+
+    fetchStudentStatus()
+  }, [auth?.token, currentUserRole])
+
+  // Close sidebar on route change (mobile only)
+  useEffect(() => {
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(false)
+    }
+  }, [location.pathname])
+
+  // Close sidebar on escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && sidebarOpen) {
+        setSidebarOpen(false)
+      }
+    }
+
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [sidebarOpen])
+
+  // Handle sidebar toggle state
+  const handleSidebarToggle = () => {
+    if (window.innerWidth >= 1024) {
+      setSidebarCollapsed(!sidebarCollapsed)
+    } else {
+      setSidebarOpen(!sidebarOpen)
+    }
+  }
+
+  if (hideNavigation) {
+    return (
+      <div className="bg-white min-h-screen">
+        {children}
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-white">
+      <Sidebar 
+        isOpen={sidebarOpen} 
+        onClose={() => setSidebarOpen(false)}
+        userRole={currentUserRole}
+        collapsed={sidebarCollapsed}
+        onCollapseToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        studentStatus={studentStatus}
+        isLoadingStatus={isLoadingStatus}
+      />
+      
+      {/* Main content area - align left offset with sidebar widths to avoid overlap */}
+      <div className={`transition-all duration-300 ease-in-out ${
+        sidebarCollapsed ? 'lg:ml-[80px]' : 'lg:ml-[288px]'
+      }`}>
+        <TopNav 
+          onMenuToggle={handleSidebarToggle}
+          userRole={currentUserRole}
+          studentStatus={studentStatus}
+        />
+        
+        {(() => {
+          const hasHeader = Boolean(title || subtitle)
+          const mainPadding = hasHeader
+            ? 'pt-16 p-6 lg:p-6 md:p-4 sm:p-3'
+            : 'pt-16 p-4 lg:p-5 md:p-4 sm:p-3'
+          const cardPadding = hasHeader ? 'p-6' : 'p-5'
+          return (
+            <main className={`${mainPadding} min-h-screen`}>
+              {(title || subtitle) && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-8"
+                >
+                  {title && (
+                    <h1 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                      {title}
+                    </h1>
+                  )}
+                  {subtitle && (
+                    <p className="mt-3 text-lg text-gray-600">
+                      {subtitle}
+                    </p>
+                  )}
+                </motion.div>
+              )}
+              
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className={`bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200/50 ${cardPadding}`}
+              >
+                {children}
+              </motion.div>
+            </main>
+          )
+        })()}
+      </div>
+    </div>
+  )
+}
+
+export default Layout

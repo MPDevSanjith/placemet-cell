@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { FaUpload, FaDownload, FaCheckCircle, FaExclamationTriangle, FaSpinner, FaUser, FaGraduationCap, FaChartLine } from 'react-icons/fa'
 import { bulkUploadBiodata, createBiodataManual, fetchStudentByEmail, type BiodataEntry, type BiodataUploadResponse } from '../../global/api'
-import Layout from '../../components/Layout'
+import Layout from '../../components/layout/Layout'
 
 export default function BiodataUpload() {
   const [isUploading, setIsUploading] = useState(false)

@@ -7,7 +7,7 @@ import {
 } from '../../global/api'
 import type { StudentProfile } from '../../global/api'
 import { getAuth } from '../../global/auth'
-import Layout from '../../components/Layout'
+import Layout from '../../components/layout/Layout'
 import { 
   FiUser, FiMail, FiPhone, FiMapPin, FiBookOpen, FiAward, 
   FiBriefcase, FiDownload, FiEdit3, FiCheckCircle, FiAlertCircle, 
@@ -414,7 +414,7 @@ const ProfilePage: React.FC = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 rounded-2xl p-8 text-white relative overflow-hidden"
+          className="bg-gradient-to-r from-insta-1 via-insta-2 to-insta-4 rounded-2xl p-8 text-white relative overflow-hidden"
         >
           <div className="absolute inset-0 bg-black/10"></div>
           <div className="relative z-10">
@@ -1228,7 +1228,7 @@ const ProfilePage: React.FC = () => {
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center space-x-3 mb-3">
-                            <div className="w-10 h-10 bg-gradient-to-r from-[#f58529] to-[#dd2a7b] rounded-lg flex items-center justify-center">
+                            <div className="w-10 h-10 bg-gradient-to-r from-insta-1 to-insta-2 rounded-lg flex items-center justify-center">
                               <FiBookOpen className="text-white h-5 w-5" />
                             </div>
                             <div>
@@ -1337,7 +1337,7 @@ const ProfilePage: React.FC = () => {
                       <li>• Each resume can be analyzed <strong>once only</strong></li>
                     </ul>
                   </div>
-                  <label className="cursor-pointer inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] hover:shadow-lg transform hover:scale-105 transition duration-200">
+                  <label className="cursor-pointer inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-gradient-to-r from-insta-1 via-insta-2 to-insta-4 hover:shadow-lg transform hover:scale-105 transition duration-200">
                     <FiUpload className="mr-2 h-5 w-5" />
                     Upload Resume
                     <input
@@ -1365,7 +1365,7 @@ const ProfilePage: React.FC = () => {
             className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
           >
             {/* Header */}
-            <div className="bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] text-white p-4">
+            <div className="bg-gradient-to-r from-insta-1 via-insta-2 to-insta-4 text-white p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl font-bold">Resume ATS Analysis</h2>
@@ -1468,7 +1468,7 @@ const ProfilePage: React.FC = () => {
                           ? 'bg-blue-500 text-white cursor-not-allowed border-blue-500'
                           : (!selectedJobRole && !customJobRole.trim())
                           ? 'bg-orange-100 text-orange-700 border-orange-300 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] text-white hover:shadow-xl hover:scale-105 border-transparent'
+                          : 'bg-gradient-to-r from-insta-1 via-insta-2 to-insta-4 text-white hover:shadow-xl hover:scale-105 border-transparent'
                       }`}
                     >
                       {isAnalyzing ? (
@@ -1506,7 +1506,7 @@ const ProfilePage: React.FC = () => {
             className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
           >
             {/* Header */}
-            <div className="bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] text-white p-6">
+            <div className="bg-gradient-to-r from-insta-1 via-insta-2 to-insta-4 text-white p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl font-bold">ATS Analysis Results</h2>
@@ -1626,7 +1626,7 @@ const ProfilePage: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {atsPopup.data.improvements.skills && atsPopup.data.improvements.skills.length > 0 && (
                       <div className="bg-white rounded-xl border border-gray-200 p-4">
-                        <h4 className="font-medium text-gray-900 mb-3 text-green-600">✅ Skills to Highlight</h4>
+                        <h4 className="font-medium text-green-600 mb-3">✅ Skills to Highlight</h4>
                         <div className="space-y-2">
                           {atsPopup.data.improvements.skills.map((skill: string, index: number) => (
                             <div key={index} className="flex items-center space-x-2">
@@ -1640,7 +1640,7 @@ const ProfilePage: React.FC = () => {
 
                     {atsPopup.data.improvements.keywords && atsPopup.data.improvements.keywords.length > 0 && (
                       <div className="bg-white rounded-xl border border-gray-200 p-4">
-                        <h4 className="font-medium text-gray-900 mb-3 text-blue-600">🔑 Keywords to Add</h4>
+                        <h4 className="font-medium text-blue-600 mb-3">🔑 Keywords to Add</h4>
                         <div className="space-y-2">
                           {atsPopup.data.improvements.keywords.map((keyword: string, index: number) => (
                             <div key={index} className="flex items-center space-x-2">
@@ -1654,7 +1654,7 @@ const ProfilePage: React.FC = () => {
 
                     {atsPopup.data.improvements.formatting && atsPopup.data.improvements.formatting.length > 0 && (
                       <div className="bg-white rounded-xl border border-gray-200 p-4">
-                        <h4 className="font-medium text-gray-900 mb-3 text-orange-600">📝 Formatting Improvements</h4>
+                        <h4 className="font-medium text-orange-600 mb-3">📝 Formatting Improvements</h4>
                         <div className="space-y-2">
                           {atsPopup.data.improvements.formatting.map((format: string, index: number) => (
                             <div key={index} className="flex items-center space-x-2">
@@ -1668,7 +1668,7 @@ const ProfilePage: React.FC = () => {
 
                     {atsPopup.data.improvements.clarity && atsPopup.data.improvements.clarity.length > 0 && (
                       <div className="bg-white rounded-xl border border-gray-200 p-4">
-                        <h4 className="font-medium text-gray-900 mb-3 text-purple-600">💡 Clarity Enhancements</h4>
+                        <h4 className="font-medium text-purple-600 mb-3">💡 Clarity Enhancements</h4>
                         <div className="space-y-2">
                           {atsPopup.data.improvements.clarity.map((clarity: string, index: number) => (
                             <div key={index} className="flex items-center space-x-2">
@@ -1812,7 +1812,7 @@ const ProfilePage: React.FC = () => {
                     // TODO: Implement download report functionality
                     alert('Download feature coming soon!')
                   }}
-                  className="px-6 py-2 bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] text-white rounded-lg hover:shadow-lg transition-shadow"
+                  className="px-6 py-2 bg-gradient-to-r from-insta-1 via-insta-2 to-insta-4 text-white rounded-lg hover:shadow-lg transition-shadow"
                 >
                   Download Report
                 </button>

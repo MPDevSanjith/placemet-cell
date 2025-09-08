@@ -899,6 +899,39 @@ export function listExternalJobs(params: Record<string, string | number | undefi
   return request<{ success: boolean; data: any[]; pagination: any }>(`/external-jobs?${qs.toString()}`)
 }
 
+// ------------------- NOTIFICATIONS ------------------- //
+
+export type NotificationTarget = {
+  all?: boolean
+  years?: string[]
+  departments?: string[]
+  sections?: string[]
+  specializations?: string[]
+}
+
+export type CreateNotificationPayload = {
+  title: string
+  message: string
+  links?: { label?: string; url: string }[]
+  attachments?: { filename: string; url: string; mimeType?: string; size?: number }[]
+  target: NotificationTarget
+}
+
+export async function createNotification(token: string | null | undefined, payload: CreateNotificationPayload) {
+  return request<{ success: boolean; id: string; recipientCount: number }>(`/notifications`, {
+    method: 'POST',
+    headers: { ...buildAuthHeaders(token || undefined) },
+    body: JSON.stringify(payload)
+  })
+}
+
+export async function listNotifications(token: string | null | undefined) {
+  return request<{ success: boolean; items: any[] }>(`/notifications`, {
+    method: 'GET',
+    headers: { ...buildAuthHeaders(token || undefined) }
+  })
+}
+
 // ------------------- COMPANY REQUESTS ------------------- //
 
 export type CreateCompanyRequestPayload = {
