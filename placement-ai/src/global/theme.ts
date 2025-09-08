@@ -48,6 +48,14 @@ export const chartColors = [
   '#C4B5FD', // violet-300
 ]
 
+// Semantic status colors (align with tailwind config)
+export const status = {
+  success: '#10b981', // emerald-500
+  warning: '#f59e0b', // amber-500
+  danger: '#ef4444',  // red-500
+  info: '#3b82f6',    // blue-500
+}
+
 // Button variants using Instagram theme
 export const buttonVariants = {
   primary: {

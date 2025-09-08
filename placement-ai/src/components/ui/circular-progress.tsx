@@ -16,7 +16,6 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
   percentage,
   size = 120,
   strokeWidth = 8,
-  color = "from-blue-500 to-purple-600",
   backgroundColor = "text-gray-200",
   showPercentage = true,
   className = "",
@@ -64,8 +63,9 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
         {/* Gradient definition */}
         <defs>
           <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#3B82F6" />
-            <stop offset="100%" stopColor="#8B5CF6" />
+            <stop offset="0%" stopColor="#F58529" />
+            <stop offset="50%" stopColor="#DD2A7B" />
+            <stop offset="100%" stopColor="#515BD4" />
           </linearGradient>
         </defs>
       </svg>

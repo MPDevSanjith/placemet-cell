@@ -17,7 +17,7 @@ class GeminiClient {
     
     try {
       this.genAI = new GoogleGenerativeAI(this.apiKey);
-      this.model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+      this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
       logger.success('Gemini client initialized');
     } catch (error) {
       logger.error('Failed to initialize Gemini client:', error);
@@ -259,7 +259,7 @@ RESPOND WITH VALID JSON ONLY - NO ADDITIONAL TEXT OR EXPLANATIONS.
         mimeType,
         analysisDate: new Date().toISOString(),
         textLength: extractedText.length,
-        aiModel: this.isConfigured() ? 'gemini-pro' : 'fallback'
+        aiModel: this.isConfigured() ? 'gemini-1.5-flash' : 'fallback'
       };
       
       logger.success(`✅ Complete ATS analysis finished for ${fileName} (Score: ${analysis.score})`);
@@ -275,6 +275,7 @@ RESPOND WITH VALID JSON ONLY - NO ADDITIONAL TEXT OR EXPLANATIONS.
   isConfigured() {
     return !!this.apiKey && this.apiKey !== 'AIzaSyBxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
   }
+
 }
 
 // Create singleton instance

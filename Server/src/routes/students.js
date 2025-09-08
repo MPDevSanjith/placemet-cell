@@ -11,7 +11,8 @@ import {
   getCompletionStatus,
   updateStudentProfile,
   updateSkills,
-  updateProjects
+  updateProjects,
+  getDashboardData
 } from '../controllers/studentController.js';
 
 const router = express.Router();
@@ -36,5 +37,8 @@ router.put('/profile/projects', authenticateToken, updateProjects);
 
 // ATS
 router.post('/ats-analysis', authenticateToken, atsAnalysis);
+
+// Dashboard
+router.get('/dashboard', authenticateToken, getDashboardData);
 
 export default router;

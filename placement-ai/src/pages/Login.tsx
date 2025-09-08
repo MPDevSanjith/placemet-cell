@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FaEye, FaEyeSlash } from 'react-icons/fa'
-import { login, requestPasswordReset, type LoginPayload, type LoginResponse } from '../global/api'
+import { login, requestPasswordReset, requestStudentOtp, verifyStudentOtp, type LoginPayload, type LoginResponse } from '../global/api'
 import { saveAuth } from '../global/auth'
 
 function StatCard({ value, label }: { value: string; label: string }) {
@@ -25,84 +25,88 @@ export default function Login() {
   const [forgotSubmitting, setForgotSubmitting] = useState(false)
   const [hasNavigated, setHasNavigated] = useState(false)
   const [forgotOpen, setForgotOpen] = useState(false)
+  const [authMode, setAuthMode] = useState<'password' | 'otp'>('password')
+  const [otpCode, setOtpCode] = useState('')
+  const [otpSending, setOtpSending] = useState(false)
+  const [resendTimer, setResendTimer] = useState(0)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    if (!email || !password) {
-      setError('Please enter email and password.')
-      return
+    if (authMode === 'password') {
+      if (!email || !password) {
+        setError('Please enter email and password.')
+        return
+      }
+    } else {
+      if (!email) {
+        setError('Please enter your email to verify with OTP.')
+        return
+      }
+      if (otpCode.trim().length !== 6) {
+        setError('Enter 6-digit OTP')
+        return
+      }
     }
     if (hasNavigated) return // Prevent multiple submissions
     if (submitting) return // Prevent multiple submissions
     
     try {
       setSubmitting(true)
-      const payload: LoginPayload = { email, password }
-      console.log('🔐 Attempting login with:', { email: payload.email })
-      
-      const res = await login(payload) as LoginResponse
-      console.log('🔐 Login response received:', res)
-      console.log('🔐 Response type:', typeof res)
-      console.log('🔐 Response keys:', Object.keys(res || {}))
-      console.log('🔐 requiresOtp value:', res?.requiresOtp)
-      console.log('🔐 otpRequired value:', res?.otpRequired)
-      console.log('🔐 message value:', res?.message)
-      
-      // Check for OTP requirement in multiple possible fields
-      const requiresOtp = res?.requiresOtp === true || res?.otpRequired === true || res?.message?.toLowerCase().includes('otp')
-      console.log('🔐 Final requiresOtp decision:', requiresOtp)
-      
-      if (requiresOtp) {
-        // Student login requires OTP - redirect to OTP page
-        console.log('📱 Student login requires OTP, redirecting to /otp')
-        console.log('📧 Email for OTP:', res.email || email)
-        
-        const otpState = { 
-          email: res.email || email, 
-          name: (res.email || email).split('@')[0] // Use email prefix as name for now
-        }
-        console.log('📱 OTP page state:', otpState)
-        
-        // Persist pending OTP info to survive reloads/navigation
-        try {
-          localStorage.setItem('pending_otp_email', otpState.email)
-          localStorage.setItem('pending_otp_name', otpState.name)
-        } catch {}
+      if (authMode === 'password') {
+        const payload: LoginPayload = { email, password }
+        console.log('🔐 Attempting login with:', { email: payload.email })
+        const res = await login(payload) as LoginResponse
 
-        // Set navigation flag to prevent multiple navigations
-        setHasNavigated(true)
-        
-        // Force navigation to OTP page
-        try {
-          navigate('/otp', { 
-            state: otpState, 
-            replace: true 
-          })
-          console.log('✅ Navigation to OTP page initiated')
-        } catch (navError) {
-          console.error('❌ Navigation error:', navError)
-          // Fallback: force redirect
-          window.location.href = `/otp?email=${encodeURIComponent(otpState.email)}&name=${encodeURIComponent(otpState.name)}`
+        // Determine if backend asks for OTP
+        const requiresOtp = res?.requiresOtp === true || res?.otpRequired === true || res?.message?.toLowerCase().includes('otp')
+        if (requiresOtp) {
+          setAuthMode('otp')
+          setError(null)
+          // Attempt to send OTP immediately
+          try {
+            setOtpSending(true)
+            await requestStudentOtp(email)
+            setResendTimer(30)
+          } catch (sendErr) {
+            console.error('❌ Failed to send OTP:', sendErr)
+            setError('Could not send OTP. Try again.')
+          } finally {
+            setOtpSending(false)
+          }
+          return
         }
-      } else if (res?.user?.role) {
-        // Direct login successful (placement officer or student). On iOS/mac Safari, use cookie session.
-        console.log('✅ Direct login successful, role:', res.user.role)
-        const role: 'placement_officer' | 'student' = res.user.role === 'placement_officer' ? 'placement_officer' : 'student'
-        const tokenToStore = res.token || 'cookie-session'
-        saveAuth({ token: tokenToStore, user: { id: res.user.id, email: res.user.email, name: res.user.name, role } })
-        
-        // Set navigation flag to prevent multiple navigations
-        setHasNavigated(true)
-        
-        // Force navigation with a small delay to ensure auth state is properly set
-        setTimeout(() => {
-          window.location.href = role === 'placement_officer' ? '/placement-officer' : '/student'
-        }, 100)
-      } else {
+
+        if (res?.user?.role) {
+          const role: 'placement_officer' | 'student' = res.user.role === 'placement_officer' ? 'placement_officer' : 'student'
+          const tokenToStore = res.token || 'cookie-session'
+          saveAuth({ token: tokenToStore, user: { id: res.user.id, email: res.user.email, name: res.user.name, role } })
+          setHasNavigated(true)
+          setTimeout(() => {
+            window.location.href = role === 'placement_officer' ? '/placement-officer' : '/student'
+          }, 100)
+          return
+        }
+
         console.error('❌ Unexpected login response format:', res)
-        console.error('❌ Response structure:', JSON.stringify(res, null, 2))
         setError(`Login failed - unexpected response format. Response: ${JSON.stringify(res)}`)
+      } else {
+        // OTP mode
+        console.log('🔐 Verifying OTP for:', email)
+        const res = await verifyStudentOtp(email, otpCode) as LoginResponse
+        if (res?.user?.role === 'student') {
+          saveAuth({ 
+            token: res.token || 'cookie-session', 
+            user: { id: res.user.id!, email: res.user.email, name: res.user.name, role: 'student' } 
+          })
+          setHasNavigated(true)
+          const isAlreadyOnboarded = localStorage.getItem('student_onboarded') === 'true'
+          setTimeout(() => {
+            window.location.href = isAlreadyOnboarded ? '/student' : '/student/onboarding'
+          }, 100)
+          return
+        }
+        setError('Invalid OTP or verification failed')
       }
     } catch (err: unknown) {
       console.error('❌ Login error:', err)
@@ -110,6 +114,31 @@ export default function Login() {
       setError(message)
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  // resend countdown
+  useEffect(() => {
+    if (resendTimer > 0) {
+      const t = setTimeout(() => setResendTimer(resendTimer - 1), 1000)
+      return () => clearTimeout(t)
+    }
+  }, [resendTimer])
+
+  const handleSendOtp = async () => {
+    setError(null)
+    if (!email) {
+      setError('Please enter your email first.')
+      return
+    }
+    try {
+      setOtpSending(true)
+      await requestStudentOtp(email)
+      setResendTimer(30)
+    } catch (err) {
+      setError('Could not send OTP. Try again.')
+    } finally {
+      setOtpSending(false)
     }
   }
 
@@ -137,11 +166,11 @@ export default function Login() {
 
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-white">
-      <div className="max-w-5xl w-full grid md:grid-cols-2 shadow-2xl rounded-3xl overflow-hidden bg-white border border-gray-100">
+    <div className="min-h-screen flex items-center justify-center px-4 py-8 bg-white">
+      <div className="max-w-5xl w-full grid md:grid-cols-2 shadow-2xl rounded-3xl overflow-hidden bg-white border border-gray-100 md:min-h-[560px]">
         
         {/* Left Achievement Panel */}
-        <div className="hidden md:flex flex-col justify-center items-center bg-white text-brand-primary p-12 gap-6 border-r border-gray-100">
+        <div className="hidden md:flex flex-col justify-center items-center bg-white text-brand-primary p-10 gap-6 border-r border-gray-100">
           <h1 className="text-4xl font-extrabold text-center bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] bg-clip-text text-transparent">Achieve Your Goals</h1>
           <p className="text-center text-gray-700 text-lg">Track placements, manage applications, and grow with purpose.</p>
           <div className="grid grid-cols-2 gap-6 w-full mt-4">
@@ -153,7 +182,7 @@ export default function Login() {
         </div>
 
         {/* Right Login Form */}
-        <div className="glass-card bg-white border border-[#E6E6FA] shadow-lavender transform hover:scale-[1.01] transition duration-300">
+        <div className="glass-card bg-white border border-[#E6E6FA] shadow-lavender p-6 md:p-8 lg:p-10">
           <div className="inline-flex items-center gap-2 text-xs font-medium px-3 py-1 rounded-full bg-[#F3F4F6] text-[#5E286D] mb-3">✨ Welcome back</div>
           <h2 className="text-3xl font-extrabold mb-1 bg-gradient-to-r from-[#f58529] via-[#dd2a7b] to-[#515bd4] bg-clip-text text-transparent">Sign in</h2>
           <p className="text-brand-subtext mb-6">Positive mindset. Clear goals. Let’s get you in.</p>
@@ -166,6 +195,11 @@ export default function Login() {
           )}
 
 
+
+          <div className="mb-4 inline-flex rounded-lg bg-[#F3F4F6] p-1">
+            <button type="button" onClick={() => setAuthMode('password')} className={`px-4 py-2 text-sm font-medium rounded-md ${authMode === 'password' ? 'bg-white text-[#5E286D] shadow' : 'text-gray-600'}`}>Password</button>
+            <button type="button" onClick={() => setAuthMode('otp')} className={`px-4 py-2 text-sm font-medium rounded-md ${authMode === 'otp' ? 'bg-white text-[#5E286D] shadow' : 'text-gray-600'}`}>OTP</button>
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
 
@@ -183,7 +217,7 @@ export default function Login() {
                   className="block w-full rounded-lg border border-[#E6E6FA] bg-white pl-12 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#5E286D] focus:border-[#5E286D] shadow-inner text-left"
                   autoComplete="email"
                 />
-                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
                   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
                   </svg>
@@ -191,32 +225,55 @@ export default function Login() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <label htmlFor="password" className="block text-sm font-medium text-[#5E286D]">Password</label>
-                <button type="button" onClick={() => { openForgotPassword(); setForgotEmail(email) }} className="text-sm text-brand-secondary hover:underline">Forgot?</button>
+            {authMode === 'password' ? (
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label htmlFor="password" className="block text-sm font-medium text-[#5E286D]">Password</label>
+                  <button type="button" onClick={() => { openForgotPassword(); setForgotEmail(email) }} className="text-sm text-brand-secondary hover:underline">Forgot?</button>
+                </div>
+                <div className="relative">
+                  <input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="block w-full rounded-lg border border-[#E6E6FA] bg-white px-3 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-[#5E286D] focus:border-[#5E286D] shadow-inner"
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="icon-btn absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-brand-secondary"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <FaEyeSlash /> : <FaEye />}
+                  </button>
+                </div>
               </div>
-              <div className="relative">
+            ) : (
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label htmlFor="otp" className="block text-sm font-medium text-[#5E286D]">OTP</label>
+                  <button type="button" onClick={handleSendOtp} disabled={otpSending || resendTimer > 0} className="text-sm text-brand-secondary hover:underline disabled:opacity-50">
+                    {otpSending ? 'Sending…' : (resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Send OTP')}
+                  </button>
+                </div>
                 <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="block w-full rounded-lg border border-[#E6E6FA] bg-white px-3 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-[#5E286D] focus:border-[#5E286D] shadow-inner"
-                  autoComplete="current-password"
+                  id="otp"
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={otpCode}
+                  onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="Enter 6-digit code"
+                  className="block w-full rounded-lg border border-[#E6E6FA] bg-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#5E286D] focus:border-[#5E286D] shadow-inner tracking-widest text-center text-lg"
+                  autoComplete="one-time-code"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="icon-btn absolute right-3 top-1/2 transform -translate-y-[52%] md:-translate-y-1/2 text-gray-400 hover:text-brand-secondary"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  title={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <FaEyeSlash /> : <FaEye />}
-                </button>
+                <p className="text-xs text-brand-subtext">Tip: Paste the full code or type — it will auto-advance.</p>
               </div>
-            </div>
+            )}
 
             <button
               type="submit"
@@ -226,10 +283,10 @@ export default function Login() {
               {submitting ? (
                 <span className="flex items-center justify-center">
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                  Signing in...
+                  {authMode === 'password' ? 'Signing in...' : 'Verifying...'}
                 </span>
               ) : (
-                'Sign in'
+                authMode === 'password' ? 'Sign in' : 'Verify & Continue'
               )}
             </button>
 
@@ -245,7 +302,7 @@ export default function Login() {
 
       {/* Forgot Password Modal */}
       {forgotOpen && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
             <h3 className="text-xl font-semibold text-brand-primary">Reset Password</h3>
             <p className="text-sm text-gray-600 mt-1">Enter your email and we’ll send you a reset link.</p>

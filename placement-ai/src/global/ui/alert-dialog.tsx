@@ -2,7 +2,17 @@ import * as React from "react"
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 
 import { cn } from "@/lib/utils"
-import { buttonVariants } from "@/components/ui/button"
+
+// Simple button variants for alert dialog
+const buttonVariants = (options?: { variant?: string }) => {
+  const baseClasses = "inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+  
+  if (options?.variant === "outline") {
+    return `${baseClasses} border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2`
+  }
+  
+  return `${baseClasses} bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2`
+}
 
 const AlertDialog = AlertDialogPrimitive.Root
 
@@ -16,7 +26,7 @@ const AlertDialogOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Overlay
     className={cn(
-      "fixed inset-0 z-50 bg-background/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "fixed inset-0 z-50 bg-black/80  data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className
     )}
     {...props}

@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { FaUpload, FaDownload, FaEye, FaEyeSlash, FaCheckCircle, FaExclamationTriangle, FaSpinner, FaEnvelope } from 'react-icons/fa'
 import { bulkUploadStudents, sendBulkWelcomeEmailsWithCredentials, sendBulkWelcomeEmailsByEmails, fetchStudentByEmail, createStudentManual } from '../../global/api'
-import Layout from '../../components/Layout'
+import Layout from '../../components/layout/Layout'
 
 interface StudentData {
   name: string

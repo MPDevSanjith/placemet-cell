@@ -416,3 +416,136 @@ export const atsAnalysis = async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 };
+
+// Get comprehensive student dashboard data
+export const getDashboardData = async (req, res) => {
+  try {
+    const student = await Student.findById(req.user.id).populate('resumes');
+    if (!student) {
+      return res.status(404).json({ success: false, error: 'Student not found' });
+    }
+
+    // Calculate profile completion
+    const profileFields = [
+      'personalInfo.firstName',
+      'personalInfo.lastName',
+      'personalInfo.email',
+      'personalInfo.phone',
+      'personalInfo.dateOfBirth',
+      'personalInfo.gender',
+      'personalInfo.address',
+      'academicInfo.rollNumber',
+      'academicInfo.department',
+      'academicInfo.yearOfStudy',
+      'academicInfo.cgpa',
+      'academicInfo.backlogs',
+      'academicInfo.graduationYear',
+      'skills',
+      'resumes'
+    ];
+
+    let completedFields = 0;
+    profileFields.forEach(field => {
+      if (field.includes('.')) {
+        const [parent, child] = field.split('.');
+        if (student[parent] && student[parent][child] && student[parent][child] !== '') {
+          completedFields++;
+        }
+      } else if (student[field] && (Array.isArray(student[field]) ? student[field].length > 0 : student[field] !== '')) {
+        completedFields++;
+      }
+    });
+
+    const profileCompletion = Math.round((completedFields / profileFields.length) * 100);
+
+    // Calculate ATS score from latest resume
+    let atsScore = null;
+    if (student.resumes && student.resumes.length > 0) {
+      const latestResume = student.resumes[student.resumes.length - 1];
+      if (latestResume.atsAnalysis && latestResume.atsAnalysis.score) {
+        atsScore = latestResume.atsAnalysis.score;
+      }
+    }
+
+    // Get placement status
+    const placementStatus = student.placementStatus || 'not_placed';
+    const placementStatusColor = {
+      'placed': 'bg-green-500',
+      'in_process': 'bg-yellow-500',
+      'not_placed': 'bg-gray-500',
+      'rejected': 'bg-red-500'
+    }[placementStatus] || 'bg-gray-500';
+
+    // Get department eligibility
+    const department = student.academicInfo?.department || 'Unknown';
+    const departmentEligibility = {
+      'Computer Science': 'high',
+      'Information Technology': 'high',
+      'Electronics': 'medium',
+      'Mechanical': 'medium',
+      'Civil': 'low',
+      'Unknown': 'unknown'
+    }[department] || 'unknown';
+
+    const eligibilityColor = {
+      'high': 'bg-green-500',
+      'medium': 'bg-yellow-500',
+      'low': 'bg-red-500',
+      'unknown': 'bg-gray-500'
+    }[departmentEligibility] || 'bg-gray-500';
+
+    // Get recent activity
+    const recentActivity = [];
+    if (student.resumes && student.resumes.length > 0) {
+      recentActivity.push({
+        type: 'resume_uploaded',
+        message: 'Resume uploaded successfully',
+        timestamp: student.resumes[student.resumes.length - 1].uploadedAt,
+        icon: '📄'
+      });
+    }
+
+    if (student.placementStatus === 'placed') {
+      recentActivity.push({
+        type: 'placement',
+        message: 'Congratulations! You have been placed',
+        timestamp: student.updatedAt,
+        icon: '🎉'
+      });
+    }
+
+    const dashboardData = {
+      profile: {
+        name: `${student.personalInfo?.firstName || ''} ${student.personalInfo?.lastName || ''}`.trim(),
+        email: student.email,
+        rollNumber: student.academicInfo?.rollNumber || '',
+        department: department,
+        yearOfStudy: student.academicInfo?.yearOfStudy || '',
+        cgpa: student.academicInfo?.cgpa || 0,
+        graduationYear: student.academicInfo?.graduationYear || new Date().getFullYear() + 1
+      },
+      stats: {
+        profileCompletion,
+        atsScore,
+        placementStatus: {
+          status: placementStatus,
+          color: placementStatusColor,
+          label: placementStatus.replace('_', ' ').toUpperCase()
+        },
+        departmentEligibility: {
+          level: departmentEligibility,
+          color: eligibilityColor,
+          label: departmentEligibility.toUpperCase()
+        }
+      },
+      recentActivity,
+      lastUpdated: student.updatedAt
+    };
+
+    logger.success(`Dashboard data retrieved for student: ${student.email}`);
+    res.json({ success: true, data: dashboardData });
+  } catch (err) {
+    logger.error('Get dashboard data error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};

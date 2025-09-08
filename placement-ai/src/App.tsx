@@ -3,23 +3,30 @@ import { useEffect, useState } from 'react'
 import './App.css'
 import './index.css'
 import Login from './pages/Login'
-import OtpPage from './pages/Otp'
 import PlacementOfficerDashboard from './pages/placement-officer/Dashboard'
 import OfficerStudents from './pages/placement-officer/OfficerStudents'
 import BulkUpload from './pages/placement-officer/BulkUpload'
 import BiodataUpload from './pages/placement-officer/BiodataUpload'
 import CreateOfficerPage from './pages/placement-officer/CreateOfficer'
-import ComponiesPage from './pages/placement-officer/Componies'
+import CompaniesPage from './pages/placement-officer/Companies'
 import StudentDashboard from './pages/student/Dashboard'
 import StudentJobs from './pages/student/job'
 import StudentOnboarding from './pages/student/Onboarding'
 import StudentAtsResults from './pages/student/AtsResults'
 import ProfilePage from './pages/student/ProfilePage'
+import StudentGate from './pages/student/StudentGate'
 import PlacementAnalytics from './pages/placement-officer/Analytics'
 import CompanyForm from './pages/CompanyForm'
+import PlacementGate from './pages/placement-officer/PlacementGate'
+import JobPortal from './pages/JobPortal'
+import AboutUs from './pages/AboutUs'
+import Contact from './pages/Contact'
+import Help from './pages/Help'
 import { useAuth } from './hooks/useAuth'
 import { getCompletionStatus, listResumes } from './global/api'
 import { getAuth } from './global/auth'
+import { ToastProvider } from './components/ui/Toast'
+
 
 // Types for student status
 interface StudentStatus {
@@ -171,9 +178,20 @@ function AppRoutes() {
           : <Login />
       } />
       
-      {/* OTP verification - Always accessible (part of auth flow) */}
-      <Route path="/otp" element={<OtpPage />} />
+      {/* OTP route removed: OTP is now handled inside Login */}
       
+      {/* Gate Routes - Always accessible (part of auth flow) */}
+      <Route path="/student-gate" element={<StudentGate />} />
+      <Route path="/placement-gate" element={<PlacementGate />} />
+      
+      {/* Public Pages */}
+      <Route path="/jobs" element={<JobPortal />} />
+      <Route path="/about" element={<AboutUs />} />
+      <Route path="/contact" element={<Contact />} />
+      <Route path="/help" element={<Help />} />
+      
+      {/* Test Route - For development only */}
+      <Route path="/test-gates" element={<div>Test Gates Page</div>} />
       
       {/* Student Routes */}
       <Route path="/student" element={
@@ -271,7 +289,7 @@ function AppRoutes() {
       } />
       <Route path="/placement-officer/new-job-post" element={
         isAuthenticated && userRole === 'placement_officer'
-          ? <ComponiesPage />
+          ? <CompaniesPage />
           : <Navigate to="/login" replace />
       } />
       
@@ -286,10 +304,12 @@ function AppRoutes() {
 
 function App() {
   return (
-    <Router>
-      <AppRoutes />
-    </Router>
+    <ToastProvider>
+      <Router>
+        <AppRoutes />
+      </Router>
+    </ToastProvider>
   )
 }
 
-export default App 
+export default App

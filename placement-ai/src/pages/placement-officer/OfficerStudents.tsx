@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import Layout from '../../components/Layout'
+import Layout from '../../components/layout/Layout'
 import { listOfficerStudents, bulkOfficerStudentAction, getStudentActiveResumeViewUrl, type OfficerStudent } from '../../global/api'
 import { getAuth } from '../../global/auth'
 import { listStudentResumesForOfficer } from '../../global/api'
@@ -179,7 +179,7 @@ export default function OfficerStudents() {
   }
 
   return (
-    <Layout title="Student Management" subtitle="Manage students and placement status">
+    <Layout>
       <div className="max-w-7xl mx-auto p-6">
         {/* Metrics Row */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -207,18 +207,18 @@ export default function OfficerStudents() {
         {/* Filters */}
         <div className="bg-white rounded-2xl p-5 shadow border mb-4">
           <div className="grid md:grid-cols-3 lg:grid-cols-7 gap-3">
-            <input placeholder="Search by name or roll no" className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500" value={searchDraft} onChange={e=>setSearchDraft(e.target.value)} onKeyDown={(e)=>{ if(e.key==='Enter'){ setFilters(f=>({...f,q: searchDraft, page:1})) } if(e.key==='Escape'){ setSearchDraft(''); setFilters(f=>({ ...f, q: '', page:1 })) } }} />
-            <input placeholder="Batch" className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500" value={filters.batch||''} onChange={e=>setFilters(f=>({...f,batch:e.target.value,page:1}))} />
-            <input placeholder="Course" className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500" value={filters.course||''} onChange={e=>setFilters(f=>({...f,course:e.target.value,page:1}))} />
-            <input placeholder="Year" className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500" value={filters.year||''} onChange={e=>setFilters(f=>({...f,year:e.target.value,page:1}))} />
-            <input placeholder="Department" className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500" value={filters.department||''} onChange={e=>setFilters(f=>({...f,department:e.target.value,page:1}))} />
-            <input placeholder="Section" className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500" value={filters.section||''} onChange={e=>setFilters(f=>({...f,section:e.target.value,page:1}))} />
-            <select className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500" value={filters.placed||''} onChange={e=>setFilters(f=>({...f,placed:e.target.value,page:1}))}>
+            <input placeholder="Search by name or roll no" className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500" value={searchDraft} onChange={e=>setSearchDraft(e.target.value)} onKeyDown={(e)=>{ if(e.key==='Enter'){ setFilters(f=>({...f,q: searchDraft, page:1})) } if(e.key==='Escape'){ setSearchDraft(''); setFilters(f=>({ ...f, q: '', page:1 })) } }} />
+            <input placeholder="Batch" className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500" value={filters.batch||''} onChange={e=>setFilters(f=>({...f,batch:e.target.value,page:1}))} />
+            <input placeholder="Course" className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500" value={filters.course||''} onChange={e=>setFilters(f=>({...f,course:e.target.value,page:1}))} />
+            <input placeholder="Year" className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500" value={filters.year||''} onChange={e=>setFilters(f=>({...f,year:e.target.value,page:1}))} />
+            <input placeholder="Department" className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500" value={filters.department||''} onChange={e=>setFilters(f=>({...f,department:e.target.value,page:1}))} />
+            <input placeholder="Section" className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500" value={filters.section||''} onChange={e=>setFilters(f=>({...f,section:e.target.value,page:1}))} />
+            <select className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500" value={filters.placed||''} onChange={e=>setFilters(f=>({...f,placed:e.target.value,page:1}))}>
               <option value="">Placement Status</option>
               <option value="true">Placed</option>
               <option value="false">Not Placed</option>
             </select>
-            <select className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500" value={filters.blocked||''} onChange={e=>setFilters(f=>({...f,blocked:e.target.value,page:1}))}>
+            <select className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500" value={filters.blocked||''} onChange={e=>setFilters(f=>({...f,blocked:e.target.value,page:1}))}>
               <option value="">Block Status (All)</option>
               <option value="false">Active</option>
               <option value="true">Blocked</option>
@@ -256,16 +256,16 @@ export default function OfficerStudents() {
         {/* Bulk Actions */}
         <div className="bg-white rounded-2xl p-4 shadow border mb-4 flex flex-wrap items-center gap-2">
           <div className="flex flex-wrap gap-2">
-            <button disabled={!hasSelection} onClick={()=>setConfirmDlg({ open: true, action: 'block', ids: selectedIds })} className={`px-3 py-2 rounded-lg border text-gray-800 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed`}>
+            <button disabled={!hasSelection} onClick={()=>setConfirmDlg({ open: true, action: 'block', ids: selectedIds })} className={`px-3 py-2 rounded-lg border bg-status-danger text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed`}>
               Block
             </button>
-            <button disabled={!hasSelection} onClick={()=>setConfirmDlg({ open: true, action: 'unblock', ids: selectedIds })} className={`px-3 py-2 rounded-lg border text-gray-800 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed`}>
+            <button disabled={!hasSelection} onClick={()=>setConfirmDlg({ open: true, action: 'unblock', ids: selectedIds })} className={`px-3 py-2 rounded-lg border bg-status-success text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed`}>
               Unblock
             </button>
-            <button disabled={!hasSelection} onClick={()=>setConfirmDlg({ open: true, action: 'place', ids: selectedIds })} className={`px-3 py-2 rounded-lg border text-gray-800 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed`}>
+            <button disabled={!hasSelection} onClick={()=>setConfirmDlg({ open: true, action: 'place', ids: selectedIds })} className={`px-3 py-2 rounded-lg border bg-status-success text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed`}>
               Mark Placed
             </button>
-            <button disabled={!hasSelection} onClick={()=>setConfirmDlg({ open: true, action: 'unplace', ids: selectedIds })} className={`px-3 py-2 rounded-lg border text-gray-800 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed`}>
+            <button disabled={!hasSelection} onClick={()=>setConfirmDlg({ open: true, action: 'unplace', ids: selectedIds })} className={`px-3 py-2 rounded-lg border bg-status-warning text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed`}>
               Mark Unplaced
             </button>
           </div>
@@ -461,14 +461,14 @@ export default function OfficerStudents() {
               <div className="p-6 bg-gradient-to-br from-gray-50 to-white">
                 {/* Identity Row */}
                 <div className="flex items-start gap-4 mb-6">
-                  <div className="shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-br from-[#f58529] via-[#dd2a7b] to-[#515bd4] text-white text-xl font-bold flex items-center justify-center shadow">
+                  <div className="shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-br from-insta-1 via-insta-2 to-insta-4 text-white text-xl font-bold flex items-center justify-center shadow">
                     {(modal.student.name||'NA').split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase()}
                   </div>
                   <div className="flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h4 className="text-xl font-semibold text-gray-900 mr-2 flex items-center gap-2"><FiUser className="text-purple-600" />{modal.student.name}</h4>
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${modal.student.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{modal.student.isActive ? 'Active' : 'Blocked'}</span>
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${modal.student.isPlaced ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'}`}>{modal.student.isPlaced ? 'Placed' : 'Not Placed'}</span>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${modal.student.isActive ? 'bg-status-success/10 text-status-success' : 'bg-status-danger/10 text-status-danger'}`}>{modal.student.isActive ? 'Active' : 'Blocked'}</span>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${modal.student.isPlaced ? 'bg-status-success/10 text-status-success' : 'bg-accent-100 text-secondary-700'}`}>{modal.student.isPlaced ? 'Placed' : 'Not Placed'}</span>
                     </div>
                     <div className="text-sm text-gray-700 mt-1 break-all flex items-center gap-2"><FiMail className="text-indigo-500" />{modal.student.email}</div>
                   </div>
@@ -481,19 +481,19 @@ export default function OfficerStudents() {
                 {/* Details Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div className="rounded-2xl p-4 border shadow-sm bg-gradient-to-br from-indigo-50 to-purple-50">
-                    <div className="text-xs text-gray-600 flex items-center gap-2"><FiBookOpen className="text-indigo-500" /> Branch</div>
+                    <div className="text-xs text-secondary-600 flex items-center gap-2"><FiBookOpen className="text-primary-500" /> Branch</div>
                     <div className="mt-1 font-semibold text-gray-900">{modal.student.branch||'—'}</div>
                   </div>
                   <div className="rounded-2xl p-4 border shadow-sm bg-gradient-to-br from-pink-50 to-orange-50">
-                    <div className="text-xs text-gray-600 flex items-center gap-2"><FiAward className="text-pink-500" /> Course</div>
+                    <div className="text-xs text-secondary-600 flex items-center gap-2"><FiAward className="text-primary-500" /> Course</div>
                     <div className="mt-1 font-semibold text-gray-900">{modal.student.course||'—'}</div>
                   </div>
                   <div className="rounded-2xl p-4 border shadow-sm bg-gradient-to-br from-emerald-50 to-teal-50">
-                    <div className="text-xs text-gray-600 flex items-center gap-2"><FiCalendar className="text-emerald-500" /> Year</div>
+                    <div className="text-xs text-secondary-600 flex items-center gap-2"><FiCalendar className="text-primary-500" /> Year</div>
                     <div className="mt-1 font-semibold text-gray-900">{modal.student.year||'—'}</div>
                   </div>
                   <div className="rounded-2xl p-4 border shadow-sm bg-gradient-to-br from-sky-50 to-cyan-50">
-                    <div className="text-xs text-gray-600 flex items-center gap-2"><FiGrid className="text-sky-500" /> Section</div>
+                    <div className="text-xs text-secondary-600 flex items-center gap-2"><FiGrid className="text-primary-500" /> Section</div>
                     <div className="mt-1 font-semibold text-gray-900">{modal.student.section||'—'}</div>
                   </div>
                   <div className="rounded-2xl p-4 border shadow-sm bg-gradient-to-br from-green-50 to-lime-50">
@@ -503,9 +503,9 @@ export default function OfficerStudents() {
                     </div>
                   </div>
                   <div className="rounded-2xl p-4 border shadow-sm bg-gradient-to-br from-purple-50 to-fuchsia-50">
-                    <div className="text-xs text-gray-600">Placement</div>
+                    <div className="text-xs text-secondary-600">Placement</div>
                     <div className="mt-1">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${modal.student.isPlaced ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'}`}>{modal.student.isPlaced ? 'Placed' : 'Not Placed'}</span>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${modal.student.isPlaced ? 'bg-status-success/10 text-status-success' : 'bg-accent-100 text-secondary-700'}`}>{modal.student.isPlaced ? 'Placed' : 'Not Placed'}</span>
                     </div>
                   </div>
                 </div>

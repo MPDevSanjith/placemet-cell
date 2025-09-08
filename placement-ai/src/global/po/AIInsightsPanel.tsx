@@ -2,12 +2,21 @@
 
 import { useMemo, useState } from "react"
 import { Download, Send, Bot, BarChart3, Users, ShieldCheck } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { useToast } from "@/hooks/use-toast"
-import type { MatchCandidate } from "@/types"
+import Button from "../../components/ui/Button"
+import Card, { CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/Card"
+import Badge from "../../components/ui/Badge"
+import { Progress } from "../../components/ui/Progress"
+import { useToastNotifications } from "../../components/ui/Toast"
+
+interface MatchCandidate {
+  id: string
+  name: string
+  dept: string
+  cgpa: number
+  match: number
+  ats: number
+  skills: string[]
+}
 
 interface AIInsightsPanelProps {
   requestId: string
@@ -18,7 +27,7 @@ interface AIInsightsPanelProps {
 }
 
 export function AIInsightsPanel({ requestId: _requestId, role, companyName, candidates, onShare }: AIInsightsPanelProps) {
-  const { toast } = useToast()
+  const { success, error } = useToastNotifications()
   const [isExporting, setIsExporting] = useState(false)
   const [isSharing, setIsSharing] = useState(false)
 
@@ -63,9 +72,9 @@ export function AIInsightsPanel({ requestId: _requestId, role, companyName, cand
       setIsExporting(true)
       // TODO: Replace with real export call
       await new Promise(r => setTimeout(r, 800))
-      toast({ title: "Export ready", description: "Insights exported as PDF (mock)" })
+      success("Export ready", "Insights exported as PDF (mock)")
     } catch (e) {
-      toast({ title: "Export failed", description: "Please try again", variant: "destructive" })
+      error("Export failed", "Please try again")
     } finally {
       setIsExporting(false)
     }
@@ -76,9 +85,9 @@ export function AIInsightsPanel({ requestId: _requestId, role, companyName, cand
     try {
       setIsSharing(true)
       await onShare({ messageOverride: aiBrief })
-      toast({ title: "Shared", description: "AI brief sent to company" })
+      success("Shared", "AI brief sent to company")
     } catch (e) {
-      toast({ title: "Share failed", description: "Please try again", variant: "destructive" })
+      error("Share failed", "Please try again")
     } finally {
       setIsSharing(false)
     }
@@ -127,7 +136,7 @@ export function AIInsightsPanel({ requestId: _requestId, role, companyName, cand
               </div>
               <div className="flex flex-wrap gap-1">
                 {stats.topSkills.map(([s, n]) => (
-                  <Badge key={s} variant="secondary" className="text-xs">{s} • {n}</Badge>
+                  <Badge key={s} variant="outline" className="text-xs">{s} • {n}</Badge>
                 ))}
               </div>
             </div>

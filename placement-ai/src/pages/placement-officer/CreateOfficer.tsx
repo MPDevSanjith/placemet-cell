@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { createOfficer } from '../../global/api'
-import Layout from '../../components/Layout'
+import Layout from '../../components/layout/Layout'
 
 export default function CreateOfficerPage() {
   const [name, setName] = useState('')

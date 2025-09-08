@@ -1,557 +1,187 @@
-import { useState, useEffect } from 'react'
-import Layout from '../../components/Layout'
-import { getAuth } from '../../global/auth'
-import { getStudentProfile } from '../../global/api'
+import { useEffect, useMemo, useState } from 'react'
+import { motion } from 'framer-motion'
+import Layout from '../../components/layout/Layout'
 import CircularProgress from '../../components/ui/circular-progress'
 import StatsCard from '../../components/ui/stats-card'
-import ActivityFeed from '../../components/ui/activity-feed'
 import JobCard from '../../components/ui/job-card'
-import { 
-  FiFileText, 
-  FiClipboard, 
-  FiTarget, 
-  FiTrendingUp,
-  FiAward,
-  FiCalendar,
-  FiBookOpen,
-  FiClock,
-  FiArrowRight,
-  FiRefreshCw
-} from 'react-icons/fi'
-import { motion } from 'framer-motion'
+import { getAuth } from '../../global/auth'
+import { getStudentProfile, listJobs, getResumeAnalysis } from '../../global/api'
+import { FiFileText, FiClipboard, FiTarget, FiBookOpen } from 'react-icons/fi'
 
-interface ProfileCompletion {
-  overall: number
-  breakdown: {
-    basicInfo: number
-    academic: number
-    resume: number
-    skills: number
-    applications: number
-  }
-  status: string
-}
-
-interface DashboardStats {
-  totalApplications: number
-  interviewsScheduled: number
-  offersReceived: number
-  profileViews: number
-  resumeDownloads: number
-  skillsCompleted: number
-  coursesCompleted: number
-  achievements: number
-}
-
-interface RecentActivity {
-  id: string
-  type: 'resume' | 'application' | 'interview' | 'achievement' | 'skill'
+type InternalJob = {
+  _id: string
   title: string
-  description: string
-  timestamp: string
-  status: 'success' | 'pending' | 'warning' | 'info'
+  location?: string
+  jobType?: string
+  ctc?: string
+  deadline?: string
+  skills?: string[]
+  company?: { name?: string; companyDetails?: { companyName?: string } } | string
 }
-
-interface JobRecommendation {
-  id: string
-  title: string
-  company: string
-  location: string
-  salary: string
-  match: number
-  type: 'Full-time' | 'Internship' | 'Part-time'
-  deadline: string
-  tags: string[]
-  featured?: boolean
-  saved?: boolean
-}
-
-// Mock data for demonstration
-const mockStats: DashboardStats = {
-  totalApplications: 12,
-  interviewsScheduled: 3,
-  offersReceived: 1,
-  profileViews: 45,
-  resumeDownloads: 8,
-  skillsCompleted: 7,
-  coursesCompleted: 3,
-  achievements: 5
-}
-
-const mockActivity: RecentActivity[] = [
-  {
-    id: '1',
-    type: 'resume',
-    title: 'Resume Updated',
-    description: 'Your resume has been updated with new skills and achievements',
-    timestamp: '2 hours ago',
-    status: 'success'
-  },
-  {
-    id: '2',
-    type: 'application',
-    title: 'Application Submitted',
-    description: 'Applied for Software Engineer position at TechCorp',
-    timestamp: '1 day ago',
-    status: 'pending'
-  },
-  {
-    id: '3',
-    type: 'interview',
-    title: 'Interview Scheduled',
-    description: 'Interview with Google scheduled for next week',
-    timestamp: '2 days ago',
-    status: 'info'
-  },
-  {
-    id: '4',
-    type: 'achievement',
-    title: 'New Achievement',
-    description: 'Completed React.js certification course',
-    timestamp: '3 days ago',
-    status: 'success'
-  },
-  {
-    id: '5',
-    type: 'skill',
-    title: 'Skill Added',
-    description: 'Added Python programming to your skills',
-    timestamp: '5 days ago',
-    status: 'success'
-  }
-]
-
-const mockJobRecommendations: JobRecommendation[] = [
-  {
-    id: '1',
-    title: 'Frontend Developer',
-    company: 'TechCorp',
-    location: 'San Francisco, CA',
-    salary: '$80k - $120k',
-    match: 95,
-    type: 'Full-time',
-    deadline: '2024-02-15',
-    tags: ['React', 'JavaScript', 'CSS', 'TypeScript'],
-    featured: true,
-    saved: false
-  },
-  {
-    id: '2',
-    title: 'Software Engineer Intern',
-    company: 'Google',
-    location: 'Mountain View, CA',
-    salary: '$6k - $8k/month',
-    match: 88,
-    type: 'Internship',
-    deadline: '2024-02-20',
-    tags: ['Python', 'Machine Learning', 'AI', 'TensorFlow'],
-    featured: false,
-    saved: true
-  },
-  {
-    id: '3',
-    title: 'Full Stack Developer',
-    company: 'StartupXYZ',
-    location: 'Remote',
-    salary: '$70k - $100k',
-    match: 82,
-    type: 'Full-time',
-    deadline: '2024-02-25',
-    tags: ['Node.js', 'MongoDB', 'AWS', 'Docker'],
-    featured: false,
-    saved: false
-  }
-]
 
 export default function StudentDashboard() {
-  const [profileCompletion, setProfileCompletion] = useState<ProfileCompletion>({
-    overall: 0,
-    breakdown: {
-      basicInfo: 0,
-      academic: 0,
-      resume: 0,
-      skills: 0,
-      applications: 0
-    },
-    status: 'Poor'
-  })
-  
-  const [stats, setStats] = useState<DashboardStats>({
-    totalApplications: 0,
-    interviewsScheduled: 0,
-    offersReceived: 0,
-    profileViews: 0,
-    resumeDownloads: 0,
-    skillsCompleted: 0,
-    coursesCompleted: 0,
-    achievements: 0
-  })
-  
-  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
-  const [jobRecommendations, setJobRecommendations] = useState<JobRecommendation[]>([])
-  const [refreshing, setRefreshing] = useState(false)
   const auth = getAuth()
+  const [completion, setCompletion] = useState(0)
+  const [atsScore, setAtsScore] = useState<number | null>(null)
+  const [studentSkills, setStudentSkills] = useState<string[]>([])
+  const [jobs, setJobs] = useState<InternalJob[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // Fetch dashboard data
   useEffect(() => {
-    const fetchDashboardData = async () => {
+    const load = async () => {
+      if (!auth?.token) return
       try {
-        if (auth?.token) {
-          const response = await getStudentProfile(auth.token)
-          
-          if (response.profile) {
-            const completion = response.profile.status?.profileCompletion || 0
-            const breakdown = response.profile.status?.completionBreakdown || {
-              basicInfo: 0,
-              academicInfo: 0,
-              resume: 0,
-              skillsProjects: 0,
-              applicationsEligibility: 0
-            }
-            
-            setProfileCompletion({
-              overall: completion,
-              breakdown: {
-                basicInfo: breakdown.basicInfo || 0,
-                academic: breakdown.academicInfo || 0,
-                resume: breakdown.resume || 0,
-                skills: breakdown.skillsProjects || 0,
-                applications: breakdown.applicationsEligibility || 0
-              },
-              status: completion >= 80 ? 'Excellent' : completion >= 60 ? 'Good' : completion >= 40 ? 'Fair' : 'Poor'
-            })
+        setLoading(true)
+        const [profileRes, jobsRes, resumeAnalysis] = await Promise.all([
+          getStudentProfile(auth.token),
+          listJobs({ limit: 5 }),
+          getResumeAnalysis(auth.token).catch(() => null)
+        ])
+
+        if (profileRes?.profile) {
+          setCompletion(profileRes.profile.status?.profileCompletion || 0)
+          // Prefer current ATS analysis from backend if available
+          const latestAts = (resumeAnalysis && (resumeAnalysis as any).resume?.atsAnalysis?.score) ?? null
+          if (typeof latestAts === 'number') {
+            setAtsScore(latestAts)
+          } else {
+            const resume = profileRes.profile.resume
+            setAtsScore(resume?.atsScore ?? null)
           }
+          const skills = profileRes.profile.placementInfo?.skills || []
+          setStudentSkills(Array.isArray(skills) ? skills : [])
         }
-        
-        // Set mock data for demonstration
-        setStats(mockStats)
-        setRecentActivity(mockActivity)
-        setJobRecommendations(mockJobRecommendations)
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error)
+
+        const jobItems: InternalJob[] = (jobsRes?.data?.items || jobsRes?.data || []) as any
+        setJobs(Array.isArray(jobItems) ? jobItems : [])
+      } catch (e) {
+        console.error(e)
+      } finally {
+        setLoading(false)
       }
     }
-
-    if (auth?.token) {
-      fetchDashboardData()
-    }
+    load()
   }, [auth?.token])
 
-  const handleRefresh = async () => {
-    setRefreshing(true)
-    // Simulate refresh delay
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    setRefreshing(false)
-  }
+  const mappedJobs = useMemo(() => {
+    return jobs.map((j) => {
+      const companyName = typeof j.company === 'string' 
+        ? j.company 
+        : (j.company?.companyDetails?.companyName || j.company?.name || 'Company')
+      const type = (j.jobType || 'Full-time') as 'Full-time' | 'Internship' | 'Part-time' | 'Contract'
+      const deadline = j.deadline ? new Date(j.deadline).toISOString().slice(0,10) : '—'
+      return {
+        id: j._id,
+        title: j.title,
+        company: companyName,
+        location: j.location || '—',
+        salary: j.ctc || '—',
+        match: atsScore ?? 70,
+        type,
+        deadline,
+        tags: j.skills || [],
+      }
+    })
+  }, [jobs, atsScore])
 
-  const handleJobApply = (jobId: string) => {
-    console.log('Applying for job:', jobId)
-    // Implement job application logic
-  }
+  const eligibleJobsCount = useMemo(() => {
+    if (!studentSkills.length) return jobs.length
+    const lowerSkills = new Set(studentSkills.map((s) => s.toLowerCase()))
+    const eligible = jobs.filter((j) => {
+      if (!j.skills || j.skills.length === 0) return true
+      return j.skills.some((sk) => lowerSkills.has(String(sk).toLowerCase()))
+    })
+    return eligible.length
+  }, [jobs, studentSkills])
 
-  const handleJobSave = (jobId: string) => {
-    console.log('Saving job:', jobId)
-    // Implement job saving logic
-  }
+  const atsColor = useMemo(() => {
+    const s = atsScore ?? 0
+    if (s >= 80) return 'bg-emerald-600'
+    if (s >= 60) return 'bg-blue-600'
+    if (s >= 40) return 'bg-amber-500'
+    return 'bg-red-600'
+  }, [atsScore])
 
-  const handleJobView = (jobId: string) => {
-    console.log('Viewing job:', jobId)
-    // Implement job viewing logic
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'excellent': return 'from-emerald-400 to-emerald-600'
-      case 'good': return 'from-blue-400 to-blue-600'
-      case 'fair': return 'from-yellow-400 to-orange-500'
-      case 'poor': return 'from-red-400 to-red-600'
-      default: return 'from-gray-400 to-gray-600'
-    }
-  }
-
-  const getStatusEmoji = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'excellent': return '🌟'
-      case 'good': return '👍'
-      case 'fair': return '⚠️'
-      case 'poor': return '❌'
-      default: return '📊'
-    }
-  }
+  const deadlinesThisWeek = useMemo(() => {
+    const now = new Date()
+    const in7 = new Date()
+    in7.setDate(now.getDate() + 7)
+    return jobs
+      .filter((j) => j.deadline)
+      .filter((j) => {
+        const d = new Date(String(j.deadline))
+        return d >= now && d <= in7
+      })
+      .sort((a, b) => new Date(String(a.deadline)).getTime() - new Date(String(b.deadline)).getTime())
+      .slice(0, 5)
+  }, [jobs])
 
   return (
-    <Layout
-      title="Dashboard"
-      subtitle={`Welcome back, ${auth?.user?.name || 'Student'}!`}
-    >
-      <div className="max-w-7xl mx-auto p-6 space-y-8">
-        {/* Header with Refresh */}
-        <div className="flex items-center justify-between">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-            <p className="text-gray-600 mt-1">Track your progress and stay updated</p>
+    <Layout>
+      <div className="max-w-7xl mx-auto p-4 space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-lg p-5 border border-gray-100 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Profile completion</p>
+              <p className="text-xl font-semibold text-gray-900 mt-1">{completion}%</p>
+            </div>
+            <CircularProgress percentage={completion} size={88} strokeWidth={8} />
           </motion.div>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="flex items-center space-x-2 bg-white px-4 py-2 rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 disabled:opacity-50"
-          >
-            <FiRefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
-          </motion.button>
+
+          <StatsCard icon={<span className="text-white font-bold">ATS</span>} label="ATS score" value={atsScore ?? '—'} color={atsColor} />
+
+          <StatsCard icon={<span className="text-white font-bold">JOB</span>} label="Eligible jobs" value={eligibleJobsCount} color="bg-primary-500" />
         </div>
 
-        {/* Welcome Banner */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="relative overflow-hidden rounded-3xl"
-        >
-          <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-8 text-white">
-            <div className="absolute inset-0 bg-black/10" />
-            <div className="relative flex items-center justify-between">
-              <div>
-                <h2 className="text-4xl font-bold mb-3">
-                  Welcome back, {auth?.user?.name || 'Student'}! 👋
-                </h2>
-                <p className="text-white/90 text-xl font-medium mb-4">
-                  Ready to accelerate your career journey?
-                </p>
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-2 bg-white/20 rounded-full px-4 py-2 backdrop-blur-sm">
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                    <span className="text-sm font-medium">Active Session</span>
-                  </div>
-                  <div className="flex items-center space-x-2 bg-white/20 rounded-full px-4 py-2 backdrop-blur-sm">
-                    <FiClock className="w-4 h-4" />
-                    <span className="text-sm font-medium">Last login: Today</span>
-                  </div>
-                </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-5">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Open positions</h3>
               </div>
-              <div className="hidden md:block">
-                <motion.div
-                  initial={{ scale: 0, rotate: -180 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  transition={{ delay: 0.5, type: "spring", stiffness: 200 }}
-                  className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm"
-                >
-                  <span className="text-5xl">🚀</span>
-                </motion.div>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Stats Grid */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.6 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
-        >
-          <StatsCard
-            icon={<FiClipboard className="w-6 h-6" />}
-            label="Applications"
-            value={stats.totalApplications}
-            change={{ value: "+2 this week", type: "increase" }}
-            color="bg-gradient-to-r from-blue-500 to-blue-600"
-            delay={0.1}
-          />
-          <StatsCard
-            icon={<FiCalendar className="w-6 h-6" />}
-            label="Interviews"
-            value={stats.interviewsScheduled}
-            change={{ value: "+1 today", type: "increase" }}
-            color="bg-gradient-to-r from-purple-500 to-purple-600"
-            delay={0.2}
-          />
-          <StatsCard
-            icon={<FiAward className="w-6 h-6" />}
-            label="Offers"
-            value={stats.offersReceived}
-            change={{ value: "New offer!", type: "increase" }}
-            color="bg-gradient-to-r from-emerald-500 to-emerald-600"
-            delay={0.3}
-          />
-          <StatsCard
-            icon={<FiTrendingUp className="w-6 h-6" />}
-            label="Profile Views"
-            value={stats.profileViews}
-            change={{ value: "+12% this week", type: "increase" }}
-            color="bg-gradient-to-r from-orange-500 to-orange-600"
-            delay={0.4}
-          />
-        </motion.div>
-
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Profile & Jobs */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Profile Completion Card */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3, duration: 0.6 }}
-              className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100"
-            >
-              <div className="flex items-center justify-between mb-8">
-                <div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Profile Completion</h3>
-                  <p className="text-gray-600">Complete your profile to increase placement chances</p>
-                </div>
-                <div className="flex items-center space-x-6">
-                  <CircularProgress 
-                    percentage={profileCompletion.overall} 
-                    size={100}
-                    strokeWidth={6}
-                  />
-                  <div className="text-center">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <span className="text-2xl">{getStatusEmoji(profileCompletion.status)}</span>
-                      <span className={`px-4 py-2 rounded-full text-sm font-medium bg-gradient-to-r ${getStatusColor(profileCompletion.status)} text-white shadow-lg`}>
-                        {profileCompletion.status}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Breakdown Progress */}
               <div className="space-y-4">
-                {Object.entries(profileCompletion.breakdown).map(([key, value]) => {
-                  const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())
-                  const getBarColor = (percentage: number) => {
-                    if (percentage >= 80) return 'from-emerald-400 to-emerald-600'
-                    if (percentage >= 60) return 'from-blue-400 to-blue-600'
-                    if (percentage >= 40) return 'from-yellow-400 to-orange-500'
-                    if (percentage >= 20) return 'from-orange-400 to-red-500'
-                    return 'from-red-400 to-red-600'
-                  }
-                  
-                  return (
-                    <div key={key} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">{label}</span>
-                        <span className="text-sm text-gray-500">{value}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-3">
-                        <motion.div
-                          className={`h-3 rounded-full bg-gradient-to-r ${getBarColor(value)}`}
-                          initial={{ width: 0 }}
-                          animate={{ width: `${value}%` }}
-                          transition={{ duration: 1, delay: 0.5 }}
-                        />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </motion.div>
-
-            {/* Job Recommendations */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4, duration: 0.6 }}
-              className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-bold text-gray-900">Recommended Jobs</h3>
-                <button className="flex items-center space-x-2 text-indigo-600 hover:text-indigo-700 font-medium">
-                  <span>View All</span>
-                  <FiArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-              
-              <div className="space-y-4">
-                {jobRecommendations.map((job) => (
+                {mappedJobs.map((job) => (
                   <JobCard
                     key={job.id}
                     {...job}
-                    onApply={() => handleJobApply(job.id)}
-                    onSave={() => handleJobSave(job.id)}
-                    onView={() => handleJobView(job.id)}
+                    onView={() => {}}
+                    onApply={() => {}}
+                    onSave={() => {}}
                   />
                 ))}
+                {!loading && mappedJobs.length === 0 && (
+                  <p className="text-sm text-gray-500">No jobs available right now.</p>
+                )}
               </div>
             </motion.div>
           </div>
 
-          {/* Right Sidebar */}
-          <div className="space-y-6">
-            {/* Quick Actions */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.5, duration: 0.6 }}
-              className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100"
-            >
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+          <div className="space-y-5">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick actions</h3>
               <div className="space-y-3">
-                <button className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 px-4 rounded-xl hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105">
-                  <FiFileText />
-                  <span>Upload Resume</span>
-                </button>
-                <button className="w-full bg-gradient-to-r from-purple-500 to-pink-600 text-white py-3 px-4 rounded-xl hover:from-purple-600 hover:to-pink-700 transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105">
-                  <FiClipboard />
-                  <span>Apply for Jobs</span>
-                </button>
-                <button className="w-full bg-gradient-to-r from-pink-500 to-orange-500 text-white py-3 px-4 rounded-xl hover:from-pink-600 hover:to-orange-600 transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105">
-                  <FiTarget />
-                  <span>Practice Tests</span>
-                </button>
-                <button className="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-3 px-4 rounded-xl hover:from-orange-600 hover:to-red-600 transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105">
-                  <FiBookOpen />
-                  <span>Learn Skills</span>
-                </button>
+                <button className="w-full btn btn-primary"><FiFileText /> Upload resume</button>
+                <button className="w-full btn bg-secondary-800 text-white"><FiClipboard /> Browse jobs</button>
+                <button className="w-full btn bg-gradient-to-r from-insta-1 to-insta-4 text-white"><FiTarget /> Practice tests</button>
+                <button className="w-full btn bg-primary-500 text-white"><FiBookOpen /> Learn skills</button>
               </div>
             </motion.div>
 
-            {/* Activity Feed */}
-            <ActivityFeed
-              activities={recentActivity}
-              title="Recent Activity"
-              maxItems={5}
-            />
-
-            {/* Skills Progress */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.8, duration: 0.6 }}
-              className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100"
-            >
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Skills Progress</h3>
-              <div className="space-y-4">
-                {[
-                  { name: 'JavaScript', progress: 85 },
-                  { name: 'React', progress: 78 },
-                  { name: 'Node.js', progress: 65 },
-                  { name: 'Python', progress: 72 },
-                  { name: 'SQL', progress: 58 }
-                ].map((skill) => (
-                  <div key={skill.name} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-700">{skill.name}</span>
-                      <span className="text-sm text-gray-500">{skill.progress}%</span>
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Deadlines this week</h3>
+              <div className="space-y-3">
+                {deadlinesThisWeek.map((j) => (
+                  <div key={j._id} className="flex items-center justify-between p-2 rounded-lg border border-gray-100 hover:bg-gray-50">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{j.title}</p>
+                      <p className="text-xs text-gray-500 truncate">{new Date(String(j.deadline)).toISOString().slice(0,10)}</p>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <motion.div
-                        className="h-2 bg-gradient-to-r from-indigo-400 to-purple-600 rounded-full"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${skill.progress}%` }}
-                        transition={{ duration: 1, delay: 0.9 }}
-                      />
-                    </div>
+                    <span className="text-xs px-2 py-1 rounded bg-amber-100 text-amber-700">Due</span>
                   </div>
                 ))}
+                {!deadlinesThisWeek.length && (
+                  <p className="text-sm text-gray-500">No upcoming deadlines this week.</p>
+                )}
               </div>
             </motion.div>
           </div>

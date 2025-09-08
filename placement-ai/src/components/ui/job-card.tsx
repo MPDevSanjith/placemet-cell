@@ -21,7 +21,6 @@ interface JobCardProps {
 }
 
 export const JobCard: React.FC<JobCardProps> = ({
-  id,
   title,
   company,
   location,

@@ -3,6 +3,7 @@ const router = express.Router()
 import {
   login,
   verifyOtp,
+  requestLoginOtp,
   registerOfficer,
   bulkRegisterStudents,
   forgotPassword,
@@ -19,6 +20,7 @@ import { protect, authorize, authenticateToken } from '../middleware/auth.js'
 // Public routes
 router.post('/login', login)
 router.post('/verify-otp', verifyOtp)
+router.post('/request-otp', requestLoginOtp)
 router.post('/forgot-password', forgotPassword)
 router.post('/reset-password', resetPassword)
 // Password reset via OTP (new)
