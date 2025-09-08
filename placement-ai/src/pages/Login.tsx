@@ -29,6 +29,7 @@ export default function Login() {
   const [otpCode, setOtpCode] = useState('')
   const [otpSending, setOtpSending] = useState(false)
   const [resendTimer, setResendTimer] = useState(0)
+  const [otpSuggested, setOtpSuggested] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -61,19 +62,9 @@ export default function Login() {
         // Determine if backend asks for OTP
         const requiresOtp = res?.requiresOtp === true || res?.otpRequired === true || res?.message?.toLowerCase().includes('otp')
         if (requiresOtp) {
-          setAuthMode('otp')
-          setError(null)
-          // Attempt to send OTP immediately
-          try {
-            setOtpSending(true)
-            await requestStudentOtp(email)
-            setResendTimer(30)
-          } catch (sendErr) {
-            console.error('❌ Failed to send OTP:', sendErr)
-            setError('Could not send OTP. Try again.')
-          } finally {
-            setOtpSending(false)
-          }
+          // Do not force both methods in a single flow; suggest switching to OTP instead
+          setOtpSuggested(true)
+          setError('This account requires OTP login. Please switch to OTP and verify.')
           return
         }
 
@@ -127,6 +118,7 @@ export default function Login() {
 
   const handleSendOtp = async () => {
     setError(null)
+    setOtpSuggested(false)
     if (!email) {
       setError('Please enter your email first.')
       return
@@ -140,6 +132,11 @@ export default function Login() {
     } finally {
       setOtpSending(false)
     }
+  }
+
+  const switchToOtpAndSend = async () => {
+    setAuthMode('otp')
+    await handleSendOtp()
   }
 
   const handleForgot = async () => {
@@ -191,6 +188,13 @@ export default function Login() {
           {error && (
             <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
               {error}
+            </div>
+          )}
+
+          {otpSuggested && (
+            <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700 flex items-center justify-between gap-3">
+              <span>Use OTP to sign in for this account.</span>
+              <button type="button" onClick={switchToOtpAndSend} className="px-3 py-1.5 rounded-md bg-[#5E286D] text-white text-xs">Switch to OTP</button>
             </div>
           )}
 

@@ -80,6 +80,9 @@ const NewJobPost: React.FC = () => {
   const [selectedJobApplications, setSelectedJobApplications] = useState<any[]>([]);
   const [selectedJobForApplications, setSelectedJobForApplications] = useState<any>(null);
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [sentJobs, setSentJobs] = useState<Record<string, boolean>>({});
+  const [sendAllOpen, setSendAllOpen] = useState<boolean>(false);
+  const [sendAllEmail, setSendAllEmail] = useState<string>('');
 
   // const toggleProfile = (): void => {
   //   setIsProfileOpen(!isProfileOpen);
@@ -144,13 +147,7 @@ const NewJobPost: React.FC = () => {
     setSelectedJobForApplications(null);
   };
 
-  const handleApplicationStatusUpdate = (applicationId: string, newStatus: string) => {
-    setSelectedJobApplications(prev => 
-      prev.map(app => 
-        app.id === applicationId ? { ...app, status: newStatus } : app
-      )
-    );
-  };
+  // Removed unused per-application status update handler
 
   const handleRequestSelection = (request: any) => {
     setSelectedRequest(request);
@@ -205,6 +202,11 @@ const NewJobPost: React.FC = () => {
       const data = await listExternalJobs({ status: 'Active', limit: 10 });
       if ((data as any)?.success) {
         setExternalJobs((data as any).data);
+        // Load persisted sent map
+        try {
+          const saved = localStorage.getItem('po_external_sent')
+          if (saved) setSentJobs((m) => ({ ...JSON.parse(saved), ...m }))
+        } catch {}
       } else {
         console.error('Failed to fetch external jobs:', (data as any)?.message);
       }
@@ -214,6 +216,28 @@ const NewJobPost: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const sendExternalJobEmail = async (jobId: string) => {
+    try {
+      const token = getAuth()?.token || ''
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+      const res = await fetch(`${baseUrl}/api/external-jobs/${jobId}/send-email`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include'
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || data?.message || 'Failed to send emails')
+      alert(`Emails queued to ${data.sent}/${data.total} students`)
+      setSentJobs(prev => {
+        const next = { ...prev, [jobId]: true }
+        try { localStorage.setItem('po_external_sent', JSON.stringify(next)) } catch {}
+        return next
+      })
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Failed to send emails')
+    }
+  }
 
   // Fetch lists when tabs change
   useEffect(() => {
@@ -379,59 +403,41 @@ const NewJobPost: React.FC = () => {
   };
 
   // Handle viewing applications for a job
-  const handleViewApplications = (job: any) => {
-    // Mock application data - in a real app, this would fetch from API
-    const mockApplications = [
-      {
-        id: '1',
-        studentName: 'John Doe',
-        email: 'john.doe@student.edu',
-        phone: '+91 98765 43210',
-        cgpa: 8.5,
-        branch: 'Computer Science',
-        year: '2024',
-        resumeUrl: '/resumes/john_doe_resume.pdf',
-        appliedDate: '2024-01-15',
-        status: 'Pending',
-        skills: ['React', 'Node.js', 'Python', 'MongoDB'],
-        experience: '2 internships, 1 project',
-        coverLetter: 'I am very interested in this position and believe my skills align well with your requirements...'
-      },
-      {
-        id: '2',
-        studentName: 'Jane Smith',
-        email: 'jane.smith@student.edu',
-        phone: '+91 98765 43211',
-        cgpa: 9.2,
-        branch: 'Information Technology',
-        year: '2024',
-        resumeUrl: '/resumes/jane_smith_resume.pdf',
-        appliedDate: '2024-01-14',
-        status: 'Shortlisted',
-        skills: ['JavaScript', 'React', 'Express', 'PostgreSQL'],
-        experience: '1 internship, 3 projects',
-        coverLetter: 'I have been following your company and am excited about the opportunity to contribute...'
-      },
-      {
-        id: '3',
-        studentName: 'Mike Johnson',
-        email: 'mike.johnson@student.edu',
-        phone: '+91 98765 43212',
-        cgpa: 7.8,
-        branch: 'Computer Science',
-        year: '2024',
-        resumeUrl: '/resumes/mike_johnson_resume.pdf',
-        appliedDate: '2024-01-13',
-        status: 'Rejected',
-        skills: ['Java', 'Spring Boot', 'MySQL'],
-        experience: '1 project',
-        coverLetter: 'I am eager to start my career in software development...'
-      }
-    ];
+  const handleViewApplications = async (job: any) => {
+    try {
+      const token = getAuth()?.token || ''
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+      const res = await fetch(`${baseUrl}/api/jobs/${job._id}/applications`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include'
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.message || data?.error || 'Failed to load applications')
 
-    setSelectedJobForApplications(job);
-    setSelectedJobApplications(mockApplications);
-    setIsViewApplicationsModalOpen(true);
+      const apps = (data.items || []).map((a: any) => ({
+        id: a._id,
+        studentName: a.student?.name || 'Student',
+        email: a.student?.email || '',
+        phone: a.student?.phone || '',
+        cgpa: a.student?.onboardingData?.academicInfo?.gpa || a.student?.gpa || '-',
+        branch: a.student?.branch || '-',
+        year: a.student?.year || '-',
+        resumeUrl: a.resume?.viewUrl || a.resume?.cloudinaryUrl || '',
+        resumeId: a.resume?._id || a.resume?.id,
+        studentId: a.student?._id || a.student?.id,
+        appliedDate: a.createdAt,
+        status: a.status || 'Pending',
+        skills: a.student?.onboardingData?.academicInfo?.skills || [],
+        experience: a.student?.internships?.length ? `${a.student?.internships?.length} internships` : '',
+        coverLetter: ''
+      }))
+
+      setSelectedJobForApplications(job)
+      setSelectedJobApplications(apps)
+      setIsViewApplicationsModalOpen(true)
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Failed to load applications')
+    }
   };
 
   // Handle editing a job posting
@@ -1005,7 +1011,7 @@ const NewJobPost: React.FC = () => {
                           </div>
                         </div>
                         
-                        {/* <div className="flex flex-col sm:flex-row lg:flex-col space-y-2 sm:space-y-0 sm:space-x-2 lg:space-x-0 lg:space-y-2 lg:ml-6">
+                        <div className="flex flex-wrap gap-2 mt-3">
                           <a 
                             href={job.externalUrl} 
                             target="_blank" 
@@ -1013,13 +1019,26 @@ const NewJobPost: React.FC = () => {
                             className="flex items-center justify-center px-3 sm:px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200 text-sm"
                           >
                             <User className="h-4 w-4 mr-2" />
-                            Apply
+                            Open Link
                           </a>
-                          <button className="flex items-center justify-center px-3 sm:px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200 text-sm">
+                          {sentJobs[job._id] ? (
+                            <button 
+                              className="flex items-center justify-center px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg cursor-default text-sm"
+                              disabled
+                            >
                             <FileText className="h-4 w-4 mr-2" />
-                            Track
+                              Sent
                           </button>
-                        </div> */}
+                          ) : (
+                            <button 
+                              onClick={() => sendExternalJobEmail(job._id)}
+                              className="flex items-center justify-center px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 text-sm"
+                            >
+                              <FileText className="h-4 w-4 mr-2" />
+                              Send Mail
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))
@@ -1371,8 +1390,65 @@ const NewJobPost: React.FC = () => {
              </div>
              </div>
 
+              {/* Global Send All control */}
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <button
+                    onClick={() => setSendAllOpen((v) => !v)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm w-full sm:w-auto"
+                  >
+                    Send All
+                  </button>
+                  {sendAllOpen && (
+                    <div className="flex w-full gap-2">
+                      <input
+                        type="email"
+                        value={sendAllEmail}
+                        onChange={(e) => setSendAllEmail(e.target.value)}
+                        placeholder="Enter recipient email"
+                        className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm"
+                      />
+                      <button
+                        onClick={async () => {
+                          try {
+                            const email = sendAllEmail.trim();
+                            if (!email) { alert('Enter an email'); return; }
+                            const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+                            const token = getAuth()?.token || '';
+                            const jobId = selectedJobForApplications?._id;
+                            if (!jobId) { alert('No job selected'); return; }
+                            const resp = await fetch(`${baseUrl}/api/jobs/${jobId}/applications/send-email`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                              credentials: 'include',
+                              body: JSON.stringify({ to: email })
+                            });
+                            const data = await resp.json();
+                            if (!resp.ok) throw new Error(data?.error || data?.message || 'Failed to send email');
+                            alert(`Sent ${data.sent} applicants to ${email}.`);
+                            setSendAllOpen(false);
+                            setSendAllEmail('');
+                          } catch (e) {
+                            alert(e instanceof Error ? e.message : 'Failed to send emails');
+                          }
+                        }}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm"
+                      >
+                        Send
+                      </button>
+                      <button
+                        onClick={() => { setSendAllOpen(false); setSendAllEmail(''); }}
+                        className="px-4 py-2 border border-gray-300 rounded-md text-sm"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Applications List */}
-              <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
                 {selectedJobApplications.length > 0 ? (
                   <div className="space-y-6">
                     {selectedJobApplications.map((application) => (
@@ -1469,36 +1545,43 @@ const NewJobPost: React.FC = () => {
 
                         {/* Action Buttons */}
                         <div className="flex flex-col sm:flex-row gap-3">
-                          <button className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
+                          <button
+                            onClick={async () => {
+                              try {
+                                const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+                                const direct = application.resumeUrl as string | undefined
+                                if (direct) {
+                                  const resolved = direct.startsWith('http') ? direct : `${baseUrl}${direct}`
+                                  window.open(resolved, '_blank', 'noopener')
+                                  return
+                                }
+                                if (application.studentId) {
+                                  // Fallback: fetch active-view JSON, then open its url
+                                  const token = getAuth()?.token || ''
+                                  const resp = await fetch(`${baseUrl}/api/resume/admin/student/${application.studentId}/active-view`, {
+                                    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+                                    credentials: 'include'
+                                  })
+                                  const data = await resp.json().catch(() => ({}))
+                                  const viewUrl: string | undefined = data?.url
+                                  if (resp.ok && typeof viewUrl === 'string') {
+                                    const resolved = viewUrl.startsWith('http') ? viewUrl : `${baseUrl}${viewUrl}`
+                                    window.open(resolved, '_blank', 'noopener')
+                                  } else {
+                                    alert(data?.error || data?.message || 'Failed to get resume view url')
+                                  }
+                                  return
+                                }
+                                alert('No resume URL available for this application')
+                              } catch (e: unknown) {
+                                alert(e instanceof Error ? e.message : 'Failed to open resume')
+                              }
+                            }}
+                            className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                          >
                             <FileText className="h-4 w-4 mr-2" />
                             View Resume
                           </button>
-                          <button className="flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm">
-                            <Users className="h-4 w-4 mr-2" />
-                            Schedule Interview
-                          </button>
-                          <div className="flex gap-2">
-               <button
-                              onClick={() => handleApplicationStatusUpdate(application.id, 'Shortlisted')}
-                              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                application.status === 'Shortlisted' 
-                                  ? 'bg-green-200 text-green-800' 
-                                  : 'bg-green-100 text-green-700 hover:bg-green-200'
-                              }`}
-                            >
-                              Shortlist
-                            </button>
-                            <button 
-                              onClick={() => handleApplicationStatusUpdate(application.id, 'Rejected')}
-                              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                application.status === 'Rejected' 
-                                  ? 'bg-red-200 text-red-800' 
-                                  : 'bg-red-100 text-red-700 hover:bg-red-200'
-                              }`}
-                            >
-                              Reject
-               </button>
-                          </div>
                         </div>
                       </div>
                     ))}

@@ -11,6 +11,8 @@ const jobSchema = new mongoose.Schema({
   status: { type: String, enum: ['active', 'inactive', 'closed'], default: 'active' },
   branches: [{ type: String }],
   skills: [{ type: String }],
+  minCgpa: { type: Number, default: 0 },
+  contactEmail: { type: String },
   views: { type: Number, default: 0 },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true })

@@ -11,6 +11,7 @@ import CreateOfficerPage from './pages/placement-officer/CreateOfficer'
 import CompaniesPage from './pages/placement-officer/Companies'
 import StudentDashboard from './pages/student/Dashboard'
 import StudentJobs from './pages/student/job'
+import MyJobs from './pages/student/MyJobs'
 import StudentOnboarding from './pages/student/Onboarding'
 import StudentAtsResults from './pages/student/AtsResults'
 import ProfilePage from './pages/student/ProfilePage'
@@ -217,6 +218,11 @@ function AppRoutes() {
       <Route path="/student/jobs" element={
         isAuthenticated && userRole === 'student'
           ? <StudentJobs />
+          : <Navigate to="/login" replace />
+      } />
+      <Route path="/student/my-jobs" element={
+        isAuthenticated && userRole === 'student'
+          ? <MyJobs />
           : <Navigate to="/login" replace />
       } />
       

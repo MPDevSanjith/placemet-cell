@@ -478,6 +478,7 @@ router.put('/requests/:id/approve', protect, authorize('placement_officer', 'adm
       jobType: request.formData?.jobType || 'Full-time',
       ctc: request.formData?.salaryRange || 'Not specified',
       deadline: request.endDate || null,
+      minCgpa: Number(request.minimumCGPA) || 0,
       createdBy: req.user.id
     }
 

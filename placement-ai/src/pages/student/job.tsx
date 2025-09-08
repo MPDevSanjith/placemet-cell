@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import Layout from '../../components/Layout'
-import { listJobs, getStudentProfile, listResumes, request } from '../../global/api'
+import Layout from '../../components/layout/Layout'
+import { listJobs, getStudentProfile, listResumes, applyToJob, listMyApplications } from '../../global/api'
 import { getAuth } from '../../global/auth'
 import JobCard from '../../components/ui/job-card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../global/ui/dialog'
-import { Button } from '../../global/ui/button'
+import Button from '../../components/ui/Button'
 
 type JobItem = {
   _id: string
@@ -38,16 +38,25 @@ export default function StudentJobs() {
   const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set())
+  const [search, setSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState<string>('')
+  const [onlyMatched, setOnlyMatched] = useState<boolean>(false)
 
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true)
         setError(null)
-        const [jobsRes, profRes, resList] = await Promise.all([
-          listJobs({ limit: 50 }),
-          getStudentProfile(token),
-          listResumes(token)
+
+        // Fetch profile first to get student CGPA
+        const profRes = await getStudentProfile(token)
+        const gpa = Number(profRes?.profile?.academicInfo?.gpa || 0)
+
+        const [jobsRes, resList, myApps] = await Promise.all([
+          listJobs({ limit: 100, minCgpa: isNaN(gpa) ? 0 : gpa }),
+          listResumes(token),
+          listMyApplications(token).catch(() => ({ items: [] }))
         ])
 
         const items: JobItem[] = (jobsRes?.data?.items || jobsRes?.data || []) as JobItem[]
@@ -55,6 +64,8 @@ export default function StudentJobs() {
         setProfile(profRes?.profile || null)
         const resumeArr = (resList?.resumes || []).map((r) => ({ id: r.id, originalName: r.originalName, filename: r.filename }))
         setResumes(resumeArr)
+        const ids = new Set<string>((myApps.items || []).map((a: any) => String(a.job?._id || a.job)))
+        setAppliedIds(ids)
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Failed to load jobs')
       } finally {
@@ -83,6 +94,24 @@ export default function StudentJobs() {
     if (studentCgpa >= (isNaN(minCg) ? 0 : minCg)) score += 10
     return Math.max(0, Math.min(100, score))
   }
+  const parseMinCgpa = (job: JobItem): number => {
+    const desc = job.description || ''
+    const patterns = [
+      /minimum\s*cgpa\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
+      /min\.?\s*cgpa\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
+      /cgpa\s*(?:>=|at\s*least|minimum\s*of)?\s*(\d+(?:\.\d+)?)/i
+    ]
+    for (const rx of patterns) {
+      const m = rx.exec(desc)
+      if (m) {
+        const v = parseFloat(m[1])
+        if (!isNaN(v)) return v
+      }
+    }
+    return 0
+  }
+
+  // Note: We intentionally don't hard-filter by eligibility here to match Dashboard behavior
 
   const openApply = (job: JobItem) => {
     setApplyJob(job)
@@ -95,18 +124,14 @@ export default function StudentJobs() {
       setMessage('Please select a resume')
       return
     }
+    if (!window.confirm('Submit this application?')) return
     try {
       setSubmitting(true)
       setMessage(null)
-      // Backend endpoint not present in repo; call placeholder to avoid failures.
-      // If backend adds /api/jobs/:id/applications, update here accordingly.
-      await request(`/jobs/${applyJob._id}/apply`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resumeId: selectedResumeId })
-      })
+      await applyToJob(token, applyJob._id, selectedResumeId)
       setMessage('Applied successfully')
       setApplyJob(null)
+      setAppliedIds(prev => new Set<string>([...Array.from(prev), applyJob._id]))
     } catch (e: unknown) {
       // Fallback UX if endpoint missing
       setMessage(e instanceof Error ? e.message : 'Apply failed')
@@ -122,6 +147,30 @@ export default function StudentJobs() {
           <h2 className="text-2xl font-semibold text-gray-900">Recommended Jobs</h2>
         </div>
 
+        <div className="mb-5 grid grid-cols-1 md:grid-cols-4 gap-3">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search title or company"
+            className="h-10 px-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="h-10 px-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="">All Types</option>
+            <option value="Full-time">Full-time</option>
+            <option value="Internship">Internship</option>
+            <option value="Part-time">Part-time</option>
+            <option value="Contract">Contract</option>
+          </select>
+          <label className="flex items-center space-x-2 text-sm text-gray-700">
+            <input type="checkbox" checked={onlyMatched} onChange={(e) => setOnlyMatched(e.target.checked)} />
+            <span>Only show well-matched (60%+)</span>
+          </label>
+        </div>
+
         {error && (
           <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>
         )}
@@ -131,21 +180,37 @@ export default function StudentJobs() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {jobs
+              .filter((j) => !typeFilter || j.jobType === typeFilter)
               .map((j) => ({ job: j, match: computeMatch(j) }))
+              .filter(({ job, match }) => {
+                const q = search.trim().toLowerCase()
+                const companyName = typeof job.company === 'string' ? job.company : ((job as any).company?.companyDetails?.companyName || (job as any).company?.name || '')
+                const text = `${job.title} ${companyName}`.toLowerCase()
+                const passSearch = !q || text.includes(q)
+                const passMatch = !onlyMatched || match >= 60
+                const minField = (job as any).minCgpa
+                const minCg = typeof minField === 'number' 
+                  ? minField 
+                  : (typeof minField === 'string' && !isNaN(parseFloat(minField))
+                      ? parseFloat(minField)
+                      : parseMinCgpa(job))
+                const passCg = studentCgpa >= minCg
+                return passSearch && passMatch && passCg
+              })
               .sort((a, b) => b.match - a.match)
               .map(({ job, match }) => (
                 <JobCard
                   key={job._id}
                   id={job._id}
                   title={job.title}
-                  company={job.company}
+                  company={typeof job.company === 'string' ? job.company : ((job as any).company?.companyDetails?.companyName || (job as any).company?.name || 'Company')}
                   location={job.location}
-                  salary={job.ctc || '—'}
+                  salary={(job.ctc || '—').replace(/\$/g, '₹')}
                   match={match}
                   type={job.jobType}
                   deadline={job.deadline || '—'}
                   tags={(job.skills || []).slice(0, 6)}
-                  onApply={() => openApply(job)}
+                  onApply={appliedIds.has(job._id) ? undefined : () => openApply(job)}
                   onView={() => { /* could open details */ }}
                 />
               ))}
@@ -153,7 +218,7 @@ export default function StudentJobs() {
         )}
       </div>
 
-      <Dialog open={!!applyJob} onOpenChange={(open: boolean) => { if (!open) setApplyJob(null) }}>
+      <Dialog open={!!applyJob} onOpenChange={(open) => { if (!open) setApplyJob(null) }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Easy Apply</DialogTitle>

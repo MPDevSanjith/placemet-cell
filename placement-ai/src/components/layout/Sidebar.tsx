@@ -93,6 +93,13 @@ const Sidebar = ({
           path: '/jobs',
           description: 'Browse opportunities'
         },
+        {
+          id: 'my-jobs',
+          label: 'My Jobs',
+          icon: FileText,
+          path: '/student/my-jobs',
+          description: 'Applications you submitted'
+        },
         // Additional student links can be enabled when routes exist
       ]
     } else if (userRole === 'placement_officer') {
