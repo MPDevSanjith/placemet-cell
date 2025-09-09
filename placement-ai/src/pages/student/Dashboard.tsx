@@ -6,9 +6,10 @@ import StatsCard from '../../components/ui/stats-card'
 import JobCard from '../../components/ui/job-card'
 import { getAuth } from '../../global/auth'
 import { getStudentProfile, listJobs, getResumeAnalysis, listResumes, applyToJob, listMyApplications } from '../../global/api'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../global/ui/dialog'
-import Button from '../../components/ui/Button'
 import { useNavigate } from 'react-router-dom'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../../global/ui/dialog'
+import Button from '../../components/ui/Button'
+ 
 import { FiFileText, FiClipboard, FiTarget, FiBookOpen } from 'react-icons/fi'
 
 
@@ -21,23 +22,68 @@ type InternalJob = {
   deadline?: string
   skills?: string[]
   company?: { name?: string; companyDetails?: { companyName?: string } } | string
+  description?: string
+  minCgpa?: number | string
 }
 
 export default function StudentDashboard() {
   const auth = getAuth()
-  const navigate = useNavigate()
   const [completion, setCompletion] = useState(0)
   const [atsScore, setAtsScore] = useState<number | null>(null)
   const [studentSkills, setStudentSkills] = useState<string[]>([])
   const [studentGpa, setStudentGpa] = useState<number>(0)
+  const [missingCgpa, setMissingCgpa] = useState<boolean>(false)
   const [jobs, setJobs] = useState<InternalJob[]>([])
   const [loading, setLoading] = useState(true)
   const [applyJobId, setApplyJobId] = useState<string | null>(null)
+  const [viewJob, setViewJob] = useState<InternalJob | null>(null)
   const [resumes, setResumes] = useState<Array<{ id: string; originalName?: string; fileName?: string }>>([])
   const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [applyMsg, setApplyMsg] = useState<string | null>(null)
   const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set())
+  const navigate = useNavigate()
+
+  const resolveMinCgpa = (obj: any): number => {
+    const raw = obj?.minCgpa ?? obj?.minimumCGPA ?? obj?.minCGPA ?? obj?.formData?.minimumCGPA
+    const num = typeof raw === 'number' ? raw : (typeof raw === 'string' && !isNaN(parseFloat(raw)) ? parseFloat(raw) : undefined)
+    if (typeof num === 'number') return num
+    const desc = obj?.description || ''
+    const patterns = [
+      /minimum\s*cgpa\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
+      /min\.?\s*cgpa\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
+      /cgpa\s*(?:>=|at\s*least|minimum\s*of)?\s*(\d+(?:\.\d+)?)/i
+    ]
+    for (const rx of patterns) {
+      const m = rx.exec(desc)
+      if (m) {
+        const v = parseFloat(m[1])
+        if (!isNaN(v)) return v
+      }
+    }
+    return 0
+  }
+
+  const debugLogCgpa = (obj: any, where: string) => {
+    try {
+      const direct = obj?.minCgpa
+      const minUpper = obj?.minCGPA
+      const minimumUpper = obj?.minimumCGPA
+      const fromForm = obj?.formData?.minimumCGPA
+      const parsed = (() => {
+        const d = obj?.description || ''
+        const pats = [
+          /minimum\s*cgpa\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
+          /min\.?\s*cgpa\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
+          /cgpa\s*(?:>=|at\s*least|minimum\s*of)?\s*(\d+(?:\.\d+)?)/i
+        ]
+        for (const rx of pats) { const m = rx.exec(d); if (m) { const v = parseFloat(m[1]); if (!isNaN(v)) return v } }
+        return 0
+      })()
+      const resolved = resolveMinCgpa(obj)
+      console.log(`[CGPA DEBUG:${where}]`, { direct, minUpper, minimumUpper, fromForm, parsed, resolved })
+    } catch {}
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -45,7 +91,24 @@ export default function StudentDashboard() {
       try {
         setLoading(true)
         const profileRes = await getStudentProfile(auth.token)
-        const gpaVal = Number(profileRes?.profile?.academicInfo?.gpa || 0)
+
+        const rawGpa = (profileRes?.profile?.academicInfo?.gpa) as unknown
+        const hasCgpa = rawGpa !== undefined && rawGpa !== null && !isNaN(Number(rawGpa))
+        setMissingCgpa(!hasCgpa)
+
+        const skills = profileRes?.profile?.placementInfo?.skills || []
+        setStudentSkills(Array.isArray(skills) ? skills : [])
+        const gpaSetVal = Number(rawGpa || 0)
+        setStudentGpa(isNaN(gpaSetVal) ? 0 : gpaSetVal)
+
+        if (!hasCgpa) {
+          setJobs([])
+          setAtsScore(null)
+          setAppliedIds(new Set())
+          return
+        }
+
+        const gpaVal = Number(rawGpa)
         const [jobsRes, resumeAnalysis, myApps] = await Promise.all([
           listJobs({ limit: 5, minCgpa: isNaN(gpaVal) ? 0 : gpaVal }),
           getResumeAnalysis(auth.token).catch(() => null),
@@ -62,14 +125,31 @@ export default function StudentDashboard() {
             const resume = profileRes.profile.resume
             setAtsScore(resume?.atsScore ?? null)
           }
-          const skills = profileRes.profile.placementInfo?.skills || []
-          setStudentSkills(Array.isArray(skills) ? skills : [])
-          const gpaVal = Number(profileRes.profile.academicInfo?.gpa || profileRes.profile.placementInfo?.gpa || 0)
-          setStudentGpa(isNaN(gpaVal) ? 0 : gpaVal)
         }
 
         const jobItems: InternalJob[] = (jobsRes?.data?.items || jobsRes?.data || []) as any
         setJobs(Array.isArray(jobItems) ? jobItems : [])
+        try {
+          console.log('[CGPA DEBUG:listJobs dashboard] count=', (jobItems || []).length)
+          ;(jobItems || []).forEach((it: any, idx: number) => {
+            const direct = it?.minCgpa
+            const minUpper = it?.minCGPA
+            const minimumUpper = it?.minimumCGPA
+            const fromForm = it?.formData?.minimumCGPA
+            const parsed = (() => {
+              const d = it?.description || ''
+              const pats = [
+                /minimum\s*cgpa\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
+                /min\.?\s*cgpa\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
+                /cgpa\s*(?:>=|at\s*least|minimum\s*of)?\s*(\d+(?:\.\d+)?)/i
+              ]
+              for (const rx of pats) { const m = rx.exec(d); if (m) { const v = parseFloat(m[1]); if (!isNaN(v)) return v } }
+              return 0
+            })()
+            const resolved = resolveMinCgpa(it)
+            console.log(`[CGPA DEBUG:list item ${idx}]`, { id: it?._id, title: it?.title, direct, minUpper, minimumUpper, fromForm, parsed, resolved })
+          })
+        } catch {}
         const ids = new Set<string>((myApps.items || []).map((a: any) => String(a.job?._id || a.job)))
         setAppliedIds(ids)
       } catch (e) {
@@ -132,6 +212,12 @@ export default function StudentDashboard() {
       }
       return 0
     }
+    const resolveMinCgpa = (obj: any): number => {
+      const raw = obj?.minCgpa ?? obj?.minimumCGPA ?? obj?.minCGPA ?? obj?.formData?.minimumCGPA
+      const num = typeof raw === 'number' ? raw : (typeof raw === 'string' && !isNaN(parseFloat(raw)) ? parseFloat(raw) : undefined)
+      if (typeof num === 'number') return num
+      return parseMinCgpa(obj?.description)
+    }
     const formatINR = (s?: string) => {
       if (!s) return '₹ —'
       const t = String(s)
@@ -141,8 +227,8 @@ export default function StudentDashboard() {
     }
     return jobs
       .filter((j) => {
-        const minCg = parseMinCgpa(j.description)
-        return studentGpa >= minCg
+        const minCg = resolveMinCgpa(j)
+        return studentGpa >= (minCg || 0)
       })
       .map((j) => {
       const companyName = typeof j.company === 'string' 
@@ -174,13 +260,7 @@ export default function StudentDashboard() {
     return eligible.length
   }, [jobs, studentSkills])
 
-  const atsColor = useMemo(() => {
-    const s = atsScore ?? 0
-    if (s >= 80) return 'bg-emerald-600'
-    if (s >= 60) return 'bg-blue-600'
-    if (s >= 40) return 'bg-amber-500'
-    return 'bg-red-600'
-  }, [atsScore])
+  
 
   const deadlinesThisWeek = useMemo(() => {
     const now = new Date()
@@ -199,6 +279,9 @@ export default function StudentDashboard() {
   return (
     <Layout>
       <div className="max-w-7xl mx-auto p-4 space-y-6">
+        {missingCgpa && (
+          <div className="p-3 bg-yellow-50 text-yellow-800 rounded-lg text-sm">Please add your CGPA in your profile to view eligible jobs on the dashboard.</div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-lg p-5 border border-gray-100 flex items-center justify-between">
             <div>
@@ -224,7 +307,7 @@ export default function StudentDashboard() {
                   <JobCard
                     key={job.id}
                     {...job}
-                    onView={() => { navigate('/student/jobs') }}
+                    onView={() => { navigate(`/jobs/${job.id}`) }}
                     onApply={appliedIds.has(job.id) ? undefined : () => { openApply(job.id) }}
                     onSave={() => {}}
                   />
@@ -272,6 +355,7 @@ export default function StudentDashboard() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Easy Apply</DialogTitle>
+            <DialogDescription className="sr-only">Select a resume and submit your application for the selected job.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="text-sm text-gray-600">
@@ -293,6 +377,53 @@ export default function StudentDashboard() {
           <DialogFooter>
             <Button className="border border-input bg-background hover:bg-accent hover:text-accent-foreground" onClick={() => setApplyJobId(null)}>Cancel</Button>
             <Button onClick={performApply} disabled={!selectedResumeId || submitting}>{submitting ? 'Applying...' : 'Apply'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!viewJob} onOpenChange={(open) => { if (!open) setViewJob(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Job Details</DialogTitle>
+            <DialogDescription className="sr-only">Detailed information about the selected job, including requirements.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 text-sm">
+            <div>
+              <div className="text-xl font-semibold text-gray-900">{viewJob?.title}</div>
+              <div className="text-gray-600">{typeof viewJob?.company === 'string' ? viewJob?.company : (viewJob?.company?.companyDetails?.companyName || viewJob?.company?.name)}</div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div><span className="font-medium text-gray-700">Location: </span>{viewJob?.location || '—'}</div>
+              <div><span className="font-medium text-gray-700">Type: </span>{viewJob?.jobType || '—'}</div>
+              <div><span className="font-medium text-gray-700">Deadline: </span>{viewJob?.deadline ? new Date(String(viewJob.deadline)).toISOString().slice(0,10) : '—'}</div>
+              <div>
+                <span className="font-medium text-gray-700">CGPA Required: </span>
+                {(() => {
+                  const minCg = resolveMinCgpa(viewJob)
+                  return (minCg || 0) > 0 ? String(minCg) : 'Not required'
+                })()}
+              </div>
+              <div><span className="font-medium text-gray-700">CTC: </span>{(viewJob?.ctc || '—') as any}</div>
+            </div>
+            <div>
+              <div className="font-medium text-gray-800 mb-1">Skills Required</div>
+              <div className="flex flex-wrap gap-2">
+                {(viewJob?.skills || []).length ? (
+                  (viewJob?.skills || []).map((s, i) => (
+                    <span key={i} className="px-2 py-1 bg-gray-100 rounded text-xs text-gray-700">{s}</span>
+                  ))
+                ) : (
+                  <span className="text-gray-500">Not specified</span>
+                )}
+              </div>
+            </div>
+            <div>
+              <div className="font-medium text-gray-800 mb-1">Description</div>
+              <p className="text-gray-700 whitespace-pre-wrap leading-6">{viewJob?.description || 'No description provided.'}</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setViewJob(null)} className="border border-input bg-background hover:bg-accent hover:text-accent-foreground">Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

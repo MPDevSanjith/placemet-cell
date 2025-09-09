@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import Layout from '../../components/layout/Layout'
-import { listJobs, getStudentProfile, listResumes, applyToJob, listMyApplications } from '../../global/api'
+import { listJobs, getStudentProfile, listResumes, applyToJob, listMyApplications, getJob } from '../../global/api'
 import { getAuth } from '../../global/auth'
 import JobCard from '../../components/ui/job-card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../global/ui/dialog'
+import { useNavigate } from 'react-router-dom'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../../global/ui/dialog'
 import Button from '../../components/ui/Button'
 
 type JobItem = {
@@ -24,9 +25,11 @@ type ResumeEntry = { id: string; originalName?: string; filename?: string }
 export default function StudentJobs() {
   const auth = getAuth()
   const token = auth?.token || ''
+  const navigate = useNavigate()
 
   const [loading, setLoading] = useState(false)
   const [jobs, setJobs] = useState<JobItem[]>([])
+  const [missingCgpa, setMissingCgpa] = useState<boolean>(false)
   const [profile, setProfile] = useState<null | {
     placementInfo?: { skills?: string[] }
     academicInfo?: { gpa?: number; branch?: string }
@@ -35,6 +38,7 @@ export default function StudentJobs() {
   const [error, setError] = useState<string | null>(null)
 
   const [applyJob, setApplyJob] = useState<JobItem | null>(null)
+  const [viewJob, setViewJob] = useState<JobItem | null>(null)
   const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -51,7 +55,18 @@ export default function StudentJobs() {
 
         // Fetch profile first to get student CGPA
         const profRes = await getStudentProfile(token)
-        const gpa = Number(profRes?.profile?.academicInfo?.gpa || 0)
+        const rawGpa = profRes?.profile?.academicInfo?.gpa as unknown
+        const hasCgpa = rawGpa !== undefined && rawGpa !== null && !isNaN(Number(rawGpa))
+        setMissingCgpa(!hasCgpa)
+
+        // If no CGPA, don't fetch jobs and prompt user to add CGPA
+        if (!hasCgpa) {
+          setProfile(profRes?.profile || null)
+          setJobs([])
+          return
+        }
+
+        const gpa = Number(rawGpa)
 
         const [jobsRes, resList, myApps] = await Promise.all([
           listJobs({ limit: 100, minCgpa: isNaN(gpa) ? 0 : gpa }),
@@ -61,6 +76,18 @@ export default function StudentJobs() {
 
         const items: JobItem[] = (jobsRes?.data?.items || jobsRes?.data || []) as JobItem[]
         setJobs(items)
+        try {
+          console.log('[CGPA DEBUG:listJobs student/jobs] count=', items.length)
+          items.forEach((it: any, idx) => {
+            const direct = it?.minCgpa
+            const minUpper = it?.minCGPA
+            const minimumUpper = it?.minimumCGPA
+            const fromForm = it?.formData?.minimumCGPA
+            const parsed = parseMinCgpa(it as any)
+            const resolved = resolveMinCgpa(it as any)
+            console.log(`[CGPA DEBUG:list item ${idx}]`, { id: it?._id, title: it?.title, direct, minUpper, minimumUpper, fromForm, parsed, resolved })
+          })
+        } catch {}
         setProfile(profRes?.profile || null)
         const resumeArr = (resList?.resumes || []).map((r) => ({ id: r.id, originalName: r.originalName, filename: r.filename }))
         setResumes(resumeArr)
@@ -94,8 +121,9 @@ export default function StudentJobs() {
     if (studentCgpa >= (isNaN(minCg) ? 0 : minCg)) score += 10
     return Math.max(0, Math.min(100, score))
   }
-  const parseMinCgpa = (job: JobItem): number => {
-    const desc = job.description || ''
+  const parseMinCgpa = (job: JobItem | null | undefined): number => {
+    if (!job || typeof job !== 'object') return 0
+    const desc = (job as any)?.description || ''
     const patterns = [
       /minimum\s*cgpa\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
       /min\.?\s*cgpa\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
@@ -109,6 +137,26 @@ export default function StudentJobs() {
       }
     }
     return 0
+  }
+
+  const resolveMinCgpa = (obj: any): number => {
+    if (!obj) return 0
+    const raw = obj?.minCgpa ?? obj?.minimumCGPA ?? obj?.minCGPA ?? obj?.formData?.minimumCGPA
+    const num = typeof raw === 'number' ? raw : (typeof raw === 'string' && !isNaN(parseFloat(raw)) ? parseFloat(raw) : undefined)
+    if (typeof num === 'number') return num
+    return parseMinCgpa(obj as JobItem)
+  }
+
+  const debugLogCgpa = (obj: any, where: string) => {
+    try {
+      const direct = obj?.minCgpa
+      const minUpper = obj?.minCGPA
+      const minimumUpper = obj?.minimumCGPA
+      const fromForm = obj?.formData?.minimumCGPA
+      const parsed = parseMinCgpa(obj as JobItem)
+      const resolved = resolveMinCgpa(obj)
+      console.log(`[CGPA DEBUG:${where}]`, { direct, minUpper, minimumUpper, fromForm, parsed, resolved })
+    } catch {}
   }
 
   // Note: We intentionally don't hard-filter by eligibility here to match Dashboard behavior
@@ -175,7 +223,11 @@ export default function StudentJobs() {
           <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>
         )}
 
-        {loading ? (
+        {missingCgpa ? (
+          <div className="mb-4 p-3 bg-yellow-50 text-yellow-800 rounded-lg text-sm">
+            Please add your CGPA in your profile to view eligible jobs.
+          </div>
+        ) : loading ? (
           <div className="text-gray-500">Loading jobs...</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -188,13 +240,8 @@ export default function StudentJobs() {
                 const text = `${job.title} ${companyName}`.toLowerCase()
                 const passSearch = !q || text.includes(q)
                 const passMatch = !onlyMatched || match >= 60
-                const minField = (job as any).minCgpa
-                const minCg = typeof minField === 'number' 
-                  ? minField 
-                  : (typeof minField === 'string' && !isNaN(parseFloat(minField))
-                      ? parseFloat(minField)
-                      : parseMinCgpa(job))
-                const passCg = studentCgpa >= minCg
+                const minCg = resolveMinCgpa(job)
+                const passCg = studentCgpa >= ((minCg as number) || 0)
                 return passSearch && passMatch && passCg
               })
               .sort((a, b) => b.match - a.match)
@@ -211,7 +258,7 @@ export default function StudentJobs() {
                   deadline={job.deadline || '—'}
                   tags={(job.skills || []).slice(0, 6)}
                   onApply={appliedIds.has(job._id) ? undefined : () => openApply(job)}
-                  onView={() => { /* could open details */ }}
+                  onView={() => { navigate(`/jobs/${job._id}`) }}
                 />
               ))}
           </div>
@@ -222,6 +269,7 @@ export default function StudentJobs() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Easy Apply</DialogTitle>
+            <DialogDescription className="sr-only">Select a resume and submit your application for the chosen job.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="text-sm text-gray-600">
@@ -252,6 +300,53 @@ export default function StudentJobs() {
             <Button onClick={performApply} disabled={!selectedResumeId || submitting}>
               {submitting ? 'Applying...' : 'Apply'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!viewJob} onOpenChange={(open) => { if (!open) setViewJob(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Job Details</DialogTitle>
+            <DialogDescription className="sr-only">Complete details about the selected job, including requirements and description.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 text-sm">
+            <div>
+              <div className="text-xl font-semibold text-gray-900">{viewJob?.title}</div>
+              <div className="text-gray-600">{typeof viewJob?.company === 'string' ? viewJob?.company : ((viewJob as any)?.company?.companyDetails?.companyName || (viewJob as any)?.company?.name)}</div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div><span className="font-medium text-gray-700">Location: </span>{viewJob?.location || '—'}</div>
+              <div><span className="font-medium text-gray-700">Type: </span>{viewJob?.jobType || '—'}</div>
+              <div><span className="font-medium text-gray-700">Deadline: </span>{viewJob?.deadline || '—'}</div>
+              <div>
+                <span className="font-medium text-gray-700">CGPA Required: </span>
+                {(() => {
+                  const minCg = resolveMinCgpa(viewJob)
+                  return (minCg || 0) > 0 ? String(minCg) : 'Not required'
+                })()}
+              </div>
+              <div><span className="font-medium text-gray-700">CTC: </span>{(viewJob?.ctc || '—').toString().replace(/\$/g, '₹')}</div>
+            </div>
+            <div>
+              <div className="font-medium text-gray-800 mb-1">Skills Required</div>
+              <div className="flex flex-wrap gap-2">
+                {(viewJob?.skills || []).length ? (
+                  (viewJob?.skills || []).map((s, i) => (
+                    <span key={i} className="px-2 py-1 bg-gray-100 rounded text-xs text-gray-700">{s}</span>
+                  ))
+                ) : (
+                  <span className="text-gray-500">Not specified</span>
+                )}
+              </div>
+            </div>
+            <div>
+              <div className="font-medium text-gray-800 mb-1">Description</div>
+              <p className="text-gray-700 whitespace-pre-wrap leading-6">{viewJob?.description || 'No description provided.'}</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setViewJob(null)} className="border border-input bg-background hover:bg-accent hover:text-accent-foreground">Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
