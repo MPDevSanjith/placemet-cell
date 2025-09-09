@@ -486,13 +486,20 @@ export default function BiodataUpload() {
           {/* Upload Section */}
           <div className="bg-white rounded-xl p-6 shadow-lg">
             <h2 className="text-xl font-semibold text-brand-primary mb-4 flex items-center gap-2">
-              <FaUpload />
+              <FaUpload aria-hidden="true" />
               Upload CSV File
             </h2>
             
             <div className="space-y-4">
-              <div className="border-2 border-dashed border-brand-secondary rounded-lg p-6 text-center">
-                <FaUpload className="mx-auto text-4xl text-brand-secondary mb-4" />
+              <div
+                className="border-2 border-dashed border-brand-secondary rounded-lg p-6 text-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                role="button"
+                tabIndex={0}
+                onClick={() => fileInputRef.current?.click()}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click() } }}
+                aria-label="Choose CSV file to upload"
+              >
+                <FaUpload className="mx-auto text-4xl text-brand-secondary mb-4" aria-hidden="true" />
                 <p className="text-gray-600 mb-2">Drag and drop your CSV file here, or click to browse</p>
                 <input
                   ref={fileInputRef}
@@ -520,7 +527,7 @@ export default function BiodataUpload() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b">
+                        <tr className="border-b bg-white">
                           <th className="text-left p-2">Name</th>
                           <th className="text-left p-2">Email</th>
                           <th className="text-left p-2">Branch</th>
@@ -642,106 +649,108 @@ export default function BiodataUpload() {
 
         {/* Manual Entry */}
         <div className="bg-white rounded-xl p-6 mt-6 shadow-lg">
-          <h2 className="text-xl font-semibold text-brand-primary mb-4 flex items-center gap-2">
-            <FaUser />
+          <h2 className="text-xl font-semibold text-brand-primary mb-2 flex items-center gap-2">
+            <FaUser aria-hidden="true" />
             Manual Entry
           </h2>
+          <p className="text-sm text-secondary-600 mb-4">Add or edit a single student biodata with live validation and autofill.</p>
           
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
             {/* Basic Information */}
-            <div className="space-y-4">
-              <h3 className="font-semibold text-gray-700 border-b pb-2">Basic Information</h3>
+            <div className="space-y-4 bg-gray-50 rounded-lg p-4 border border-accent-200">
+              <h3 className="font-semibold text-secondary-800">Basic Information</h3>
               
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Email *</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Email <span className="text-red-600">*</span></label>
                 <div className="flex gap-2">
                   <input 
                     value={manual.email} 
                     onChange={e => setManual({ ...manual, email: e.target.value })} 
-                    className="flex-1 border rounded-lg px-3 py-2" 
+                    className="flex-1 border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300" 
                     placeholder="student@college.edu" 
                   />
                   <button 
                     onClick={handleAutofill} 
                     disabled={manualLoading} 
-                    className="px-3 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50 text-sm"
+                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 text-sm"
                   >
                     {manualLoading ? '...' : 'Fill'}
                   </button>
                 </div>
+                <p className="mt-1 text-xs text-secondary-500">Use an existing student email to fetch available details.</p>
               </div>
               
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Name *</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Name <span className="text-red-600">*</span></label>
                 <input 
                   value={manual.name} 
                   onChange={e => setManual({ ...manual, name: e.target.value })} 
-                  className="w-full border rounded-lg px-3 py-2" 
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300" 
                   placeholder="Full name" 
                 />
               </div>
               
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Branch *</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Branch <span className="text-red-600">*</span></label>
                 <input 
                   value={manual.branch} 
                   onChange={e => setManual({ ...manual, branch: e.target.value })} 
-                  className="w-full border rounded-lg px-3 py-2" 
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300" 
                   placeholder="CSE / ECE / ..." 
                 />
               </div>
               
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Section</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Section</label>
                 <input 
                   value={manual.section} 
                   onChange={e => setManual({ ...manual, section: e.target.value })} 
-                  className="w-full border rounded-lg px-3 py-2" 
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300" 
                   placeholder="A / B" 
                 />
               </div>
               
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Roll Number *</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Roll Number <span className="text-red-600">*</span></label>
                 <input 
                   value={manual.rollNumber} 
                   onChange={e => setManual({ ...manual, rollNumber: e.target.value })} 
-                  className="w-full border rounded-lg px-3 py-2" 
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300" 
                   placeholder="Roll No" 
                 />
               </div>
               
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Phone</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Phone</label>
                 <input 
                   value={manual.phone} 
                   onChange={e => setManual({ ...manual, phone: e.target.value })} 
-                  className="w-full border rounded-lg px-3 py-2" 
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300" 
                   placeholder="10-digit" 
                 />
               </div>
               
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Year</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Year</label>
                 <input 
                   value={manual.year} 
                   onChange={e => setManual({ ...manual, year: e.target.value })} 
-                  className="w-full border rounded-lg px-3 py-2" 
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300" 
                   placeholder="2026" 
                 />
               </div>
             </div>
 
             {/* Personal Details */}
-            <div className="space-y-4">
-              <h3 className="font-semibold text-gray-700 border-b pb-2">Personal Details</h3>
+            <div className="space-y-4 bg-gray-50 rounded-lg p-4 border border-accent-200">
+              <h3 className="font-semibold text-secondary-800">Personal Details</h3>
               
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Gender</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Gender</label>
                 <select 
                   value={manual.gender} 
                   onChange={e => setManual({ ...manual, gender: e.target.value })} 
-                  className="w-full border rounded-lg px-3 py-2"
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300"
                 >
                   <option value="">Select Gender</option>
                   <option value="male">Male</option>
@@ -751,21 +760,21 @@ export default function BiodataUpload() {
               </div>
               
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Date of Birth</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Date of Birth</label>
                 <input 
                   type="date"
                   value={manual.dateOfBirth} 
                   onChange={e => setManual({ ...manual, dateOfBirth: e.target.value })} 
-                  className="w-full border rounded-lg px-3 py-2" 
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300" 
                 />
               </div>
               
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Address</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Address</label>
                 <textarea 
                   value={manual.address} 
                   onChange={e => setManual({ ...manual, address: e.target.value })} 
-                  className="w-full border rounded-lg px-3 py-2" 
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300" 
                   rows={3}
                   placeholder="Full address"
                 />
@@ -773,11 +782,11 @@ export default function BiodataUpload() {
             </div>
 
             {/* Academic & Eligibility */}
-            <div className="space-y-4">
-              <h3 className="font-semibold text-gray-700 border-b pb-2">Academic & Eligibility</h3>
+            <div className="space-y-4 bg-gray-50 rounded-lg p-4 border border-accent-200">
+              <h3 className="font-semibold text-secondary-800">Academic & Eligibility</h3>
               
               <div>
-                <label className="block text-sm text-gray-700 mb-1">GPA/CGPA</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">GPA/CGPA</label>
                 <input 
                   type="number"
                   step="0.01"
@@ -785,83 +794,83 @@ export default function BiodataUpload() {
                   max="10"
                   value={manual.gpa || ''} 
                   onChange={e => setManual({ ...manual, gpa: e.target.value ? parseFloat(e.target.value) : undefined })} 
-                  className="w-full border rounded-lg px-3 py-2" 
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300" 
                   placeholder="8.5" 
                 />
               </div>
               
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Specialization</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Specialization</label>
                 <input 
                   value={manual.specialization} 
                   onChange={e => setManual({ ...manual, specialization: e.target.value })} 
-                  className="w-full border rounded-lg px-3 py-2" 
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300" 
                   placeholder="AI/ML, Web Dev, etc." 
                 />
               </div>
               
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Attendance %</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Attendance %</label>
                 <input 
                   type="number"
                   min="0"
                   max="100"
                   value={manual.attendancePercentage || ''} 
                   onChange={e => setManual({ ...manual, attendancePercentage: e.target.value ? parseFloat(e.target.value) : undefined })} 
-                  className="w-full border rounded-lg px-3 py-2" 
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300" 
                   placeholder="85" 
                 />
               </div>
               
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Backlogs</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Backlogs</label>
                 <input 
                   type="number"
                   min="0"
                   value={manual.backlogs || ''} 
                   onChange={e => setManual({ ...manual, backlogs: e.target.value ? parseInt(e.target.value) : undefined })} 
-                  className="w-full border rounded-lg px-3 py-2" 
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300" 
                   placeholder="0" 
                 />
               </div>
               
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Skills (comma-separated)</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Skills (comma-separated)</label>
                 <input 
                   value={manual.skills?.join(', ') || ''} 
                   onChange={e => setManual({ ...manual, skills: e.target.value.split(',').map(s => s.trim()).filter(s => s) })} 
-                  className="w-full border rounded-lg px-3 py-2" 
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300" 
                   placeholder="JavaScript, Python, React" 
                 />
               </div>
               
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Projects (comma-separated)</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Projects (comma-separated)</label>
                 <input 
                   value={manual.projects?.join(', ') || ''} 
                   onChange={e => setManual({ ...manual, projects: e.target.value.split(',').map(p => p.trim()).filter(p => p) })} 
-                  className="w-full border rounded-lg px-3 py-2" 
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300" 
                   placeholder="E-commerce App, ML Model" 
                 />
               </div>
               
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Academic Requirements</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Academic Requirements</label>
                 <textarea 
                   value={manual.academicRequirements} 
                   onChange={e => setManual({ ...manual, academicRequirements: e.target.value })} 
-                  className="w-full border rounded-lg px-3 py-2" 
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300" 
                   rows={2}
                   placeholder="Minimum GPA, specific courses, etc."
                 />
               </div>
               
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Other Eligibility</label>
+                <label className="block text-sm font-medium text-secondary-700 mb-1">Other Eligibility</label>
                 <textarea 
                   value={manual.otherEligibility} 
                   onChange={e => setManual({ ...manual, otherEligibility: e.target.value })} 
-                  className="w-full border rounded-lg px-3 py-2" 
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300" 
                   rows={2}
                   placeholder="Additional requirements, certifications, etc."
                 />
@@ -873,7 +882,7 @@ export default function BiodataUpload() {
             <button 
               onClick={handleManualCreate} 
               disabled={manualLoading} 
-              className="px-6 py-2 bg-green-600 text-white rounded-lg disabled:opacity-50 flex items-center gap-2"
+              className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg disabled:opacity-50 flex items-center gap-2 shadow-subtle"
             >
               {manualLoading ? <FaSpinner className="animate-spin" /> : <FaCheckCircle />}
               {manualLoading ? 'Saving...' : 'Save Biodata'}
