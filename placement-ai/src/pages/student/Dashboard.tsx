@@ -5,8 +5,12 @@ import CircularProgress from '../../components/ui/circular-progress'
 import StatsCard from '../../components/ui/stats-card'
 import JobCard from '../../components/ui/job-card'
 import { getAuth } from '../../global/auth'
-import { getStudentProfile, listJobs, getResumeAnalysis } from '../../global/api'
+import { getStudentProfile, listJobs, getResumeAnalysis, listResumes, applyToJob, listMyApplications } from '../../global/api'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../global/ui/dialog'
+import Button from '../../components/ui/Button'
+import { useNavigate } from 'react-router-dom'
 import { FiFileText, FiClipboard, FiTarget, FiBookOpen } from 'react-icons/fi'
+
 
 type InternalJob = {
   _id: string
@@ -21,21 +25,31 @@ type InternalJob = {
 
 export default function StudentDashboard() {
   const auth = getAuth()
+  const navigate = useNavigate()
   const [completion, setCompletion] = useState(0)
   const [atsScore, setAtsScore] = useState<number | null>(null)
   const [studentSkills, setStudentSkills] = useState<string[]>([])
+  const [studentGpa, setStudentGpa] = useState<number>(0)
   const [jobs, setJobs] = useState<InternalJob[]>([])
   const [loading, setLoading] = useState(true)
+  const [applyJobId, setApplyJobId] = useState<string | null>(null)
+  const [resumes, setResumes] = useState<Array<{ id: string; originalName?: string; fileName?: string }>>([])
+  const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [applyMsg, setApplyMsg] = useState<string | null>(null)
+  const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const load = async () => {
       if (!auth?.token) return
       try {
         setLoading(true)
-        const [profileRes, jobsRes, resumeAnalysis] = await Promise.all([
-          getStudentProfile(auth.token),
-          listJobs({ limit: 5 }),
-          getResumeAnalysis(auth.token).catch(() => null)
+        const profileRes = await getStudentProfile(auth.token)
+        const gpaVal = Number(profileRes?.profile?.academicInfo?.gpa || 0)
+        const [jobsRes, resumeAnalysis, myApps] = await Promise.all([
+          listJobs({ limit: 5, minCgpa: isNaN(gpaVal) ? 0 : gpaVal }),
+          getResumeAnalysis(auth.token).catch(() => null),
+          listMyApplications(auth.token).catch(() => ({ items: [] }))
         ])
 
         if (profileRes?.profile) {
@@ -50,10 +64,14 @@ export default function StudentDashboard() {
           }
           const skills = profileRes.profile.placementInfo?.skills || []
           setStudentSkills(Array.isArray(skills) ? skills : [])
+          const gpaVal = Number(profileRes.profile.academicInfo?.gpa || profileRes.profile.placementInfo?.gpa || 0)
+          setStudentGpa(isNaN(gpaVal) ? 0 : gpaVal)
         }
 
         const jobItems: InternalJob[] = (jobsRes?.data?.items || jobsRes?.data || []) as any
         setJobs(Array.isArray(jobItems) ? jobItems : [])
+        const ids = new Set<string>((myApps.items || []).map((a: any) => String(a.job?._id || a.job)))
+        setAppliedIds(ids)
       } catch (e) {
         console.error(e)
       } finally {
@@ -63,8 +81,70 @@ export default function StudentDashboard() {
     load()
   }, [auth?.token])
 
+  const openApply = async (jobId: string) => {
+    try {
+      setApplyJobId(jobId)
+      setApplyMsg(null)
+      const token = auth?.token as string
+      const l = await listResumes(token)
+      const rs = (l?.resumes || []).map(r => ({ id: r.id, originalName: r.originalName, fileName: r.filename as any }))
+      setResumes(rs)
+      setSelectedResumeId(rs[0]?.id || null)
+    } catch (e) {
+      setApplyMsg(e instanceof Error ? e.message : 'Failed to load resumes')
+    }
+  }
+
+  const performApply = async () => {
+    if (!applyJobId || !selectedResumeId) {
+      setApplyMsg('Please select a resume')
+      return
+    }
+    if (!window.confirm('Submit this application?')) return
+    try {
+      setSubmitting(true)
+      setApplyMsg(null)
+      await applyToJob(auth?.token || '', applyJobId, selectedResumeId)
+      setApplyMsg('Applied successfully')
+      setAppliedIds(prev => new Set<string>([...Array.from(prev), applyJobId]))
+      setApplyJobId(null)
+    } catch (e) {
+      setApplyMsg(e instanceof Error ? e.message : 'Apply failed')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   const mappedJobs = useMemo(() => {
-    return jobs.map((j) => {
+    const parseMinCgpa = (desc?: string): number => {
+      if (!desc) return 0
+      const patterns = [
+        /minimum\s*cgpa\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
+        /min\.?\s*cgpa\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
+        /cgpa\s*(?:>=|at\s*least|minimum\s*of)?\s*(\d+(?:\.\d+)?)/i
+      ]
+      for (const rx of patterns) {
+        const m = rx.exec(desc || '')
+        if (m) {
+          const v = parseFloat(m[1])
+          if (!isNaN(v)) return v
+        }
+      }
+      return 0
+    }
+    const formatINR = (s?: string) => {
+      if (!s) return '₹ —'
+      const t = String(s)
+      if (/\$/g.test(t)) return t.replace(/\$/g, '₹')
+      if (/^\d[\d,\.]*$/.test(t)) return `₹ ${t}`
+      return t.startsWith('₹') ? t : `₹ ${t}`
+    }
+    return jobs
+      .filter((j) => {
+        const minCg = parseMinCgpa(j.description)
+        return studentGpa >= minCg
+      })
+      .map((j) => {
       const companyName = typeof j.company === 'string' 
         ? j.company 
         : (j.company?.companyDetails?.companyName || j.company?.name || 'Company')
@@ -75,14 +155,14 @@ export default function StudentDashboard() {
         title: j.title,
         company: companyName,
         location: j.location || '—',
-        salary: j.ctc || '—',
+        salary: formatINR(j.ctc || '—'),
         match: atsScore ?? 70,
         type,
         deadline,
         tags: j.skills || [],
       }
     })
-  }, [jobs, atsScore])
+  }, [jobs, atsScore, studentGpa])
 
   const eligibleJobsCount = useMemo(() => {
     if (!studentSkills.length) return jobs.length
@@ -128,7 +208,7 @@ export default function StudentDashboard() {
             <CircularProgress percentage={completion} size={88} strokeWidth={8} />
           </motion.div>
 
-          <StatsCard icon={<span className="text-white font-bold">ATS</span>} label="ATS score" value={atsScore ?? '—'} color={atsColor} />
+          <StatsCard icon={<span className="text-white font-bold">ATS</span>} label="ATS score" value={atsScore ?? '—'} color="bg-primary-500" />
 
           <StatsCard icon={<span className="text-white font-bold">JOB</span>} label="Eligible jobs" value={eligibleJobsCount} color="bg-primary-500" />
         </div>
@@ -144,8 +224,8 @@ export default function StudentDashboard() {
                   <JobCard
                     key={job.id}
                     {...job}
-                    onView={() => {}}
-                    onApply={() => {}}
+                    onView={() => { navigate('/student/jobs') }}
+                    onApply={appliedIds.has(job.id) ? undefined : () => { openApply(job.id) }}
                     onSave={() => {}}
                   />
                 ))}
@@ -187,6 +267,35 @@ export default function StudentDashboard() {
           </div>
         </div>
       </div>
+
+      <Dialog open={!!applyJobId} onOpenChange={(open) => { if (!open) setApplyJobId(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Easy Apply</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="text-sm text-gray-600">
+              Select a resume to submit
+            </div>
+            <div className="space-y-2">
+              {resumes.length === 0 && (
+                <div className="text-sm text-gray-500">No resumes found. Please upload a resume first.</div>
+              )}
+              {resumes.map(r => (
+                <label key={r.id} className="flex items-center space-x-3 p-2 rounded-lg border hover:bg-gray-50 cursor-pointer">
+                  <input type="radio" name="resume" checked={selectedResumeId === r.id} onChange={() => setSelectedResumeId(r.id)} />
+                  <span className="text-sm text-gray-800">{r.originalName || r.fileName || 'Resume'}</span>
+                </label>
+              ))}
+            </div>
+            {applyMsg && <div className="text-sm text-indigo-700 bg-indigo-50 p-2 rounded">{applyMsg}</div>}
+          </div>
+          <DialogFooter>
+            <Button className="border border-input bg-background hover:bg-accent hover:text-accent-foreground" onClick={() => setApplyJobId(null)}>Cancel</Button>
+            <Button onClick={performApply} disabled={!selectedResumeId || submitting}>{submitting ? 'Applying...' : 'Apply'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   )
 }

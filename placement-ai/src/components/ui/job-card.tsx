@@ -1,6 +1,6 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import { FiMapPin, FiDollarSign, FiClock, FiStar, FiArrowRight, FiBookmark } from 'react-icons/fi'
+import { FiMapPin, FiClock, FiStar, FiArrowRight, FiBookmark } from 'react-icons/fi'
 
 interface JobCardProps {
   id: string
@@ -91,8 +91,8 @@ export const JobCard: React.FC<JobCardProps> = ({
           </p>
           
           <p className="text-indigo-600 font-medium mb-3 flex items-center space-x-1">
-            <FiDollarSign className="w-4 h-4" />
-            <span>{salary}</span>
+            <span>₹</span>
+            <span>{String(salary).replace(/\$/g, '').replace(/^₹\s*/, '')} LPA</span>
           </p>
           
           <div className="flex items-center space-x-4 mb-3">
@@ -159,7 +159,7 @@ export const JobCard: React.FC<JobCardProps> = ({
             <span>View Details</span>
             <FiArrowRight className="w-3 h-3" />
           </button>
-          {onApply && (
+          {onApply ? (
             <button
               onClick={(e) => {
                 e.stopPropagation()
@@ -168,6 +168,13 @@ export const JobCard: React.FC<JobCardProps> = ({
               className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
             >
               Apply Now
+            </button>
+          ) : (
+            <button
+              onClick={(e) => { e.stopPropagation() }}
+              className="bg-gray-200 text-gray-600 px-4 py-2 rounded-lg cursor-default text-sm font-medium"
+            >
+              Already Applied
             </button>
           )}
         </div>

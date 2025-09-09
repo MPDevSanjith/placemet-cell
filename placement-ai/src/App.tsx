@@ -10,12 +10,15 @@ import BiodataUpload from './pages/placement-officer/BiodataUpload'
 import CreateOfficerPage from './pages/placement-officer/CreateOfficer'
 import CompaniesPage from './pages/placement-officer/Companies'
 import StudentDashboard from './pages/student/Dashboard'
+import StudentJobs from './pages/student/job'
+import MyJobs from './pages/student/MyJobs'
 import StudentOnboarding from './pages/student/Onboarding'
 import StudentAtsResults from './pages/student/AtsResults'
 import ProfilePage from './pages/student/ProfilePage'
 import StudentGate from './pages/student/StudentGate'
 import StudentNotificationsPage from './pages/student/Notifications'
 import PlacementAnalytics from './pages/placement-officer/Analytics'
+import CompanyForm from './pages/CompanyForm'
 import PlacementGate from './pages/placement-officer/PlacementGate'
 import OfficerNotificationsPage from './pages/placement-officer/Notifications'
 import JobPortal from './pages/JobPortal'
@@ -214,6 +217,16 @@ function AppRoutes() {
           )
           : <Navigate to="/login" replace />
       } />
+      <Route path="/student/jobs" element={
+        isAuthenticated && userRole === 'student'
+          ? <StudentJobs />
+          : <Navigate to="/login" replace />
+      } />
+      <Route path="/student/my-jobs" element={
+        isAuthenticated && userRole === 'student'
+          ? <MyJobs />
+          : <Navigate to="/login" replace />
+      } />
       
       <Route path="/student/onboarding" element={
         isAuthenticated && userRole === 'student'
@@ -298,6 +311,9 @@ function AppRoutes() {
           ? <CompaniesPage />
           : <Navigate to="/login" replace />
       } />
+      
+      {/* Public Company Form Route */}
+      <Route path="/company-form/:linkId" element={<CompanyForm />} />
       
       {/* Catch-all */}
       <Route path="*" element={<Navigate to="/" replace />} />

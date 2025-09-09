@@ -7,7 +7,7 @@ import logger from '../utils/logger.js';
 // @access  Private (Placement Officer/Admin)
 const createJob = async (req, res) => {
   try {
-    const { company, title, description, location, jobType, ctc, deadline } = req.body
+    const { company, title, description, location, jobType, ctc, deadline, minCgpa } = req.body
 
     if (!company || !title || !description || !location || !jobType) {
       return res.status(400).json({ success: false, message: 'Missing required fields' })
@@ -21,6 +21,7 @@ const createJob = async (req, res) => {
       jobType,
       ctc,
       deadline,
+      minCgpa: Number(minCgpa) || 0,
       createdBy: req.user?.id || null
     })
 
@@ -44,6 +45,8 @@ const getJobs = async (req, res) => {
     const location = req.query.location;
     const jobType = req.query.jobType;
     const branch = req.query.branch;
+    const minCgpa = req.query.minCgpa;
+    const studentId = req.query.studentId;
 
     let query = { status: 'active' };
     
@@ -70,13 +73,62 @@ const getJobs = async (req, res) => {
       ];
     }
 
+    if (minCgpa !== undefined) {
+      const cgpaNumber = Number(minCgpa)
+      const cgpaCond = { $or: [ { minCgpa: { $lte: isNaN(cgpaNumber) ? 0 : cgpaNumber } }, { minCgpa: { $eq: null } }, { minCgpa: { $exists: false } } ] }
+      // If there's already an $or (e.g., branches), preserve it inside $and
+      if (query.$or) {
+        query.$and = query.$and || []
+        query.$and.push({ $or: query.$or })
+        delete query.$or
+      }
+      query.$and = query.$and || []
+      query.$and.push(cgpaCond)
+    }
+
     const skip = (page - 1) * limit;
     
-    const jobs = await Job.find(query)
+    let jobs = await Job.find(query)
       .populate('company', 'name companyDetails.companyName companyDetails.industry')
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 });
+
+    // Additional server-side filter: if a cgpa value is provided (explicit or via studentId),
+    // also infer from description when field is missing
+    let cgpaNumber = undefined
+    if (minCgpa !== undefined) {
+      cgpaNumber = Number(minCgpa)
+    }
+    if (studentId && cgpaNumber === undefined) {
+      // Try to derive student's CGPA from populated onboarding data if available elsewhere in the stack
+      // If not available here, rely on minCgpa query provided by the client
+    }
+    if (cgpaNumber !== undefined) {
+      const parseMinCgFromText = (text) => {
+        if (!text || typeof text !== 'string') return 0
+        const patterns = [
+          /minimum\s*cgpa\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
+          /min\.?\s*cgpa\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
+          /cgpa\s*(?:>=|at\s*least|minimum\s*of)?\s*(\d+(?:\.\d+)?)/i
+        ]
+        for (const rx of patterns) {
+          const m = rx.exec(text)
+          if (m) {
+            const v = parseFloat(m[1])
+            if (!isNaN(v)) return v
+          }
+        }
+        return 0
+      }
+      jobs = jobs.filter((j) => {
+        const field = typeof j.minCgpa === 'number' ? j.minCgpa : (typeof j.minCgpa === 'string' && !isNaN(parseFloat(j.minCgpa)) ? parseFloat(j.minCgpa) : null)
+        const fromText = parseMinCgFromText(j.description)
+        const required = field !== null ? field : fromText
+        if (required === null || isNaN(required)) return true
+        return required <= (isNaN(Number(cgpaNumber)) ? 0 : Number(cgpaNumber))
+      })
+    }
 
     const total = await Job.countDocuments(query);
 
@@ -127,4 +179,55 @@ const getJob = async (req, res) => {
   }
 };
 
-export { createJob, getJobs, getJob };
+// @desc    Update a job posting
+// @route   PUT /api/jobs/:id
+// @access  Private (Placement Officer/Admin)
+const updateJob = async (req, res) => {
+  try {
+    const { company, title, description, location, jobType, ctc, deadline, minCgpa } = req.body;
+
+    if (!company || !title || !description || !location || !jobType) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Missing required fields' 
+      });
+    }
+
+    const job = await Job.findById(req.params.id);
+
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: 'Job not found'
+      });
+    }
+
+    // Update job fields
+    job.company = company;
+    job.title = title;
+    job.description = description;
+    job.location = location;
+    job.jobType = jobType;
+    job.ctc = ctc;
+    job.deadline = deadline;
+    if (minCgpa !== undefined) job.minCgpa = Number(minCgpa) || 0;
+    job.updatedAt = new Date();
+
+    await job.save();
+
+    res.json({
+      success: true,
+      message: 'Job updated successfully',
+      data: job
+    });
+
+  } catch (error) {
+    logger.error('Update job error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while updating job'
+    });
+  }
+};
+
+export { createJob, getJobs, getJob, updateJob };

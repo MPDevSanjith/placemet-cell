@@ -869,6 +869,39 @@ export function listJobs(params: Record<string, string | number | undefined> = {
   return request<{ success: boolean; data: any }>(`/jobs?${qs.toString()}`)
 }
 
+// Student apply to a job with selected resume
+export async function applyToJob(token: string, jobId: string, resumeId: string) {
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/jobs/${jobId}/apply`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...buildAuthHeaders(token) },
+    body: JSON.stringify({ resumeId }),
+    credentials: 'include',
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error((data && (data.error || data.message)) || 'Apply failed')
+  }
+  return data as { success: boolean; message?: string }
+}
+
+// Student: list my job applications
+export async function listMyApplications(token: string) {
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/jobs/applications/mine`
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { ...buildAuthHeaders(token) },
+    credentials: 'include',
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error((data && (data.error || data.message)) || 'Failed to load applications')
+  }
+  return data as { success: boolean; items: any[] }
+}
+
 // ------------------- EXTERNAL JOBS ------------------- //
 
 export type CreateExternalJobPayload = {
