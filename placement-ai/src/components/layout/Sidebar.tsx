@@ -12,6 +12,7 @@ import {
   Upload,
   MessageSquare,
   Bell,
+  FileText,
  
 } from 'lucide-react'
 import { getAuth } from '../../global/auth'
@@ -118,7 +119,7 @@ const Sidebar = ({
           id: 'companies',
           label: 'Companies',
           icon: Building2,
-          path: '/placement-officer/companies',
+          path: '/placement-officer/new-job-post',
           description: 'Company management'
         },
         {

@@ -22,6 +22,7 @@ import CompanyForm from './pages/CompanyForm'
 import PlacementGate from './pages/placement-officer/PlacementGate'
 import OfficerNotificationsPage from './pages/placement-officer/Notifications'
 import JobPortal from './pages/JobPortal'
+import JobDetails from './pages/JobDetails'
 import AboutUs from './pages/AboutUs'
 import Contact from './pages/Contact'
 import Help from './pages/Help'
@@ -189,6 +190,7 @@ function AppRoutes() {
       
       {/* Public Pages */}
       <Route path="/jobs" element={<JobPortal />} />
+      <Route path="/jobs/:id" element={<JobDetails />} />
       <Route path="/about" element={<AboutUs />} />
       <Route path="/contact" element={<Contact />} />
       <Route path="/help" element={<Help />} />

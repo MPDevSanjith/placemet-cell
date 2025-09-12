@@ -478,7 +478,15 @@ router.put('/requests/:id/approve', protect, authorize('placement_officer', 'adm
       jobType: request.formData?.jobType || 'Full-time',
       ctc: request.formData?.salaryRange || 'Not specified',
       deadline: request.endDate || null,
-      minCgpa: Number(request.minimumCGPA) || 0,
+      minCgpa: Number(request.minimumCGPA ?? request.formData?.minimumCGPA) || 0,
+      skills: (() => {
+        const raw = request.formData?.requirements
+        if (Array.isArray(raw)) return raw.map((s) => String(s).trim()).filter(Boolean)
+        if (typeof raw === 'string' && raw.trim().length) {
+          return raw.split(/[,\n]/).map((s) => s.trim()).filter(Boolean)
+        }
+        return []
+      })(),
       createdBy: req.user.id
     }
 

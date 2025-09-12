@@ -42,6 +42,7 @@ interface NewJobPosting {
   jobType: string;
   ctc: string;
   deadline: string;
+  minCgpa?: string;
 }
 
 
@@ -66,7 +67,8 @@ const NewJobPost: React.FC = () => {
     location: '',
     jobType: 'Full-time',
     ctc: '',
-    deadline: ''
+    deadline: '',
+    minCgpa: ''
   });
 
   // State for external jobs from backend
@@ -129,7 +131,8 @@ const NewJobPost: React.FC = () => {
       location: '',
       jobType: 'Full-time',
       ctc: '',
-      deadline: ''
+      deadline: '',
+      minCgpa: ''
     });
   };
 
@@ -273,7 +276,8 @@ const NewJobPost: React.FC = () => {
         location: newJobPostingForm.location,
         jobType: newJobPostingForm.jobType,
         ctc: newJobPostingForm.ctc,
-        deadline: newJobPostingForm.deadline
+        deadline: newJobPostingForm.deadline,
+        minCgpa: newJobPostingForm.minCgpa ? Number(newJobPostingForm.minCgpa) : 0
       };
 
       let data;
@@ -450,7 +454,8 @@ const NewJobPost: React.FC = () => {
       location: job.location || '',
       jobType: job.jobType || 'Full-time',
       ctc: job.ctc || '',
-      deadline: job.deadline || ''
+      deadline: job.deadline || '',
+      minCgpa: (typeof job.minCgpa === 'number' ? String(job.minCgpa) : (job.minCgpa || ''))
     });
     
     // Open the modal for editing
@@ -472,55 +477,52 @@ const NewJobPost: React.FC = () => {
   
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 overflow-auto border border-gray-200 rounded-lg">
-      {/* Header */}
-      
-
+    <div className="min-h-screen w-full bg-gray-50">
       {/* Main Content */}
-      <div className="w-full min-h-[calc(100vh-4rem)] overflow-y-auto">
-        <div className="w-full max-w-none px-2 sm:px-6 py-6">
+      <div className="w-full min-h-screen overflow-y-auto">
+        <div className="w-full max-w-7xl xl:max-w-8xl 2xl:max-w-9xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6">
           {/* Title + Actions */}
-          <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="min-w-0">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-blue-800 leading-tight">Company Management</h1>
-              <p className="text-sm sm:text-base md:text-lg text-blue-600">Manage job requests, postings, and external job tracking.</p>
+          <div className="mb-8 flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6 xl:gap-8">
+            <div className="min-w-0 flex-1 xl:max-w-2xl">
+              <h1 className="text-3xl lg:text-4xl xl:text-5xl 2xl:text-6xl font-bold text-gray-900 leading-tight">Company Management</h1>
+              <p className="text-base lg:text-lg xl:text-xl 2xl:text-2xl text-gray-600 mt-2">Manage job requests, postings, and external job tracking.</p>
             </div>
-            <div className="flex flex-col sm:flex-row gap-3 flex-shrink-0 sm:flex-wrap w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row xl:flex-col 2xl:flex-row gap-3 flex-shrink-0 w-full xl:w-auto">
               <button 
-                className="flex items-center justify-center px-5 py-3 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white rounded-lg hover:from-pink-600 hover:via-orange-600 hover:to-yellow-600 transition-all duration-200 shadow-lg hover:shadow-xl w-full sm:w-auto"
+                className="flex items-center justify-center px-6 py-3 lg:px-8 lg:py-4 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-all duration-200 shadow-sm w-full sm:w-auto text-sm lg:text-base"
                 onClick={openAddExternalJobModal}
               >
-                <Globe className="h-5 w-5 mr-2" />
+                <Globe className="h-5 w-5 lg:h-6 lg:w-6 mr-2" />
                 Add External Job
               </button>
               <button 
-                className="flex items-center justify-center px-5 py-3 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 text-white rounded-lg hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 transition-all duration-200 shadow-lg hover:shadow-xl w-full sm:w-auto"
+                className="flex items-center justify-center px-6 py-3 lg:px-8 lg:py-4 bg-white border border-gray-300 text-gray-800 rounded-lg hover:bg-gray-50 transition-all duration-200 shadow-sm w-full sm:w-auto text-sm lg:text-base"
                 onClick={openNewJobPostingModal}
               >
-                <Plus className="h-5 w-5 mr-2" />
+                <Plus className="h-5 w-5 lg:h-6 lg:w-6 mr-2" />
                 New Job Posting
               </button>
               <button 
-                className="flex items-center justify-center px-5 py-3 text-white rounded-lg bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500  hover:from-pink-600 hover:via-orange-600 hover:to-yellow-600 transition-all duration-200 shadow-lg hover:shadow-xl w-full sm:w-auto"
+                className="flex items-center justify-center px-6 py-3 lg:px-8 lg:py-4 text-gray-800 rounded-lg bg-white border border-gray-300 hover:bg-gray-50 transition-all duration-200 shadow-sm w-full sm:w-auto text-sm lg:text-base"
                 onClick={openCompanyRequestModal}
               >
-                <Plus className="h-5 w-5 mr-2" />
+                <Plus className="h-5 w-5 lg:h-6 lg:w-6 mr-2" />
                 New Request
               </button>
             </div>
           </div>
 
           {/* Tabs */}
-          <div className="mb-6 bg-white rounded-lg p-2 shadow-lg">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div className="mb-8 bg-white rounded-xl p-3 border border-gray-200 shadow-sm">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => handleTabChange(tab.label)}
-                  className={`px-4 py-3 text-sm font-medium rounded-md transition-all duration-200 w-full ${
+                  className={`px-6 py-4 text-sm lg:text-base font-medium rounded-lg transition-all duration-200 w-full ${
                     activeTab === tab.label
-                      ? 'bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white shadow-lg'
-                      : 'text-blue-600 hover:bg-blue-50 hover:text-blue-700'
+                      ? 'bg-gray-900 text-white shadow-md'
+                      : 'text-gray-700 hover:bg-gray-100 hover:shadow-sm'
                   }`}
                 >
                   {tab.label}
@@ -531,50 +533,51 @@ const NewJobPost: React.FC = () => {
 
           {/* Content Cards */}
           {activeTab === 'Company Requests' && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            <div className="space-y-8">
+              {/* Main Content Row: two columns (half/half) */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
               {/* Active Requests Card */}
-              <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden hover:shadow-2xl transition-all duration-300">
-                <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-6 text-white">
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="bg-gray-50 p-6 lg:p-8 border-b border-gray-200">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <div className="bg-white/20 rounded-lg p-2 mr-3">
-                        <FileText className="h-6 w-6" />
-                </div>
+                      <div className="bg-white rounded-lg p-2 mr-3 border border-gray-200">
+                        <FileText className="h-6 w-6 text-gray-700" />
+                      </div>
                       <div>
-                        <h3 className="text-xl font-bold">Active Requests</h3>
-                        <p className="text-blue-100 text-sm">{companyRequests.length} pending requests</p>
+                        <h3 className="text-xl lg:text-2xl font-bold text-gray-900">Active Requests</h3>
                       </div>
                     </div>
-                    <div className="bg-white/20 rounded-full px-3 py-1">
-                      <span className="text-sm font-medium">{companyRequests.length}</span>
+                    <div className="bg-white rounded-full px-3 py-1 border border-gray-200">
+                      <span className="text-sm font-medium text-gray-800">{companyRequests.length}</span>
                     </div>
                   </div>
                 </div>
                 
-                <div className="p-6 max-h-96 overflow-y-auto">
-                  <div className="space-y-4">
+                <div className="p-6 lg:p-8 h-96 lg:h-[28rem] overflow-y-auto">
+                  <div className="space-y-4 lg:space-y-6">
                   {companyRequests.map((req) => (
                       <div 
                         key={req._id} 
                         onClick={() => handleRequestSelection(req)}
-                        className={`bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 border border-blue-100 hover:shadow-md transition-all duration-200 cursor-pointer ${
-                          selectedRequest?._id === req._id ? 'ring-2 ring-blue-500 bg-blue-100' : ''
+                        className={`bg-white rounded-xl p-4 lg:p-6 border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer ${
+                          selectedRequest?._id === req._id ? 'ring-2 ring-gray-900' : ''
                         }`}
                       >
                         <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center">
-                            <div className="bg-blue-500 rounded-full p-1 mr-3">
-                              <CheckCircle className="h-3 w-3 text-white" />
-                        </div>
+                            <div className="rounded-full p-1 mr-3 border border-gray-300">
+                              <CheckCircle className="h-3 w-3 text-gray-700" />
+                            </div>
                             <div>
-                              <h4 className="font-semibold text-gray-800 text-sm">{req.jobRole}</h4>
-                              <p className="text-gray-600 text-xs">{req.company}</p>
+                              <h4 className="font-semibold text-gray-800 text-sm lg:text-base">{req.jobRole}</h4>
+                              <p className="text-gray-600 text-xs lg:text-sm">{req.company}</p>
                       </div>
                       </div>
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            req.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
-                            req.status === 'Approved' ? 'bg-green-100 text-green-700' :
-                            'bg-red-100 text-red-700'
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full border ${
+                            req.status === 'Pending' ? 'text-gray-700 border-gray-300' :
+                            req.status === 'Approved' ? 'text-gray-700 border-gray-300' :
+                            'text-gray-700 border-gray-300'
                           }`}>
                             {req.status || 'Pending'}
                           </span>
@@ -586,7 +589,7 @@ const NewJobPost: React.FC = () => {
                         </div>
                         
                         {req.formData && (
-                          <div className="bg-white rounded-lg p-3 border border-gray-100">
+                          <div className="bg-white rounded-lg p-3 border border-gray-200">
                             <div className="text-xs text-gray-600 space-y-1">
                               <div className="flex items-center">
                                 <span className="font-medium w-16">Contact:</span>
@@ -594,7 +597,7 @@ const NewJobPost: React.FC = () => {
                               </div>
                               <div className="flex items-center">
                                 <span className="font-medium w-16">Email:</span>
-                                <span className="truncate text-blue-600">{req.formData.email}</span>
+                                <span className="truncate text-gray-800">{req.formData.email}</span>
                               </div>
                               {req.formData.phone && (
                                 <div className="flex items-center">
@@ -620,13 +623,13 @@ const NewJobPost: React.FC = () => {
                               <div className="mt-3 flex gap-2">
                                 <button
                                   onClick={() => handleRequestAction(req._id, 'approve')}
-                                  className="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white text-xs py-2 px-3 rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-200 font-medium"
+                                  className="flex-1 bg-gray-900 text-white text-xs py-2 px-3 rounded-lg hover:bg-gray-800 transition-colors font-medium"
                                 >
                                   ✓ Approve
                                 </button>
                                 <button
                                   onClick={() => handleRequestAction(req._id, 'reject')}
-                                  className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white text-xs py-2 px-3 rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 font-medium"
+                                  className="flex-1 bg-white border border-gray-300 text-gray-800 text-xs py-2 px-3 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                                 >
                                   ✗ Reject
                                 </button>
@@ -648,39 +651,32 @@ const NewJobPost: React.FC = () => {
               </div>
 
               {/* Request Details Card */}
-              <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden hover:shadow-2xl transition-all duration-300">
-                <div className="bg-gradient-to-r from-purple-500 to-pink-600 p-6 text-white">
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="bg-gray-50 p-6 border-b border-gray-200">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <div className="bg-white/20 rounded-lg p-2 mr-3">
-                        <FileText className="h-6 w-6" />
-                </div>
-                      <div>
-                        <h3 className="text-xl font-bold">Request Details</h3>
-                        <p className="text-purple-100 text-sm">Detailed view of selected request</p>
+                      <div className="bg-white rounded-lg p-2 mr-3 border border-gray-200">
+                        <FileText className="h-6 w-6 text-gray-700" />
                       </div>
-                    </div>
-                    <div className="bg-white/20 rounded-full px-3 py-1">
-                      <span className="text-sm font-medium">View</span>
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-900">Request Details</h3>
+                        <p className="text-gray-600 text-sm">Detailed view of selected request</p>
+                      </div>
                     </div>
                   </div>
                 </div>
                 
-                <div className="p-6 max-h-96 overflow-y-auto">
+                <div className="p-6 h-96 lg:h-[28rem] overflow-y-auto">
                   {selectedRequest ? (
                     <div className="space-y-4">
                       {/* Request Header */}
-                      <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-100">
+                      <div className="bg-white rounded-lg p-4 border border-gray-200">
                         <div className="flex items-start justify-between mb-3">
                           <div>
                             <h4 className="text-lg font-bold text-gray-800 mb-1">{selectedRequest.jobRole}</h4>
                             <p className="text-gray-600 text-sm">{selectedRequest.company}</p>
                           </div>
-                          <span className={`px-3 py-1 text-sm font-medium rounded-full ${
-                            selectedRequest.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
-                            selectedRequest.status === 'Approved' ? 'bg-green-100 text-green-700' :
-                            'bg-red-100 text-red-700'
-                          }`}>
+                          <span className={`px-3 py-1 text-sm font-medium rounded-full border text-gray-700`}>
                             {selectedRequest.status || 'Pending'}
                           </span>
                         </div>
@@ -693,7 +689,7 @@ const NewJobPost: React.FC = () => {
                       {/* Job Details */}
                       <div className="bg-white rounded-lg p-4 border border-gray-200">
                         <h5 className="font-semibold text-gray-800 mb-3 flex items-center">
-                          <FileText className="h-4 w-4 mr-2 text-purple-600" />
+                          <FileText className="h-4 w-4 mr-2 text-gray-700" />
                           Job Details
                         </h5>
                         <div className="space-y-2 text-sm">
@@ -720,7 +716,7 @@ const NewJobPost: React.FC = () => {
                       {selectedRequest.formData && (
                         <div className="bg-white rounded-lg p-4 border border-gray-200">
                           <h5 className="font-semibold text-gray-800 mb-3 flex items-center">
-                            <User className="h-4 w-4 mr-2 text-blue-600" />
+                            <User className="h-4 w-4 mr-2 text-gray-700" />
                             Company Contact
                           </h5>
                           <div className="space-y-2 text-sm">
@@ -741,7 +737,7 @@ const NewJobPost: React.FC = () => {
                             {selectedRequest.formData.salaryRange && (
                               <div className="flex justify-between">
                                 <span className="font-medium text-gray-600">Salary Range:</span>
-                                <span className="text-green-600 font-medium">{selectedRequest.formData.salaryRange}</span>
+                                <span className="text-gray-800 font-medium">{selectedRequest.formData.salaryRange}</span>
                               </div>
                             )}
                             {selectedRequest.formData.location && (
@@ -770,7 +766,7 @@ const NewJobPost: React.FC = () => {
                       {selectedRequest.formData?.additionalInfo && (
                         <div className="bg-white rounded-lg p-4 border border-gray-200">
                           <h5 className="font-semibold text-gray-800 mb-3 flex items-center">
-                            <FileText className="h-4 w-4 mr-2 text-green-600" />
+                            <FileText className="h-4 w-4 mr-2 text-gray-700" />
                             Additional Information
                           </h5>
                           <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded border">
@@ -784,13 +780,13 @@ const NewJobPost: React.FC = () => {
                         <div className="flex gap-3 pt-2">
                           <button
                             onClick={() => handleRequestAction(selectedRequest._id, 'approve')}
-                            className="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white py-2 px-4 rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-200 font-medium text-sm"
+                            className="flex-1 bg-gray-900 text-white py-2 px-4 rounded-lg hover:bg-gray-800 transition-colors font-medium text-sm"
                           >
                             ✓ Approve Request
                           </button>
                           <button
                             onClick={() => handleRequestAction(selectedRequest._id, 'reject')}
-                            className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white py-2 px-4 rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 font-medium text-sm"
+                            className="flex-1 bg-white border border-gray-300 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm"
                           >
                             ✗ Reject Request
                           </button>
@@ -811,50 +807,48 @@ const NewJobPost: React.FC = () => {
                 </div>
               </div>
 
-              {/* Generated Links Card */}
-              <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden hover:shadow-2xl transition-all duration-300 lg:col-span-2 xl:col-span-1">
-                <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-6 text-white">
+              {/* Generated Links Card: full width below */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="bg-gray-50 p-6 border-b border-gray-200">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <div className="bg-white/20 rounded-lg p-2 mr-3">
-                        <Link className="h-6 w-6" />
+                      <div className="bg-white rounded-lg p-2 mr-3 border border-gray-200">
+                        <Link className="h-6 w-6 text-gray-700" />
                       </div>
                       <div>
-                        <h3 className="text-xl font-bold">Generated Form Links</h3>
-                        <p className="text-blue-100 text-sm">{generatedLinks.length} active links</p>
+                        <h3 className="text-xl font-bold text-gray-900">Generated Form Links</h3>
+                        <p className="text-gray-600 text-sm">{generatedLinks.length} active links</p>
                       </div>
                     </div>
-                    <div className="bg-white/20 rounded-full px-3 py-1">
-                      <span className="text-sm font-medium">{generatedLinks.length}</span>
+                    <div className="bg-white rounded-full px-3 py-1 border border-gray-200">
+                      <span className="text-sm font-medium text-gray-800">{generatedLinks.length}</span>
                     </div>
                   </div>
                 </div>
                 
-                <div className="p-6 max-h-96 overflow-y-auto">
+                <div className="p-6 h-96 lg:h-[28rem] overflow-y-auto">
                   <div className="space-y-4">
                     {generatedLinks.map((link) => (
-                      <div key={link.linkId} className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 border border-blue-100 hover:shadow-md transition-shadow duration-200">
+                      <div key={link.linkId} className="bg-white rounded-xl p-4 border border-gray-200 hover:bg-gray-50 transition-colors">
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center">
-                            <div className="bg-blue-500 rounded-full p-1 mr-3">
-                              <Link className="h-3 w-3 text-white" />
+                            <div className="rounded-full p-1 mr-3 border border-gray-300">
+                              <Link className="h-3 w-3 text-gray-700" />
                             </div>
                             <div>
                               <h4 className="font-semibold text-gray-800 text-sm">{link.companyName}</h4>
                               <p className="text-gray-600 text-xs">{link.jobRole}</p>
                             </div>
                           </div>
-                          <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
-                            Active
-                          </span>
+                          <span className="px-2 py-1 text-gray-700 text-xs font-medium rounded-full border">Active</span>
                         </div>
                         
-                        <div className="bg-white rounded-lg p-3 border border-gray-100">
+                        <div className="bg-white rounded-lg p-3 border border-gray-200">
                           <div className="flex items-center gap-2 mb-2">
                             <span className="text-xs font-medium text-gray-600">Form Link:</span>
                             <button
                               onClick={() => navigator.clipboard.writeText(link.link)}
-                              className="ml-auto bg-blue-500 text-white text-xs px-2 py-1 rounded hover:bg-blue-600 transition-colors duration-200"
+                              className="ml-auto bg-gray-900 text-white text-xs px-2 py-1 rounded hover:bg-gray-800 transition-colors"
                             >
                               Copy Link
                             </button>
@@ -878,54 +872,55 @@ const NewJobPost: React.FC = () => {
                   </div>
                 </div>
               </div>
+              </div>
             </div>
           )}
 
           {activeTab === 'Job Postings' && (
-            <div className="space-y-6">
+            <div className="space-y-8">
               {/* Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center mb-6">
-                <FileText className="h-8 w-8 text-blue-600 mr-3 mb-2 sm:mb-0" />
+              <div className="flex flex-col lg:flex-row lg:items-center mb-8">
+                <FileText className="h-10 w-10 lg:h-12 lg:w-12 text-gray-700 mr-4 mb-3 lg:mb-0" />
                 <div>
-                  <h2 className="text-2xl sm:text-3xl font-bold text-blue-800">Active Job Postings</h2>
-                  <p className="text-base sm:text-lg text-blue-600">{jobPostings.length} active job postings</p>
+                  <h2 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-gray-900">Active Job Postings</h2>
+                  <p className="text-lg lg:text-xl xl:text-2xl text-gray-600 mt-2">{jobPostings.length} active job postings</p>
                 </div>
               </div>
 
               {/* Job Posting Cards */}
-              <div className="space-y-4">
+              <div className="space-y-6 lg:space-y-8">
                 {jobPostings.map((job) => (
-                  <div key={job._id} className="bg-white rounded-xl shadow-lg border border-blue-100 p-4 sm:p-6">
-                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between">
-                      <div className="flex-1 mb-4 lg:mb-0">
-                        <div className="flex flex-col sm:flex-row sm:items-center mb-3">
-                          <h3 className="text-xl sm:text-2xl font-bold text-blue-800 mb-2 sm:mb-0 sm:mr-3 break-words">{job.title}</h3>
-                          <span className="px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-full w-fit">{job.jobType}</span>
+                  <div key={job._id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 lg:p-8">
+                    <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between">
+                      <div className="flex-1 mb-6 xl:mb-0">
+                        <div className="flex flex-col lg:flex-row lg:items-center mb-4">
+                          <h3 className="text-2xl lg:text-3xl xl:text-4xl font-bold text-gray-900 mb-3 lg:mb-0 lg:mr-4 break-words">{job.title}</h3>
+                          <span className="px-4 py-2 bg-gray-900 text-white text-sm lg:text-base font-medium rounded-full w-fit">{job.jobType}</span>
                         </div>
-                        <p className="text-blue-600 text-base sm:text-lg mb-4 break-words">{job.description}</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-sm">
-                          <div className="flex items-center text-blue-700">
+                        <p className="text-gray-700 text-lg lg:text-xl xl:text-2xl mb-6 break-words">{job.description}</p>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6 text-sm lg:text-base">
+                          <div className="flex items-center text-gray-700">
                             <Users className="h-4 w-4 mr-2 flex-shrink-0" />
                             <span className="break-words">{job.company}</span>
                           </div>
-                          <div className="flex items-center text-blue-700">
+                          <div className="flex items-center text-gray-700">
                             <Globe className="h-4 w-4 mr-2 flex-shrink-0" />
                             <span className="break-words">{job.location}</span>
                           </div>
-                          <div className="flex items-center text-blue-700">
+                          <div className="flex items-center text-gray-700">
                             <FileText className="h-4 w-4 mr-2 flex-shrink-0" />
                             <span className="break-words">Deadline: {job.deadline || 'N/A'}</span>
                           </div>
-                          <div className="flex items-center text-blue-700">
+                          <div className="flex items-center text-gray-700">
                             <span className="font-medium break-words">CTC: ₹{job.ctc || 'Not specified'}</span>
                           </div>
                         </div>
                       </div>
                       
-                      <div className="flex flex-col sm:flex-row lg:flex-col space-y-2 sm:space-y-0 sm:space-x-2 lg:space-x-0 lg:space-y-2 lg:ml-6">
+                      <div className="flex flex-col lg:flex-row xl:flex-col space-y-3 lg:space-y-0 lg:space-x-4 xl:space-x-0 xl:space-y-3 xl:ml-8">
                         <button 
                           onClick={() => handleViewApplications(job)}
-                          className="flex items-center justify-center px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 text-sm"
+                          className="flex items-center justify-center px-4 lg:px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm lg:text-base"
                         >
                           <Users className="h-4 w-4 mr-2" />
                           <span className="hidden sm:inline">View Applications</span>
@@ -933,7 +928,7 @@ const NewJobPost: React.FC = () => {
                         </button>
                         <button 
                           onClick={() => handleEditJob(job)}
-                          className="flex items-center justify-center px-3 sm:px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200 text-sm"
+                          className="flex items-center justify-center px-4 lg:px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200 text-sm lg:text-base"
                         >
                           <FileText className="h-4 w-4 mr-2" />
                           Edit
@@ -954,20 +949,20 @@ const NewJobPost: React.FC = () => {
           )}
 
           {activeTab === 'External Jobs' && (
-            <div className="space-y-6">
+            <div className="space-y-8">
               {/* Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center mb-6">
-                <Globe className="h-8 w-8 text-blue-600 mr-3 mb-2 sm:mb-0" />
-                                 <div>
-                  <h2 className="text-2xl sm:text-3xl font-bold text-blue-800">External Job Opportunities</h2>
-                  <p className="text-base sm:text-lg text-blue-600">
+              <div className="flex flex-col lg:flex-row lg:items-center mb-8">
+                <Globe className="h-10 w-10 lg:h-12 lg:w-12 text-gray-700 mr-4 mb-3 lg:mb-0" />
+                <div>
+                  <h2 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-gray-900">External Job Opportunities</h2>
+                  <p className="text-lg lg:text-xl xl:text-2xl text-gray-600 mt-2">
                      {loading ? 'Loading...' : `${externalJobs.length} external job opportunities being tracked`}
                    </p>
                  </div>
               </div>
 
               {/* External Job Cards */}
-              <div className="space-y-4">
+              <div className="space-y-6 lg:space-y-8">
                 {loading ? (
                   <div className="text-center py-8">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -975,24 +970,24 @@ const NewJobPost: React.FC = () => {
                   </div>
                 ) : externalJobs.length > 0 ? (
                   externalJobs.map((job) => (
-                    <div key={job._id} className="bg-white rounded-xl shadow-lg border border-blue-100 p-4 sm:p-6">
-                      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between">
-                        <div className="flex-1 mb-4 lg:mb-0">
-                          <div className="flex flex-col sm:flex-row sm:items-center mb-3">
-                            <h3 className="text-xl sm:text-2xl font-bold text-blue-800 mb-2 sm:mb-0 sm:mr-3 break-words">{job.jobTitle}</h3>
+                    <div key={job._id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 lg:p-8">
+                      <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between">
+                        <div className="flex-1 mb-6 xl:mb-0">
+                          <div className="flex flex-col lg:flex-row lg:items-center mb-4">
+                            <h3 className="text-2xl lg:text-3xl xl:text-4xl font-bold text-gray-900 mb-3 lg:mb-0 lg:mr-4 break-words">{job.jobTitle}</h3>
                             <div className="flex flex-wrap gap-2">
-                              <span className="px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded-full">{job.jobType}</span>
-                            <span className="px-3 py-1 bg-blue-300 text-white text-sm font-medium rounded-full">External</span>
+                              <span className="px-4 py-2 bg-gray-900 text-white text-sm lg:text-base font-medium rounded-full">{job.jobType}</span>
+                            <span className="px-4 py-2 bg-gray-600 text-white text-sm lg:text-base font-medium rounded-full">External</span>
                           </div>
                           </div>
-                          <p className="text-blue-600 text-base sm:text-lg mb-4 break-words">{job.description}</p>
+                          <p className="text-gray-700 text-lg lg:text-xl xl:text-2xl mb-6 break-words">{job.description}</p>
                           
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-6 space-y-2 sm:space-y-0 text-sm">
-                            <div className="flex items-center text-blue-700">
+                          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6 text-sm lg:text-base">
+                            <div className="flex items-center text-gray-700">
                               <Users className="h-4 w-4 mr-2 flex-shrink-0" />
                               <span className="font-medium break-words">{job.companyName}</span>
                             </div>
-                            <div className="flex items-center text-blue-700">
+                            <div className="flex items-center text-gray-700">
                               <Globe className="h-4 w-4 mr-2 flex-shrink-0" />
                               <span className="break-words">{job.location}</span>
                             </div>
@@ -1063,30 +1058,30 @@ const NewJobPost: React.FC = () => {
 
               {/* Analytics Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Total Requests Card */}
-                <div className="bg-white rounded-xl shadow-lg border border-blue-100 p-6">
+                {/* Active Requests Card */}
+                <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
                   <div className="text-center">
-                    <h3 className="text-lg font-semibold text-blue-800 mb-2">Total Requests</h3>
-                    <div className="text-4xl font-bold text-blue-600 mb-2">1</div>
-                    <p className="text-blue-600 text-sm">Company job requests</p>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2">Active Requests</h3>
+                    <div className="text-4xl font-bold text-gray-900 mb-2">{companyRequests.length}</div>
+                    <p className="text-gray-600 text-sm">Company job requests</p>
                   </div>
                 </div>
 
-                {/* Active Jobs Card */}
-                <div className="bg-white rounded-xl shadow-lg border border-blue-100 p-6">
+                {/* Job Postings Card */}
+                <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
                   <div className="text-center">
-                    <h3 className="text-lg font-semibold text-blue-800 mb-2">Active Jobs</h3>
-                    <div className="text-4xl font-bold text-blue-600 mb-2">2</div>
-                    <p className="text-blue-600 text-sm">Posted job opportunities</p>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2">Job Postings</h3>
+                    <div className="text-4xl font-bold text-gray-900 mb-2">{jobPostings.length}</div>
+                    <p className="text-gray-600 text-sm">Posted job opportunities</p>
                   </div>
                 </div>
 
                 {/* External Jobs Card */}
-                <div className="bg-white rounded-xl shadow-lg border border-blue-100 p-6">
+                <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
                   <div className="text-center">
-                    <h3 className="text-lg font-semibold text-blue-800 mb-2">External Jobs</h3>
-                    <div className="text-4xl font-bold text-blue-600 mb-2">2</div>
-                    <p className="text-blue-600 text-sm">Tracked external opportunities</p>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2">External Jobs</h3>
+                    <div className="text-4xl font-bold text-gray-900 mb-2">{externalJobs.length}</div>
+                    <p className="text-gray-600 text-sm">Tracked external opportunities</p>
                   </div>
                 </div>
               </div>
@@ -1098,110 +1093,69 @@ const NewJobPost: React.FC = () => {
             {/* Add External Job Modal */}
       {isAddExternalJobModalOpen && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 px-4">
-            <div className="bg-white rounded-xl shadow-lg w-full max-w-2xl p-6">
-              {/* Header */}
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl p-6 lg:p-8">
             <div className="flex justify-between items-start mb-4">
-              <h2 className="text-lg font-semibold">Add External Job</h2>
-              <button
-                onClick={closeAddExternalJobModal}
-                className="text-gray-500 hover:text-gray-800 text-xl"
-              >
-                ×
-              </button>
+              <h2 className="text-2xl lg:text-3xl font-semibold text-gray-900">Add External Job</h2>
+              <button onClick={closeAddExternalJobModal} className="text-gray-500 hover:text-gray-800 text-2xl">×</button>
             </div>
-            <p className="text-gray-500 text-sm mb-6">
-              Track external job opportunities for students
-            </p>
-            {/* Form */}
-            <div className="space-y-4">
-  {/* Company Name & Job Title */}
-  <div className="flex flex-col md:flex-row gap-3">
-    <div className="flex-1">
-      <label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
-      <input
-        type="text"
-        placeholder="e.g., Google, Microsoft"
-        value={externalJobForm.companyName}
-        onChange={(e) => handleExternalJobFormChange('companyName', e.target.value)}
-        className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
-      />
-    </div>
-    <div className="flex-1">
-      <label className="block text-sm font-medium text-gray-700 mb-1">Job Title</label>
-      <input
-        type="text"
-        placeholder="e.g., Software Engineer"
-        value={externalJobForm.jobTitle}
-        onChange={(e) => handleExternalJobFormChange('jobTitle', e.target.value)}
-        className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
-      />
-    </div>
-  </div>
+            <p className="text-gray-600 text-base lg:text-lg mb-6">Track external opportunities for students. Provide the basic info and the external link.</p>
 
-  {/* Description */}
-  <div>
-    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-    <textarea
-      placeholder="Job description and requirements..."
-      value={externalJobForm.description}
-      onChange={(e) => handleExternalJobFormChange('description', e.target.value)}
-      rows={4}
-      className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
-    />
-  </div>
+            <div className="space-y-6">
+              <details open className="rounded-xl border border-gray-200">
+                <summary className="cursor-pointer select-none px-4 py-3 text-base lg:text-lg font-medium text-gray-800">Company & Role</summary>
+                <div className="p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+                  <div>
+                    <label className="block text-sm lg:text-base text-gray-700 mb-2">Company Name</label>
+                    <input type="text" placeholder="e.g., Google" value={externalJobForm.companyName} onChange={(e)=>handleExternalJobFormChange('companyName', e.target.value)} className="w-full border rounded-lg px-4 py-3 text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                  </div>
+                  <div>
+                    <label className="block text-sm lg:text-base text-gray-700 mb-2">Job Title</label>
+                    <input type="text" placeholder="e.g., Software Engineer" value={externalJobForm.jobTitle} onChange={(e)=>handleExternalJobFormChange('jobTitle', e.target.value)} className="w-full border rounded-lg px-4 py-3 text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="block text-sm lg:text-base text-gray-700 mb-2">Description</label>
+                    <textarea rows={4} placeholder="Short description and requirements" value={externalJobForm.description} onChange={(e)=>handleExternalJobFormChange('description', e.target.value)} className="w-full border rounded-lg px-4 py-3 text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                  </div>
+                </div>
+              </details>
 
-  {/* Location & Job Type */}
-  <div className="flex flex-col md:flex-row gap-3">
-    <div className="flex-1">
-      <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-      <input
-        type="text"
-        placeholder="e.g., Remote, Bangalore"
-        value={externalJobForm.location}
-        onChange={(e) => handleExternalJobFormChange('location', e.target.value)}
-        className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
-      />
-    </div>
-    <div className="flex-1">
-      <label className="block text-sm font-medium text-gray-700 mb-1">Job Type</label>
-      <select
-        value={externalJobForm.jobType}
-        onChange={(e) => handleExternalJobFormChange('jobType', e.target.value)}
-        className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
-      >
-        <option value="Full-time">Full-time</option>
-        <option value="Part-time">Part-time</option>
-        <option value="Internship">Internship</option>
-        <option value="Contract">Contract</option>
-      </select>
-    </div>
-  </div>
+              <details open className="rounded-xl border border-gray-200">
+                <summary className="cursor-pointer select-none px-4 py-3 text-base lg:text-lg font-medium text-gray-800">Location & Type</summary>
+                <div className="p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+                  <div>
+                    <label className="block text-sm lg:text-base text-gray-700 mb-2">Location</label>
+                    <input type="text" placeholder="e.g., Remote" value={externalJobForm.location} onChange={(e)=>handleExternalJobFormChange('location', e.target.value)} className="w-full border rounded-lg px-4 py-3 text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                  </div>
+                  <div>
+                    <label className="block text-sm lg:text-base text-gray-700 mb-2">Job Type</label>
+                    <select value={externalJobForm.jobType} onChange={(e)=>handleExternalJobFormChange('jobType', e.target.value)} className="w-full border rounded-lg px-4 py-3 text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-gray-300">
+                      <option value="Full-time">Full-time</option>
+                      <option value="Part-time">Part-time</option>
+                      <option value="Internship">Internship</option>
+                      <option value="Contract">Contract</option>
+                    </select>
+                  </div>
+                </div>
+              </details>
 
-  {/* External URL */}
-  <div>
-    <label className="block text-sm font-medium text-gray-700 mb-1">External URL</label>
-    <input
-      type="url"
-      placeholder="https://company.com/careers/job"
-      value={externalJobForm.externalUrl}
-      onChange={(e) => handleExternalJobFormChange('externalUrl', e.target.value)}
-      className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
-    />
-  </div>
-</div>
+              <details open className="rounded-xl border border-gray-200">
+                <summary className="cursor-pointer select-none px-4 py-3 text-base lg:text-lg font-medium text-gray-800">Submission</summary>
+                <div className="p-4 lg:p-6 grid grid-cols-1 gap-4 lg:gap-6">
+                  <div>
+                    <label className="block text-sm lg:text-base text-gray-700 mb-2">External URL</label>
+                    <input type="url" placeholder="https://company.tld/careers/job" value={externalJobForm.externalUrl} onChange={(e)=>handleExternalJobFormChange('externalUrl', e.target.value)} className="w-full border rounded-lg px-4 py-3 text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                  </div>
+                </div>
+              </details>
+            </div>
 
-            {/* Footer */}
-                         <div className="mt-6 flex justify-end">
-               <button
-                 onClick={handleAddExternalJob}
-                 className="bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700"
-               >
-                 Add External Job
-               </button>
-             </div>
+            <div className="mt-6 lg:mt-8 flex justify-end gap-4">
+              <button onClick={closeAddExternalJobModal} className="px-6 py-3 rounded-lg border hover:bg-gray-50 text-sm lg:text-base">Cancel</button>
+              <button onClick={handleAddExternalJob} className="px-8 py-3 rounded-lg bg-gray-900 text-white hover:bg-gray-800 text-sm lg:text-base">Add External Job</button>
+            </div>
           </div>
-                 </div>
-       )}
+        </div>
+      )}
 
        {/* New Job Posting Modal */}
        {isNewJobPostingModalOpen && (
@@ -1302,6 +1256,20 @@ const NewJobPost: React.FC = () => {
                             <option value="Freelance">Freelance</option>
       </select>
                         </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Minimum CGPA (optional)</label>
+      <input
+        type="number"
+        step="0.1"
+        min="0"
+        max="10"
+        placeholder="e.g., 7.0"
+        value={newJobPostingForm.minCgpa || ''}
+        onChange={(e) => handleNewJobPostingFormChange('minCgpa' as any, e.target.value)}
+        className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      />
+                          <p className="text-xs text-gray-500 mt-1">Leave blank if no CGPA requirement.</p>
+                        </div>
                       </div>
     </div>
   </div>
@@ -1367,7 +1335,7 @@ const NewJobPost: React.FC = () => {
 
         {/* View Applications Modal */}
         {isViewApplicationsModalOpen && (
-         <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 px-4">
+         <div className="fixed inset-0 flex items-start justify-center bg-black/30 backdrop-blur-sm z-50 px-4 pt-8">
             <div className="bg-white rounded-xl shadow-lg w-full max-w-6xl max-h-[90vh] overflow-hidden">
              {/* Header */}
               <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-6 text-white">

@@ -869,6 +869,10 @@ export function listJobs(params: Record<string, string | number | undefined> = {
   return request<{ success: boolean; data: any }>(`/jobs?${qs.toString()}`)
 }
 
+export function getJob(id: string) {
+  return request<{ success: boolean; data: any }>(`/jobs/${id}`)
+}
+
 // Student apply to a job with selected resume
 export async function applyToJob(token: string, jobId: string, resumeId: string) {
   const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
