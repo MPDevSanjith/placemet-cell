@@ -4,18 +4,12 @@ import { getAuth } from '../global/auth';
 
 interface CompanyRequestForm {
   company: string;
-  jobRole: string;
-  description: string;
-  studentsRequired: string;
-  minimumCGPA: string;
-  startDate: string;
-  endDate: string;
 }
 
 interface CompanyRequestModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLinkGenerated: (linkData: { linkId: string; companyName: string; jobRole: string; link: string }) => void;
+  onLinkGenerated: (linkData: { linkId: string; companyName: string; link: string }) => void;
 }
 
 const CompanyRequestModal: React.FC<CompanyRequestModalProps> = ({
@@ -24,13 +18,7 @@ const CompanyRequestModal: React.FC<CompanyRequestModalProps> = ({
   onLinkGenerated
 }) => {
   const [formData, setFormData] = useState<CompanyRequestForm>({
-    company: '',
-    jobRole: '',
-    description: '',
-    studentsRequired: '1',
-    minimumCGPA: '0',
-    startDate: '',
-    endDate: ''
+    company: ''
   });
 
   const [generatedLink, setGeneratedLink] = useState<string>('');
@@ -46,8 +34,8 @@ const CompanyRequestModal: React.FC<CompanyRequestModalProps> = ({
   };
 
   const generateLink = async () => {
-    if (!formData.company || !formData.jobRole) {
-      alert('Please fill in company name and job role to generate link');
+    if (!formData.company) {
+      alert('Please enter company name to generate link');
       return;
     }
 
@@ -71,13 +59,7 @@ const CompanyRequestModal: React.FC<CompanyRequestModalProps> = ({
           'Authorization': `Bearer ${auth.token}`
         },
         body: JSON.stringify({
-          companyName: formData.company,
-          jobRole: formData.jobRole,
-          description: formData.description,
-          studentsRequired: Number(formData.studentsRequired),
-          minimumCGPA: Number(formData.minimumCGPA),
-          startDate: formData.startDate,
-          endDate: formData.endDate
+          companyName: formData.company
         }),
       });
 
@@ -121,15 +103,7 @@ const CompanyRequestModal: React.FC<CompanyRequestModalProps> = ({
 
   const handleClose = () => {
     // Reset form when closing
-    setFormData({
-      company: '',
-      jobRole: '',
-      description: '',
-      studentsRequired: '1',
-      minimumCGPA: '0',
-      startDate: '',
-      endDate: ''
-    });
+    setFormData({ company: '' });
     setGeneratedLink('');
     setIsLinkGenerated(false);
     setCopied(false);
@@ -137,15 +111,7 @@ const CompanyRequestModal: React.FC<CompanyRequestModalProps> = ({
   };
 
   const resetForm = () => {
-    setFormData({
-      company: '',
-      jobRole: '',
-      description: '',
-      studentsRequired: '1',
-      minimumCGPA: '0',
-      startDate: '',
-      endDate: ''
-    });
+    setFormData({ company: '' });
     setGeneratedLink('');
     setIsLinkGenerated(false);
     setCopied(false);
@@ -173,101 +139,17 @@ const CompanyRequestModal: React.FC<CompanyRequestModalProps> = ({
 
         {/* Form */}
         <div className="space-y-4">
-          {/* Company & Job Role */}
-          <div className="flex flex-col md:flex-row gap-3">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Company Name *
-              </label>
-              <input
-                type="text"
-                placeholder="Enter company name"
-                value={formData.company}
-                onChange={(e) => handleInputChange('company', e.target.value)}
-                className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Job Role *
-              </label>
-              <input
-                type="text"
-                placeholder="e.g., Software Engineer"
-                value={formData.jobRole}
-                onChange={(e) => handleInputChange('jobRole', e.target.value)}
-                className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
-              />
-            </div>
-          </div>
-
-          {/* Description */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Job Description
+              Company Name *
             </label>
-            <textarea
-              placeholder="Job description and requirements..."
-              value={formData.description}
-              onChange={(e) => handleInputChange('description', e.target.value)}
-              rows={4}
+            <input
+              type="text"
+              placeholder="Enter company name"
+              value={formData.company}
+              onChange={(e) => handleInputChange('company', e.target.value)}
               className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
             />
-          </div>
-
-          {/* Students Required & Minimum CGPA */}
-          <div className="flex flex-col md:flex-row gap-3">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Students Required
-              </label>
-              <input
-                type="number"
-                placeholder="1"
-                value={formData.studentsRequired}
-                onChange={(e) => handleInputChange('studentsRequired', e.target.value)}
-                className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Minimum CGPA
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="e.g., 7.5"
-                value={formData.minimumCGPA}
-                onChange={(e) => handleInputChange('minimumCGPA', e.target.value)}
-                className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
-              />
-            </div>
-          </div>
-
-          {/* Start Date & End Date */}
-          <div className="flex flex-col md:flex-row gap-3">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Start Date
-              </label>
-              <input
-                type="date"
-                value={formData.startDate}
-                onChange={(e) => handleInputChange('startDate', e.target.value)}
-                className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                End Date
-              </label>
-              <input
-                type="date"
-                value={formData.endDate}
-                onChange={(e) => handleInputChange('endDate', e.target.value)}
-                className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-300"
-              />
-            </div>
           </div>
         </div>
 
@@ -314,7 +196,7 @@ const CompanyRequestModal: React.FC<CompanyRequestModalProps> = ({
               </button>
             </div>
             <p className="text-xs text-green-500 mt-2">
-              Label: <strong>{formData.company}</strong> - {formData.jobRole}
+              Label: <strong>{formData.company}</strong>
             </p>
           </div>
         )}

@@ -19,11 +19,14 @@ type InternalJob = {
   location?: string
   jobType?: string
   ctc?: string
+  minCtc?: string
   deadline?: string
   skills?: string[]
   company?: { name?: string; companyDetails?: { companyName?: string } } | string
   description?: string
   minCgpa?: number | string
+  jdUrl?: string
+  studentsRequired?: number
 }
 
 export default function StudentDashboard() {
@@ -396,6 +399,7 @@ export default function StudentDashboard() {
               <div><span className="font-medium text-gray-700">Location: </span>{viewJob?.location || '—'}</div>
               <div><span className="font-medium text-gray-700">Type: </span>{viewJob?.jobType || '—'}</div>
               <div><span className="font-medium text-gray-700">Deadline: </span>{viewJob?.deadline ? new Date(String(viewJob.deadline)).toISOString().slice(0,10) : '—'}</div>
+              <div><span className="font-medium text-gray-700">Minimum CTC: </span>{(viewJob as any)?.minCtc || '—'}</div>
               <div>
                 <span className="font-medium text-gray-700">CGPA Required: </span>
                 {(() => {
@@ -403,6 +407,7 @@ export default function StudentDashboard() {
                   return (minCg || 0) > 0 ? String(minCg) : 'Not required'
                 })()}
               </div>
+              <div><span className="font-medium text-gray-700">Vacancies: </span>{(viewJob as any)?.studentsRequired || '—'}</div>
               <div><span className="font-medium text-gray-700">CTC: </span>{(viewJob?.ctc || '—') as any}</div>
             </div>
             <div>
@@ -421,6 +426,23 @@ export default function StudentDashboard() {
               <div className="font-medium text-gray-800 mb-1">Description</div>
               <p className="text-gray-700 whitespace-pre-wrap leading-6">{viewJob?.description || 'No description provided.'}</p>
             </div>
+            {(() => {
+              const raw = (viewJob as any)?.jdUrl ? String((viewJob as any).jdUrl) : ''
+              if (!raw) return null
+              const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+              const provisional = raw.startsWith('/api/resume/view/')
+                ? raw
+                : (/^https?:\/\//i.test(raw) ? raw : `/api/resume/view/${raw}`)
+              const jdSrc = provisional.startsWith('/api/') ? `${apiBase}${provisional}` : provisional
+              return (
+                <div className="mt-4">
+                  <div className="font-medium text-gray-800 mb-2">Job Description (JD)</div>
+                  <div className="w-full h-[60vh] border rounded-md overflow-hidden bg-gray-50">
+                    <iframe title="JD PDF" src={jdSrc} className="w-full h-full" />
+                  </div>
+                </div>
+              )
+            })()}
           </div>
           <DialogFooter>
             <Button onClick={() => setViewJob(null)} className="border border-input bg-background hover:bg-accent hover:text-accent-foreground">Close</Button>

@@ -11,18 +11,7 @@ const companyRequestSchema = new mongoose.Schema({
   status: { type: String, enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending' },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   formLinkId: { type: String }, // Reference to the form link
-  formData: {
-    contactPerson: { type: String },
-    email: { type: String },
-    phone: { type: String },
-    requirements: { type: String },
-    location: { type: String },
-    jobType: { type: String },
-    salaryRange: { type: String },
-    additionalInfo: { type: String },
-    linkId: { type: String },
-    submittedAt: { type: String }
-  }
+  formData: { type: mongoose.Schema.Types.Mixed }
 }, { timestamps: true })
 
 export default mongoose.model('CompanyRequest', companyRequestSchema)

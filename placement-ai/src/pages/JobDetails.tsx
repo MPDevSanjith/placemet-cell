@@ -46,33 +46,21 @@ export default function JobDetails() {
   const narrative = useMemo(() => {
     if (!job) return [] as string[]
     const lines: string[] = []
-    const companyName = typeof job.company === 'string' ? job.company : (job.company?.companyDetails?.companyName || job.company?.name || 'the company')
-    const role = job.title || 'the role'
-    const loc = job.location || 'the specified location'
-    const jt = job.jobType || 'a suitable employment type'
+    const companyName = typeof job.company === 'string' ? job.company : (job.company?.companyDetails?.companyName || job.company?.name || '')
+    const role = job.title || ''
+    const loc = (job.location || '').toString().trim()
+    const jt = (job.jobType || '').toString().trim()
     const rawCtc = job.ctc ? String(job.ctc).replace(/\$/g, '₹') : ''
-    const ctc = rawCtc
-      ? (/lpa/i.test(rawCtc) ? rawCtc : `${rawCtc} LPA`)
-      : 'a competitive compensation'
-    const deadline = job.deadline ? new Date(String(job.deadline)).toLocaleDateString() : 'the posted deadline'
+    const ctc = rawCtc ? (/lpa/i.test(rawCtc) ? rawCtc : `${rawCtc}`) : ''
     const skills: string[] = Array.isArray(job.skills) ? job.skills : []
     const minCg = resolveMinCgpa(job)
 
-    lines.push(`${companyName} is hiring for ${role}.`)
-    lines.push(`This opportunity is based in ${loc} and is offered as ${jt}.`)
-    lines.push(`The compensation for this role is ${ctc}.`)
-    if (minCg > 0) {
-      lines.push(`Applicants should have an academic CGPA of at least ${minCg}.`)
-    } else {
-      lines.push('There is no minimum academic CGPA requirement for this role.')
-    }
-    if (skills.length > 0) {
-      lines.push(`The role prefers candidates with skills such as ${skills.join(', ')}.`)
-    } else {
-      lines.push('Specific skills were not listed; strong fundamentals and relevant experience are valued.')
-    }
-    lines.push(`Applications are accepted until ${deadline}.`)
-    return lines
+    if (companyName || role) lines.push(`${companyName || 'A company'} is hiring${role ? ` for ${role}` : ''}.`.trim())
+    if (loc || jt) lines.push(`${loc ? `Location: ${loc}.` : ''} ${jt ? `Type: ${jt}.` : ''}`.trim())
+    if (ctc) lines.push(`Compensation: ${ctc}.`)
+    if (minCg > 0) lines.push(`Minimum CGPA: ${minCg}.`)
+    if (skills.length > 0) lines.push(`Skills: ${skills.join(', ')}.`)
+    return lines.filter(Boolean)
   }, [job])
 
   return (
@@ -100,6 +88,24 @@ export default function JobDetails() {
               <h2 className="text-lg font-semibold mb-2">Full Description</h2>
               <p className="text-gray-700 whitespace-pre-wrap">{job.description || 'No additional description provided.'}</p>
             </div>
+
+            {(() => {
+              const raw = (job?.jdUrl || '').toString()
+              if (!raw) return null
+              const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+              const provisional = raw.startsWith('/api/resume/view/')
+                ? raw
+                : (/^https?:\/\//i.test(raw) ? raw : `/api/resume/view/${raw}`)
+              const jdSrc = provisional.startsWith('/api/') ? `${apiBase}${provisional}` : provisional
+              return (
+              <div className="mt-6">
+                <h2 className="text-lg font-semibold mb-2">Job Description (JD)</h2>
+                <div className="w-full h-[70vh] border rounded-md overflow-hidden">
+                  <iframe title="JD PDF" src={jdSrc} className="w-full h-full" />
+                </div>
+              </div>
+              )
+            })()}
           </div>
         )}
       </div>

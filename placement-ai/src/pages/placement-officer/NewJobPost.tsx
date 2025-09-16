@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { createExternalJob as apiCreateExternalJob, listExternalJobs, listCompanyRequests, createJob as apiCreateJob, listJobs as apiListJobs } from '../../global/api';
 import { getAuth } from '../../global/auth';
 import CompanyRequestModal from '../../components/CompanyRequestModal';
@@ -47,6 +48,7 @@ interface NewJobPosting {
 
 
 const NewJobPost: React.FC = () => {
+  const navigate = useNavigate();
   // const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<string>('Company Requests');
   const [isAddExternalJobModalOpen, setIsAddExternalJobModalOpen] = useState<boolean>(false);
@@ -156,7 +158,7 @@ const NewJobPost: React.FC = () => {
     setSelectedRequest(request);
   };
 
-  const handleLinkGenerated = (linkData: { linkId: string; companyName: string; jobRole: string; link: string }) => {
+  const handleLinkGenerated = (linkData: { linkId: string; companyName: string; link: string }) => {
     setGeneratedLinks(prev => [linkData, ...prev]);
     fetchGeneratedLinks(); // Refresh the list
   };
@@ -534,9 +536,7 @@ const NewJobPost: React.FC = () => {
           {/* Content Cards */}
           {activeTab === 'Company Requests' && (
             <div className="space-y-8">
-              {/* Main Content Row: two columns (half/half) */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
-              {/* Active Requests Card */}
+              {/* Active Requests Card - full width */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="bg-gray-50 p-6 lg:p-8 border-b border-gray-200">
                   <div className="flex items-center justify-between">
@@ -559,10 +559,7 @@ const NewJobPost: React.FC = () => {
                   {companyRequests.map((req) => (
                       <div 
                         key={req._id} 
-                        onClick={() => handleRequestSelection(req)}
-                        className={`bg-white rounded-xl p-4 lg:p-6 border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer ${
-                          selectedRequest?._id === req._id ? 'ring-2 ring-gray-900' : ''
-                        }`}
+                        className={`bg-white rounded-xl p-4 lg:p-6 border border-gray-200`}
                       >
                         <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center">
@@ -592,12 +589,12 @@ const NewJobPost: React.FC = () => {
                           <div className="bg-white rounded-lg p-3 border border-gray-200">
                             <div className="text-xs text-gray-600 space-y-1">
                               <div className="flex items-center">
-                                <span className="font-medium w-16">Contact:</span>
-                                <span className="truncate">{req.formData.contactPerson}</span>
+                                <span className="font-medium w-16">HR Name:</span>
+                                <span className="truncate">{req.formData.hrName || req.formData.contactPerson}</span>
                               </div>
                               <div className="flex items-center">
-                                <span className="font-medium w-16">Email:</span>
-                                <span className="truncate text-gray-800">{req.formData.email}</span>
+                                <span className="font-medium w-16">HR Email:</span>
+                                <span className="truncate text-gray-800">{req.formData.hrEmail || req.formData.email}</span>
                               </div>
                               {req.formData.phone && (
                                 <div className="flex items-center">
@@ -618,23 +615,30 @@ const NewJobPost: React.FC = () => {
                                 </div>
                               )}
                             </div>
-                            
-                            {req.status === 'Pending' && (
-                              <div className="mt-3 flex gap-2">
-                                <button
-                                  onClick={() => handleRequestAction(req._id, 'approve')}
-                                  className="flex-1 bg-gray-900 text-white text-xs py-2 px-3 rounded-lg hover:bg-gray-800 transition-colors font-medium"
-                                >
-                                  ✓ Approve
-                                </button>
-                                <button
-                                  onClick={() => handleRequestAction(req._id, 'reject')}
-                                  className="flex-1 bg-white border border-gray-300 text-gray-800 text-xs py-2 px-3 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-                                >
-                                  ✗ Reject
-                                </button>
-                              </div>
-                            )}
+                            <div className="mt-3 flex gap-2">
+                              <button
+                                onClick={() => navigate(`/placement-officer/requests/${req._id}`)}
+                                className="flex-1 bg-white border border-gray-300 text-gray-800 text-xs py-2 px-3 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                              >
+                                View Details
+                              </button>
+                              {req.status === 'Pending' && (
+                                <>
+                                  <button
+                                    onClick={() => handleRequestAction(req._id, 'approve')}
+                                    className="flex-1 bg-gray-900 text-white text-xs py-2 px-3 rounded-lg hover:bg-gray-800 transition-colors font-medium"
+                                  >
+                                    ✓ Approve
+                                  </button>
+                                  <button
+                                    onClick={() => handleRequestAction(req._id, 'reject')}
+                                    className="flex-1 bg-white border border-gray-300 text-gray-800 text-xs py-2 px-3 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                                  >
+                                    ✗ Reject
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
                         )}
                     </div>
@@ -647,163 +651,6 @@ const NewJobPost: React.FC = () => {
                       </div>
                     )}
                   </div>
-                </div>
-              </div>
-
-              {/* Request Details Card */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="bg-gray-50 p-6 border-b border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="bg-white rounded-lg p-2 mr-3 border border-gray-200">
-                        <FileText className="h-6 w-6 text-gray-700" />
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-bold text-gray-900">Request Details</h3>
-                        <p className="text-gray-600 text-sm">Detailed view of selected request</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="p-6 h-96 lg:h-[28rem] overflow-y-auto">
-                  {selectedRequest ? (
-                    <div className="space-y-4">
-                      {/* Request Header */}
-                      <div className="bg-white rounded-lg p-4 border border-gray-200">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <h4 className="text-lg font-bold text-gray-800 mb-1">{selectedRequest.jobRole}</h4>
-                            <p className="text-gray-600 text-sm">{selectedRequest.company}</p>
-                          </div>
-                          <span className={`px-3 py-1 text-sm font-medium rounded-full border text-gray-700`}>
-                            {selectedRequest.status || 'Pending'}
-                          </span>
-                        </div>
-                        <div className="flex items-center text-gray-600 text-sm">
-                          <Users className="h-4 w-4 mr-2" />
-                          <span>{selectedRequest.studentsRequired || 0} students required</span>
-                        </div>
-                      </div>
-
-                      {/* Job Details */}
-                      <div className="bg-white rounded-lg p-4 border border-gray-200">
-                        <h5 className="font-semibold text-gray-800 mb-3 flex items-center">
-                          <FileText className="h-4 w-4 mr-2 text-gray-700" />
-                          Job Details
-                        </h5>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="font-medium text-gray-600">Description:</span>
-                            <span className="text-gray-800 text-right max-w-xs">{selectedRequest.description || 'N/A'}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="font-medium text-gray-600">Minimum CGPA:</span>
-                            <span className="text-gray-800">{selectedRequest.minimumCGPA || 'N/A'}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="font-medium text-gray-600">Start Date:</span>
-                            <span className="text-gray-800">{selectedRequest.startDate ? new Date(selectedRequest.startDate).toLocaleDateString() : 'N/A'}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="font-medium text-gray-600">End Date:</span>
-                            <span className="text-gray-800">{selectedRequest.endDate ? new Date(selectedRequest.endDate).toLocaleDateString() : 'N/A'}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Company Contact Information */}
-                      {selectedRequest.formData && (
-                        <div className="bg-white rounded-lg p-4 border border-gray-200">
-                          <h5 className="font-semibold text-gray-800 mb-3 flex items-center">
-                            <User className="h-4 w-4 mr-2 text-gray-700" />
-                            Company Contact
-                          </h5>
-                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                              <span className="font-medium text-gray-600">Contact Person:</span>
-                              <span className="text-gray-800">{selectedRequest.formData.contactPerson || 'N/A'}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="font-medium text-gray-600">Email:</span>
-                              <span className="text-blue-600">{selectedRequest.formData.email || 'N/A'}</span>
-                            </div>
-                            {selectedRequest.formData.phone && (
-                              <div className="flex justify-between">
-                                <span className="font-medium text-gray-600">Phone:</span>
-                                <span className="text-gray-800">{selectedRequest.formData.phone}</span>
-                              </div>
-                            )}
-                            {selectedRequest.formData.salaryRange && (
-                              <div className="flex justify-between">
-                                <span className="font-medium text-gray-600">Salary Range:</span>
-                                <span className="text-gray-800 font-medium">{selectedRequest.formData.salaryRange}</span>
-                              </div>
-                            )}
-                            {selectedRequest.formData.location && (
-                              <div className="flex justify-between">
-                                <span className="font-medium text-gray-600">Location:</span>
-                                <span className="text-gray-800">{selectedRequest.formData.location}</span>
-                              </div>
-                            )}
-                            {selectedRequest.formData.jobType && (
-                              <div className="flex justify-between">
-                                <span className="font-medium text-gray-600">Job Type:</span>
-                                <span className="text-gray-800">{selectedRequest.formData.jobType}</span>
-                              </div>
-                            )}
-                            {selectedRequest.formData.submittedAt && (
-                              <div className="flex justify-between">
-                                <span className="font-medium text-gray-600">Submitted:</span>
-                                <span className="text-gray-800">{new Date(selectedRequest.formData.submittedAt).toLocaleDateString()}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Additional Information */}
-                      {selectedRequest.formData?.additionalInfo && (
-                        <div className="bg-white rounded-lg p-4 border border-gray-200">
-                          <h5 className="font-semibold text-gray-800 mb-3 flex items-center">
-                            <FileText className="h-4 w-4 mr-2 text-gray-700" />
-                            Additional Information
-                          </h5>
-                          <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded border">
-                            {selectedRequest.formData.additionalInfo}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Action Buttons */}
-                      {selectedRequest.status === 'Pending' && (
-                        <div className="flex gap-3 pt-2">
-                          <button
-                            onClick={() => handleRequestAction(selectedRequest._id, 'approve')}
-                            className="flex-1 bg-gray-900 text-white py-2 px-4 rounded-lg hover:bg-gray-800 transition-colors font-medium text-sm"
-                          >
-                            ✓ Approve Request
-                          </button>
-                          <button
-                            onClick={() => handleRequestAction(selectedRequest._id, 'reject')}
-                            className="flex-1 bg-white border border-gray-300 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm"
-                          >
-                            ✗ Reject Request
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                <div className="flex flex-col items-center justify-center py-12">
-                      <div className="bg-gradient-to-r from-purple-100 to-pink-100 rounded-full p-6 mb-4">
-                        <FileText className="h-16 w-16 text-purple-400" />
-                      </div>
-                      <h4 className="text-lg font-semibold text-gray-700 mb-2">Select a Request</h4>
-                      <p className="text-gray-500 text-center text-sm max-w-xs">
-                        Click on any request from the Active Requests panel to view detailed information here
-                      </p>
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -871,7 +718,6 @@ const NewJobPost: React.FC = () => {
                     )}
                   </div>
                 </div>
-              </div>
               </div>
             </div>
           )}

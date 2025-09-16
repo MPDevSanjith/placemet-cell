@@ -43,6 +43,60 @@ class CloudinaryService {
     return `${sanitized}.${defaultExt}`;
   }
 
+  // Upload a company JD document
+  async uploadCompanyJD(file, companyName = 'Company') {
+    const fileBuffer = Buffer.isBuffer(file) ? file : file.buffer;
+    const originalName = (file.originalname || 'jd.pdf');
+    const extension = originalName.split('.').pop().toLowerCase();
+
+    const safeCompany = String(companyName).trim().replace(/\s+/g, '_').replace(/[^\w\-]/g, '').substring(0, 80) || 'Company';
+    const folderPath = `placement_erp/company_jd/${safeCompany}`;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const basePublicId = `jd_${safeCompany}_${timestamp}`;
+
+    const uploadOptions = {
+      public_id: basePublicId,
+      folder: folderPath,
+      overwrite: true,
+      tags: ['job_description', 'placement_erp'],
+      type: 'upload',
+    };
+
+    if (extension === 'pdf') {
+      uploadOptions.resource_type = 'image';
+      uploadOptions.format = 'pdf';
+    } else if (extension === 'doc' || extension === 'docx') {
+      uploadOptions.resource_type = 'raw';
+      uploadOptions.raw_convert = 'aspose';
+      uploadOptions.eager = [{ format: 'pdf' }];
+      uploadOptions.eager_async = false;
+    } else {
+      uploadOptions.resource_type = 'raw';
+    }
+
+    const uploadResult = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      }).end(fileBuffer);
+    });
+
+    const pdfUrlFromEager = Array.isArray(uploadResult.eager) && uploadResult.eager[0] && uploadResult.eager[0].secure_url;
+    const finalPdfUrl = pdfUrlFromEager || cloudinary.url(uploadResult.public_id, {
+      secure: true,
+      resource_type: 'image',
+      type: 'upload',
+      format: 'pdf',
+    });
+
+    return {
+      fileId: uploadResult.public_id,
+      url: finalPdfUrl,
+      folder: folderPath,
+      originalName,
+    };
+  }
+
   async uploadResume(file, fileName, studentId, studentName) {
     const fileBuffer = Buffer.isBuffer(file) ? file : file.buffer;
     const extension = fileName.split('.').pop().toLowerCase();

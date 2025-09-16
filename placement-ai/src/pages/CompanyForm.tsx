@@ -1,44 +1,81 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Building, Users, Calendar, GraduationCap, CheckCircle, AlertCircle } from 'lucide-react';
+import { Building, Users, Calendar, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface CompanyFormData {
+  // Company Information
   companyName: string;
-  contactPerson: string;
-  email: string;
-  phone: string;
+  companyWebsite: string;
+  hqLocation: string;
+  otherLocations: string;
+  industryDomain: string;
+  companySize: string;
+  companyDescription: string;
+  transportFacility: string; // Yes/No
+  // Job/Placement Details
   jobTitle: string;
-  jobDescription: string;
-  requirements: string;
-  location: string;
-  jobType: string;
-  salaryRange: string;
-  studentsRequired: number;
-  minimumCGPA: number;
-  startDate: string;
-  endDate: string;
-  additionalInfo: string;
+  jobResponsibilities: string;
+  minCTC: string;
+  maxCTC: string;
+  salaryStructure: string;
+  jobLocation: string;
+  bondDetails: string;
+  vacancies: string;
+  interviewMode: string; // Online / On-Campus / Off-Campus
+  expectedJoiningDate: string;
+  employmentType: string; // Internship/Full-time/Both
+  // HR/Recruiter Contact Details
+  hrName: string;
+  hrDesignation: string;
+  hrEmail: string;
+  hrPhone: string;
+  hrLinkedIn: string;
+  alternateContact: string;
+  // Additional Information
+  socialHandles: string;
+  jobDescriptionLink: string;
+  studentInstructions: string;
+  questionsForStudents: string;
+  jdDescription: string;
+  minimumCGPA?: string;
 }
 
 const CompanyForm: React.FC = () => {
   const { linkId } = useParams<{ linkId: string }>();
   const [formData, setFormData] = useState<CompanyFormData>({
     companyName: '',
-    contactPerson: '',
-    email: '',
-    phone: '',
+    companyWebsite: '',
+    hqLocation: '',
+    otherLocations: '',
+    industryDomain: '',
+    companySize: '',
+    companyDescription: '',
+    transportFacility: 'No',
     jobTitle: '',
-    jobDescription: '',
-    requirements: '',
-    location: '',
-    jobType: 'Full-time',
-    salaryRange: '',
-    studentsRequired: 1,
-    minimumCGPA: 0,
-    startDate: '',
-    endDate: '',
-    additionalInfo: ''
+    jobResponsibilities: '',
+    minCTC: '',
+    maxCTC: '',
+    salaryStructure: '',
+    jobLocation: '',
+    bondDetails: '',
+    vacancies: '',
+    interviewMode: 'Online',
+    expectedJoiningDate: '',
+    employmentType: 'Full-time',
+    hrName: '',
+    hrDesignation: '',
+    hrEmail: '',
+    hrPhone: '',
+    hrLinkedIn: '',
+    alternateContact: '',
+    socialHandles: '',
+    jobDescriptionLink: '',
+    studentInstructions: '',
+    questionsForStudents: '',
+    jdDescription: '',
+    minimumCGPA: ''
   });
+  const [jdFile, setJdFile] = useState<File | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -46,7 +83,7 @@ const CompanyForm: React.FC = () => {
   const [formLinkData, setFormLinkData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const handleInputChange = (field: keyof CompanyFormData, value: string | number) => {
+  const handleInputChange = (field: keyof CompanyFormData, value: string) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -72,13 +109,7 @@ const CompanyForm: React.FC = () => {
             // Pre-populate some fields from the form link
             setFormData(prev => ({
               ...prev,
-              companyName: data.data.companyName,
-              jobTitle: data.data.jobRole,
-              jobDescription: data.data.description || '',
-              studentsRequired: data.data.studentsRequired || 1,
-              minimumCGPA: data.data.minimumCGPA || 0,
-              startDate: data.data.startDate || '',
-              endDate: data.data.endDate || ''
+              companyName: data.data.companyName
             }));
           }
         } else {
@@ -102,16 +133,15 @@ const CompanyForm: React.FC = () => {
 
     try {
       const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+      const payload = new FormData();
+      Object.entries(formData).forEach(([key, value]) => {
+        payload.append(key, value as string);
+      });
+      if (jdFile) payload.append('jdFile', jdFile);
+      if (linkId) payload.append('linkId', linkId);
       const response = await fetch(`${baseUrl}/api/companies/requests/submit`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          linkId,
-          submittedAt: new Date().toISOString()
-        }),
+        body: payload,
       });
 
       if (!response.ok) {
@@ -185,11 +215,8 @@ const CompanyForm: React.FC = () => {
           {formLinkData && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
               <h2 className="text-xl font-semibold text-blue-800 mb-2">
-                {formLinkData.companyName} - {formLinkData.jobRole}
+                {formLinkData.companyName}
               </h2>
-              {formLinkData.description && (
-                <p className="text-blue-600">{formLinkData.description}</p>
-              )}
             </div>
           )}
           <p className="text-lg text-gray-600">
@@ -221,52 +248,44 @@ const CompanyForm: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Contact Person *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.contactPerson}
-                    onChange={(e) => handleInputChange('contactPerson', e.target.value)}
-                    className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300"
-                    placeholder="Full name"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Company Website URL</label>
+                  <input type="url" value={formData.companyWebsite} onChange={(e) => handleInputChange('companyWebsite', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="https://example.com" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email Address *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) => handleInputChange('email', e.target.value)}
-                    className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300"
-                    placeholder="contact@company.com"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Headquarters Location</label>
+                  <input type="text" value={formData.hqLocation} onChange={(e) => handleInputChange('hqLocation', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="City, State, Country" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Other Office Locations</label>
+                  <input type="text" value={formData.otherLocations} onChange={(e) => handleInputChange('otherLocations', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="Comma-separated" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Phone Number *
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    value={formData.phone}
-                    onChange={(e) => handleInputChange('phone', e.target.value)}
-                    className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300"
-                    placeholder="+91 9876543210"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Industry/Domain</label>
+                  <input type="text" value={formData.industryDomain} onChange={(e) => handleInputChange('industryDomain', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="e.g., IT, Finance" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Company Size</label>
+                  <input type="text" value={formData.companySize} onChange={(e) => handleInputChange('companySize', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="Number of employees" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Company Description</label>
+                  <textarea rows={3} value={formData.companyDescription} onChange={(e) => handleInputChange('companyDescription', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="Brief about company and culture" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cab/Transport Facility</label>
+                  <select value={formData.transportFacility} onChange={(e) => handleInputChange('transportFacility', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300">
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
+                  </select>
                 </div>
               </div>
             </div>
 
-            {/* Job Details */}
+            {/* Job/Placement Details */}
             <div className="border-b border-gray-200 pb-6">
               <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
                 <Users className="h-5 w-5 mr-2 text-purple-600" />
-                Job Details
+                Job/Placement Details
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -283,113 +302,70 @@ const CompanyForm: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Location *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.location}
-                    onChange={(e) => handleInputChange('location', e.target.value)}
-                    className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300"
-                    placeholder="e.g., Bangalore, Remote"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Job Location</label>
+                  <input type="text" value={formData.jobLocation} onChange={(e) => handleInputChange('jobLocation', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="City, State or Remote" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Job Type *
-                  </label>
-                  <select
-                    required
-                    value={formData.jobType}
-                    onChange={(e) => handleInputChange('jobType', e.target.value)}
-                    className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300"
-                  >
-                    <option value="Full-time">Full-time</option>
-                    <option value="Part-time">Part-time</option>
-                    <option value="Internship">Internship</option>
-                    <option value="Contract">Contract</option>
-                  </select>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Minimum CTC</label>
+                  <input type="text" value={formData.minCTC} onChange={(e) => handleInputChange('minCTC', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="e.g., 6 LPA" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Salary Range
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.salaryRange}
-                    onChange={(e) => handleInputChange('salaryRange', e.target.value)}
-                    className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300"
-                    placeholder="e.g., 6-12 LPA"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Maximum CTC</label>
+                  <input type="text" value={formData.maxCTC} onChange={(e) => handleInputChange('maxCTC', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="e.g., 12 LPA" />
                 </div>
-              </div>
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Job Description *
-                </label>
-                <textarea
-                  required
-                  rows={4}
-                  value={formData.jobDescription}
-                  onChange={(e) => handleInputChange('jobDescription', e.target.value)}
-                  className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300"
-                  placeholder="Describe the role, responsibilities, and what the candidate will be working on..."
-                />
-              </div>
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Requirements & Skills
-                </label>
-                <textarea
-                  rows={3}
-                  value={formData.requirements}
-                  onChange={(e) => handleInputChange('requirements', e.target.value)}
-                  className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300"
-                  placeholder="List the required skills, technologies, experience level, etc."
-                />
-              </div>
-            </div>
-
-            {/* Student Requirements */}
-            <div className="border-b border-gray-200 pb-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                <GraduationCap className="h-5 w-5 mr-2 text-green-600" />
-                Student Requirements
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Number of Students Required *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Minimum CGPA (optional)</label>
                   <input
                     type="number"
-                    required
-                    min="1"
-                    value={formData.studentsRequired}
-                    onChange={(e) => handleInputChange('studentsRequired', parseInt(e.target.value))}
-                    className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Minimum CGPA *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    step="0.01"
                     min="0"
                     max="10"
-                    value={formData.minimumCGPA}
-                    onChange={(e) => handleInputChange('minimumCGPA', parseFloat(e.target.value))}
+                    step="0.01"
+                    value={formData.minimumCGPA || ''}
+                    onChange={(e) => handleInputChange('minimumCGPA', e.target.value)}
                     className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300"
                     placeholder="e.g., 7.5"
                   />
                 </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Salary Structure Details</label>
+                  <input type="text" value={formData.salaryStructure} onChange={(e) => handleInputChange('salaryStructure', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="Fixed + Variable, stipend, etc." />
+                </div>
+              </div>
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Job Role/Responsibilities *</label>
+                <textarea rows={4} required value={formData.jobResponsibilities} onChange={(e) => handleInputChange('jobResponsibilities', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="Brief responsibilities" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Bond/Service Agreement Details</label>
+                  <input type="text" value={formData.bondDetails} onChange={(e) => handleInputChange('bondDetails', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Number of Vacancies</label>
+                  <input type="number" min="1" value={formData.vacancies} onChange={(e) => handleInputChange('vacancies', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Mode of Interview</label>
+                  <select value={formData.interviewMode} onChange={(e) => handleInputChange('interviewMode', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300">
+                    <option>Online</option>
+                    <option>On-Campus</option>
+                    <option>Off-Campus</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Expected Joining Date</label>
+                  <input type="date" value={formData.expectedJoiningDate} onChange={(e) => handleInputChange('expectedJoiningDate', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Internship/Full-time/Both</label>
+                  <select value={formData.employmentType} onChange={(e) => handleInputChange('employmentType', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300">
+                    <option>Internship</option>
+                    <option>Full-time</option>
+                    <option>Both</option>
+                  </select>
+                </div>
               </div>
             </div>
-
             {/* Timeline */}
             <div className="border-b border-gray-200 pb-6">
               <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
@@ -398,44 +374,77 @@ const CompanyForm: React.FC = () => {
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Preferred Start Date
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.startDate}
-                    onChange={(e) => handleInputChange('startDate', e.target.value)}
-                    className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Expected Joining Date</label>
+                  <input type="date" value={formData.expectedJoiningDate} onChange={(e) => handleInputChange('expectedJoiningDate', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" />
+                </div>
+              </div>
+            </div>
+
+            {/* HR/Recruiter Contact Details */}
+            <div className="border-b border-gray-200 pb-6">
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">HR/Recruiter Contact Details</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">HR Name *</label>
+                  <input type="text" required value={formData.hrName} onChange={(e) => handleInputChange('hrName', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Application Deadline
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.endDate}
-                    onChange={(e) => handleInputChange('endDate', e.target.value)}
-                    className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">HR Designation</label>
+                  <input type="text" value={formData.hrDesignation} onChange={(e) => handleInputChange('hrDesignation', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">HR Email Address *</label>
+                  <input type="email" required value={formData.hrEmail} onChange={(e) => handleInputChange('hrEmail', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">HR Phone Number *</label>
+                  <input type="tel" required value={formData.hrPhone} onChange={(e) => handleInputChange('hrPhone', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">LinkedIn Profile URL of HR</label>
+                  <input type="url" value={formData.hrLinkedIn} onChange={(e) => handleInputChange('hrLinkedIn', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="https://linkedin.com/in/..." />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Alternate Contact Person (Optional)</label>
+                  <input type="text" value={formData.alternateContact} onChange={(e) => handleInputChange('alternateContact', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" />
                 </div>
               </div>
             </div>
 
             {/* Additional Information */}
-            <div>
+            <div className="border-b border-gray-200 pb-6">
               <h2 className="text-xl font-semibold text-gray-800 mb-4">Additional Information</h2>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Any additional details or special requirements
-                </label>
-                <textarea
-                  rows={3}
-                  value={formData.additionalInfo}
-                  onChange={(e) => handleInputChange('additionalInfo', e.target.value)}
-                  className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300"
-                  placeholder="Any other information you'd like to share with our placement team..."
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Company’s Social Media Handles</label>
+                  <input type="text" value={formData.socialHandles} onChange={(e) => handleInputChange('socialHandles', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="LinkedIn, Twitter, etc." />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Website Link for Job Description</label>
+                  <input type="url" value={formData.jobDescriptionLink} onChange={(e) => handleInputChange('jobDescriptionLink', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Any Additional Instructions for Students</label>
+                  <textarea rows={3} value={formData.studentInstructions} onChange={(e) => handleInputChange('studentInstructions', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="Documents to carry, dress code, etc." />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Questions or Messages for Students</label>
+                  <textarea rows={3} value={formData.questionsForStudents} onChange={(e) => handleInputChange('questionsForStudents', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" />
+                </div>
+              </div>
+            </div>
+
+            {/* Upload Job Description (JD) */}
+            <div>
+              <h2 className="text-xl font-semibold text-gray-800 mb-2">Upload Job Description (JD) Document</h2>
+              <p className="text-sm text-gray-600 mb-3">Accepted formats: PDF, DOC, DOCX. Max file size: 5MB.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <input type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e) => setJdFile(e.target.files?.[0] || null)} className="w-full" />
+                </div>
+                <div>
+                  <input type="text" placeholder="Optional description or instructions" value={formData.jdDescription} onChange={(e) => handleInputChange('jdDescription', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" />
+                </div>
               </div>
             </div>
 
