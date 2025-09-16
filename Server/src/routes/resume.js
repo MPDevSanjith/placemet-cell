@@ -598,10 +598,28 @@ router.get('/view/*', async (req, res) => {
     }
 
     // Set appropriate headers for PDF viewing in iframe
+    // Clear any CSP set earlier by Helmet for this response to avoid conflicting frame-ancestors
+    try { res.removeHeader('Content-Security-Policy'); } catch {}
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline; filename="resume.pdf"');
     res.setHeader('Cache-Control', 'public, max-age=300'); // Cache for 5 minutes
-    res.setHeader('X-Frame-Options', 'SAMEORIGIN'); // Allow iframe embedding
+    // Allow embedding from configured frontend origins
+    try {
+      const allowedAncestors = [];
+      const envFrontend = process.env.FRONTEND_URL || process.env.PUBLIC_BASE_URL || process.env.SERVER_PUBLIC_URL || '';
+      if (envFrontend) {
+        const origin = /^https?:\/\//i.test(envFrontend) ? envFrontend : `https://${envFrontend}`;
+        allowedAncestors.push(origin.replace(/\/$/, ''));
+      }
+      // Common local dev origins
+      allowedAncestors.push('http://localhost:5173', 'http://127.0.0.1:5173');
+      // Also allow same-origin embedding of the API itself (when frontend is served by same host)
+      allowedAncestors.push("'self'");
+      const csp = `frame-ancestors ${allowedAncestors.join(' ')};`;
+      res.setHeader('Content-Security-Policy', csp);
+      // Remove restrictive legacy header for this route
+      res.removeHeader('X-Frame-Options');
+    } catch {}
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Content-Transfer-Encoding', 'binary');

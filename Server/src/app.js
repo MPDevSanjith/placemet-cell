@@ -38,6 +38,14 @@ app.use(
       useDefaults: true,
       directives: {
         "default-src": ["'self'"],
+        // Allow our frontend origins to embed API responses (e.g., PDF proxy) via iframe
+        "frame-ancestors": [
+          "'self'",
+          process.env.FRONTEND_URL || '',
+          'http://localhost:5173',
+          'http://127.0.0.1:5173',
+          'https://placement-final.vercel.app'
+        ].filter(Boolean),
         "frame-src": [
           "'self'",
           "https://res.cloudinary.com",

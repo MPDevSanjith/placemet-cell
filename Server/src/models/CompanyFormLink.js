@@ -3,7 +3,7 @@ import mongoose from 'mongoose'
 const companyFormLinkSchema = new mongoose.Schema({
   linkId: { type: String, required: true, unique: true },
   companyName: { type: String, required: true },
-  jobRole: { type: String, required: true },
+  jobRole: { type: String, required: false },
   description: { type: String },
   studentsRequired: { type: Number, default: 1 },
   minimumCGPA: { type: Number, default: 0 },

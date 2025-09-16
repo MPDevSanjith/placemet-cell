@@ -7,7 +7,7 @@ import logger from '../utils/logger.js';
 // @access  Private (Placement Officer/Admin)
 const createJob = async (req, res) => {
   try {
-    const { company, title, description, location, jobType, ctc, deadline, minCgpa, skills } = req.body
+    const { company, title, description, location, jobType, ctc, minCtc, deadline, minCgpa, skills, studentsRequired } = req.body
 
     if (!company || !title || !description || !location || !jobType) {
       return res.status(400).json({ success: false, message: 'Missing required fields' })
@@ -20,8 +20,10 @@ const createJob = async (req, res) => {
       location,
       jobType,
       ctc,
+      minCtc,
       deadline,
       minCgpa: Number(minCgpa) || 0,
+      studentsRequired: Number(studentsRequired) || 1,
       skills: Array.isArray(skills)
         ? skills.map((s) => String(s).trim()).filter(Boolean)
         : (typeof skills === 'string' && skills.trim().length
@@ -189,7 +191,7 @@ const getJob = async (req, res) => {
 // @access  Private (Placement Officer/Admin)
 const updateJob = async (req, res) => {
   try {
-    const { company, title, description, location, jobType, ctc, deadline, minCgpa, skills } = req.body;
+    const { company, title, description, location, jobType, ctc, minCtc, deadline, minCgpa, skills, studentsRequired } = req.body;
 
     if (!company || !title || !description || !location || !jobType) {
       return res.status(400).json({ 
@@ -214,6 +216,7 @@ const updateJob = async (req, res) => {
     job.location = location;
     job.jobType = jobType;
     job.ctc = ctc;
+    job.minCtc = minCtc;
     job.deadline = deadline;
     if (skills !== undefined) {
       job.skills = Array.isArray(skills)
@@ -223,6 +226,7 @@ const updateJob = async (req, res) => {
             : []);
     }
     if (minCgpa !== undefined) job.minCgpa = Number(minCgpa) || 0;
+    if (studentsRequired !== undefined) job.studentsRequired = Number(studentsRequired) || 1;
     job.updatedAt = new Date();
 
     await job.save();

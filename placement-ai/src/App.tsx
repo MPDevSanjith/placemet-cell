@@ -23,6 +23,7 @@ import PlacementGate from './pages/placement-officer/PlacementGate'
 import OfficerNotificationsPage from './pages/placement-officer/Notifications'
 import JobPortal from './pages/JobPortal'
 import JobDetails from './pages/JobDetails'
+import RequestDetails from './pages/placement-officer/RequestDetails'
 import AboutUs from './pages/AboutUs'
 import Contact from './pages/Contact'
 import Help from './pages/Help'
@@ -311,6 +312,11 @@ function AppRoutes() {
       <Route path="/placement-officer/new-job-post" element={
         isAuthenticated && userRole === 'placement_officer'
           ? <CompaniesPage />
+          : <Navigate to="/login" replace />
+      } />
+      <Route path="/placement-officer/requests/:id" element={
+        isAuthenticated && userRole === 'placement_officer'
+          ? <RequestDetails />
           : <Navigate to="/login" replace />
       } />
       

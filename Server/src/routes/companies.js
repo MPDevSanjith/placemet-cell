@@ -1,5 +1,7 @@
 import express from 'express'
 const router = express.Router()
+import multer from 'multer'
+import cloudinaryService from '../utils/cloudinaryService.js'
 
 // Import MongoDB models
 import Company from '../models/Company.js'
@@ -9,6 +11,20 @@ import Job from '../models/Job.js'
 import { protect, authorize } from '../middleware/auth.js'
 
 // Get companies list
+// Configure multer for JD uploads (5MB, PDF/DOC/DOCX)
+const jdUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    if (allowed.includes(file.mimetype)) return cb(null, true);
+    return cb(new Error('Only PDF, DOC, and DOCX files are allowed for JD'));
+  }
+})
 router.get('/', async (req, res) => {
   try {
     const { page = 1, limit = 10, status = '', industry = '' } = req.query
@@ -202,6 +218,18 @@ router.get('/requests', async (req, res) => {
   }
 })
 
+// Get single company request (full details)
+router.get('/requests/:id', async (req, res) => {
+  try {
+    const found = await CompanyRequest.findById(req.params.id)
+    if (!found) return res.status(404).json({ success: false, error: 'Request not found' })
+    return res.json({ success: true, data: found })
+  } catch (error) {
+    console.error('Error fetching company request:', error)
+    res.status(500).json({ success: false, error: 'Internal server error' })
+  }
+})
+
 router.post('/requests', async (req, res) => {
   try {
     const { company, jobRole, description, studentsRequired, minimumCGPA, startDate, endDate } = req.body
@@ -253,30 +281,23 @@ router.delete('/requests/:id', protect, authorize('placement_officer', 'admin'),
 // Create form link (placement officer only)
 router.post('/form-links', protect, authorize('placement_officer', 'admin'), async (req, res) => {
   try {
-    const { companyName, jobRole, description, studentsRequired, minimumCGPA, startDate, endDate } = req.body
+    const { companyName } = req.body
 
-    if (!companyName || !jobRole) {
+    if (!companyName) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Company name and job role are required' 
+        error: 'Company name is required' 
       })
     }
 
-    // Generate unique link ID
+    // Generate unique link ID from company only
     const companySlug = companyName.toLowerCase().replace(/[^a-z0-9]/g, '-')
-    const jobSlug = jobRole.toLowerCase().replace(/[^a-z0-9]/g, '-')
-    const linkId = `${companySlug}-${jobSlug}-${Date.now()}`
+    const linkId = `${companySlug}-${Date.now()}`
 
-    // Create form link
+    // Create form link (store only company name; other meta removed)
     const formLink = new CompanyFormLink({
       linkId,
       companyName,
-      jobRole,
-      description,
-      studentsRequired: Number(studentsRequired) || 1,
-      minimumCGPA: Number(minimumCGPA) || 0,
-      startDate,
-      endDate,
       createdBy: req.user.id
     })
 
@@ -292,7 +313,6 @@ router.post('/form-links', protect, authorize('placement_officer', 'admin'), asy
       data: {
         linkId,
         companyName,
-        jobRole,
         link: fullLink,
         createdAt: formLink.createdAt
       }
@@ -355,13 +375,7 @@ router.get('/form-links/:linkId', async (req, res) => {
     res.json({
       success: true,
       data: {
-        companyName: formLink.companyName,
-        jobRole: formLink.jobRole,
-        description: formLink.description,
-        studentsRequired: formLink.studentsRequired,
-        minimumCGPA: formLink.minimumCGPA,
-        startDate: formLink.startDate,
-        endDate: formLink.endDate
+        companyName: formLink.companyName
       }
     })
 
@@ -372,84 +386,117 @@ router.get('/form-links/:linkId', async (req, res) => {
 })
 
 // Public endpoint for company form submissions
-router.post('/requests/submit', async (req, res) => {
+router.post('/requests/submit', jdUpload.single('jdFile'), async (req, res) => {
   try {
+    const body = req.body || {}
     const {
+      linkId,
+      // Company Information
       companyName,
-      contactPerson,
-      email,
-      phone,
+      companyWebsite,
+      hqLocation,
+      otherLocations,
+      industryDomain,
+      companySize,
+      companyDescription,
+      transportFacility,
+      // Job/Placement Details
       jobTitle,
-      jobDescription,
-      requirements,
-      location,
-      jobType,
-      salaryRange,
-      studentsRequired,
-      minimumCGPA,
-      startDate,
-      endDate,
-      additionalInfo,
-      linkId
-    } = req.body
+      jobResponsibilities,
+      minCTC,
+      maxCTC,
+      salaryStructure,
+      jobLocation,
+      bondDetails,
+      vacancies,
+      interviewMode,
+      expectedJoiningDate,
+      employmentType,
+      // HR Details
+      hrName,
+      hrDesignation,
+      hrEmail,
+      hrPhone,
+      hrLinkedIn,
+      alternateContact,
+      // Additional Information
+      socialHandles,
+      jobDescriptionLink,
+      studentInstructions,
+      questionsForStudents,
+      jdDescription,
+      minimumCGPA
+    } = body
 
-    // Validate required fields
-    if (!companyName || !contactPerson || !email || !phone || !jobTitle || !jobDescription || !location) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Missing required fields: companyName, contactPerson, email, phone, jobTitle, jobDescription, location' 
+    if (!companyName || !hrName || !hrEmail || !hrPhone || !jobTitle || !jobResponsibilities) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: companyName, hrName, hrEmail, hrPhone, jobTitle, jobResponsibilities'
       })
     }
 
     // Verify the form link exists
     const formLink = await CompanyFormLink.findOne({ linkId, isActive: true })
     if (!formLink) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Invalid or expired form link' 
-      })
+      return res.status(404).json({ success: false, error: 'Invalid or expired form link' })
     }
 
-    // Create company request from form submission
+    // Optional JD upload
+    let jdFileInfo = null
+    if (req.file) {
+      jdFileInfo = await cloudinaryService.uploadCompanyJD(req.file, companyName)
+    }
+
     const request = new CompanyRequest({
       company: companyName,
       jobRole: jobTitle,
-      description: jobDescription,
-      studentsRequired: Number(studentsRequired) || 1,
+      description: jobResponsibilities,
+      studentsRequired: Number(vacancies) || 1,
       minimumCGPA: Number(minimumCGPA) || 0,
-      startDate,
-      endDate,
+      startDate: '',
+      endDate: '',
       formLinkId: linkId,
       formData: {
-        contactPerson,
-        email,
-        phone,
-        requirements,
-        location,
-        jobType,
-        salaryRange,
-        additionalInfo,
-        linkId,
+        companyWebsite,
+        hqLocation,
+        otherLocations,
+        industryDomain,
+        companySize,
+        companyDescription,
+        transportFacility,
+        minCTC,
+        maxCTC,
+        salaryStructure,
+        jobLocation,
+        bondDetails,
+        vacancies,
+        interviewMode,
+        expectedJoiningDate,
+        employmentType,
+        hrName,
+        hrDesignation,
+        hrEmail,
+        hrPhone,
+        hrLinkedIn,
+        alternateContact,
+        socialHandles,
+        jobDescriptionLink,
+        studentInstructions,
+        questionsForStudents,
+        jdDescription,
+        jdFile: jdFileInfo,
         submittedAt: new Date().toISOString()
       }
     })
 
     await request.save()
-
-    // Add submission to form link
     formLink.submissions.push(request._id)
     await formLink.save()
 
-    res.status(201).json({ 
-      success: true, 
-      message: 'Company request submitted successfully',
-      requestId: request._id,
-      linkId
-    })
-
+    res.status(201).json({ success: true, message: 'Company request submitted successfully', requestId: request._id, linkId })
   } catch (error) {
     console.error('Error submitting company form:', error)
-    res.status(500).json({ success: false, error: 'Internal server error' })
+    res.status(500).json({ success: false, error: error.message || 'Internal server error' })
   }
 })
 
@@ -474,16 +521,47 @@ router.put('/requests/:id/approve', protect, authorize('placement_officer', 'adm
       company: request.company,
       title: request.jobRole,
       description: request.description || 'Job opportunity from ' + request.company,
-      location: request.formData?.location || 'Not specified',
-      jobType: request.formData?.jobType || 'Full-time',
-      ctc: request.formData?.salaryRange || 'Not specified',
+      location: request.formData?.jobLocation || request.formData?.location || '',
+      jobType: (() => {
+        const e = (request.formData?.employmentType || request.formData?.jobType || '').toString()
+        if (/internship/i.test(e)) return 'Internship'
+        if (/part[- ]?time/i.test(e)) return 'Part-time'
+        if (/contract/i.test(e)) return 'Contract'
+        return 'Full-time'
+      })(),
+      ctc: (() => {
+        const min = (request.formData?.minCTC || '').toString().trim()
+        const max = (request.formData?.maxCTC || '').toString().trim()
+        const struct = (request.formData?.salaryStructure || '').toString().trim()
+        const range = (request.formData?.salaryRange || '').toString().trim()
+        if (min && max) return `${min}-${max} LPA`
+        if (min && !max) return `${min} LPA`
+        if (!min && max) return `${max} LPA`
+        return struct || range || ''
+      })(),
+      minCtc: (request.formData?.minCTC || '').toString().trim() || undefined,
       deadline: request.endDate || null,
       minCgpa: Number(request.minimumCGPA ?? request.formData?.minimumCGPA) || 0,
+      studentsRequired: Number(request.formData?.vacancies || request.studentsRequired) || 1,
+      jdUrl: (() => {
+        try {
+          const jd = request.formData?.jdFile
+          if (!jd) return ''
+          const fileId = jd.fileId || jd.public_id
+          if (fileId) {
+            try {
+              return cloudinaryService.generateViewUrl(fileId, 'image', 'pdf')
+            } catch {}
+          }
+          const candidate = jd.url || jd.fileUrl
+          return candidate || ''
+        } catch { return '' }
+      })(),
       skills: (() => {
         const raw = request.formData?.requirements
         if (Array.isArray(raw)) return raw.map((s) => String(s).trim()).filter(Boolean)
         if (typeof raw === 'string' && raw.trim().length) {
-          return raw.split(/[,\n]/).map((s) => s.trim()).filter(Boolean)
+          return raw.split(/[\,\n]/).map((s) => s.trim()).filter(Boolean)
         }
         return []
       })(),
