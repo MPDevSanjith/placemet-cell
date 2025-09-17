@@ -6,11 +6,12 @@ import { Check, Mail, MessageCircle, Download, ExternalLink } from "lucide-react
 import Button from "../../components/ui/Button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../global/ui/dialog"
 import Badge from "../../components/ui/Badge"
-import { Progress } from "../../components/ui/Progress"
+import { Progress } from "../../components/ui/progress"
 import { Alert, AlertDescription } from "../../global/ui/alert"
 // cn imported by ui components; local import not used
 // import { cn } from "@/lib/utils"
 import type { MatchCandidate } from "@/types"
+import { forwardShortlist } from "../api"
 
 interface ShortlistForwardDialogProps {
   open: boolean
@@ -51,22 +52,24 @@ export function ShortlistForwardDialog({
         setProgress(prev => Math.min(prev + 20, 90))
       }, 500)
 
-      // TODO: Replace with actual API call
-      const response = await fetch(`/api/po/shortlists/${shortlistId}/forward`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channels })
-      })
+      // Call the centralized API
+      const data = await forwardShortlist("", shortlistId, { recipients: channels })
 
       clearInterval(progressInterval)
       setProgress(100)
 
-      if (!response.ok) {
-        throw new Error("Failed to forward shortlist")
+      if (!data.success) {
+        throw new Error(data.message || "Failed to forward shortlist")
       }
 
-      const data = await response.json()
-      setResult(data)
+      setResult({
+        pdfUrl: "",
+        secureLink: "",
+        delivered: {
+          email: channels.includes("email"),
+          whatsapp: channels.includes("whatsapp")
+        }
+      })
 
       // Simulate delivery status updates
       setTimeout(() => {

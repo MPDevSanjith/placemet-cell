@@ -3,7 +3,8 @@ import { motion } from 'framer-motion'
 import { 
   getStudentProfile, 
   listResumes, deleteResume, uploadResume, getResumeAnalysis,
-  updateStudentSkills, updateStudentProjects, updateProfileField
+  updateStudentSkills, updateStudentProjects, updateProfileField,
+  analyzeATSWithResumeId
 } from '../../global/api'
 import type { StudentProfile } from '../../global/api'
 import { getAuth } from '../../global/auth'
@@ -262,23 +263,12 @@ const ProfilePage: React.FC = () => {
       console.log('🔍 Starting ATS analysis for role:', finalJobRole)
       
       // Call the backend ATS analysis endpoint
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/resume/analyze-ats`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${auth.token}`
-        },
-        body: JSON.stringify({
-          resumeId: atsRolePopup.resumeId,
-          jobRole: finalJobRole
-        })
-      })
+      const result = await analyzeATSWithResumeId(auth.token, atsRolePopup.resumeId, finalJobRole)
       
-      if (!response.ok) {
-        throw new Error(`ATS analysis failed: ${response.statusText}`)
+      if (!result.success) {
+        throw new Error(result.message || 'ATS analysis failed')
       }
       
-      const result = await response.json()
       console.log('✅ ATS analysis completed:', result)
       
       // Show ATS results popup

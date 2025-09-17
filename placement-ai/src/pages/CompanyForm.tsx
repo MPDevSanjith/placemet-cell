@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Building, Users, Calendar, CheckCircle, AlertCircle } from 'lucide-react';
+import { getCompanyFormLink, submitCompanyForm } from '../global/api';
 
 interface CompanyFormData {
   // Company Information
@@ -99,19 +100,15 @@ const CompanyForm: React.FC = () => {
       }
 
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
-        const response = await fetch(`${baseUrl}/api/companies/form-links/${linkId}`);
+        const data = await getCompanyFormLink(linkId);
         
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            setFormLinkData(data.data);
-            // Pre-populate some fields from the form link
-            setFormData(prev => ({
-              ...prev,
-              companyName: data.data.companyName
-            }));
-          }
+        if (data.success) {
+          setFormLinkData(data.data);
+          // Pre-populate some fields from the form link
+          setFormData(prev => ({
+            ...prev,
+            companyName: data.data.companyName
+          }));
         } else {
           setError('Form link not found or expired');
         }
@@ -132,20 +129,15 @@ const CompanyForm: React.FC = () => {
     setError('');
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
-      const payload = new FormData();
-      Object.entries(formData).forEach(([key, value]) => {
-        payload.append(key, value as string);
-      });
-      if (jdFile) payload.append('jdFile', jdFile);
-      if (linkId) payload.append('linkId', linkId);
-      const response = await fetch(`${baseUrl}/api/companies/requests/submit`, {
-        method: 'POST',
-        body: payload,
-      });
+      const payload = {
+        ...formData,
+        linkId
+      };
+      
+      const response = await submitCompanyForm(payload, jdFile || undefined);
 
-      if (!response.ok) {
-        throw new Error('Failed to submit form');
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to submit form');
       }
 
       setIsSubmitted(true);

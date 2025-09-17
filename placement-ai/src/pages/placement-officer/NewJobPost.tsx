@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createExternalJob as apiCreateExternalJob, listExternalJobs, listCompanyRequests, createJob as apiCreateJob, listJobs as apiListJobs } from '../../global/api';
+import { createExternalJob as apiCreateExternalJob, listExternalJobs, listCompanyRequests, createJob as apiCreateJob, listJobs as apiListJobs, listCompanyFormLinks, approveCompanyRequest, rejectCompanyRequest, sendExternalJobEmail, updateJob, getJobApplications, sendJobApplicationsEmail, getStudentActiveResumeViewUrl } from '../../global/api';
 import { getAuth } from '../../global/auth';
 import CompanyRequestModal from '../../components/CompanyRequestModal';
 import { 
@@ -83,7 +83,6 @@ const NewJobPost: React.FC = () => {
   const [isViewApplicationsModalOpen, setIsViewApplicationsModalOpen] = useState<boolean>(false);
   const [selectedJobApplications, setSelectedJobApplications] = useState<any[]>([]);
   const [selectedJobForApplications, setSelectedJobForApplications] = useState<any>(null);
-  const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [sentJobs, setSentJobs] = useState<Record<string, boolean>>({});
   const [sendAllOpen, setSendAllOpen] = useState<boolean>(false);
   const [sendAllEmail, setSendAllEmail] = useState<string>('');
@@ -154,9 +153,6 @@ const NewJobPost: React.FC = () => {
 
   // Removed unused per-application status update handler
 
-  const handleRequestSelection = (request: any) => {
-    setSelectedRequest(request);
-  };
 
   const handleLinkGenerated = (linkData: { linkId: string; companyName: string; link: string }) => {
     setGeneratedLinks(prev => [linkData, ...prev]);
@@ -222,17 +218,10 @@ const NewJobPost: React.FC = () => {
     }
   };
 
-  const sendExternalJobEmail = async (jobId: string) => {
+  const handleSendExternalJobEmail = async (jobId: string) => {
     try {
       const token = getAuth()?.token || ''
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
-      const res = await fetch(`${baseUrl}/api/external-jobs/${jobId}/send-email`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        credentials: 'include'
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || data?.message || 'Failed to send emails')
+      const data = await sendExternalJobEmail(token, jobId)
       alert(`Emails queued to ${data.sent}/${data.total} students`)
       setSentJobs(prev => {
         const next = { ...prev, [jobId]: true }
@@ -285,16 +274,7 @@ const NewJobPost: React.FC = () => {
       let data;
       if (editingJobId) {
         // Update existing job
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
-        const response = await fetch(`${baseUrl}/api/jobs/${editingJobId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify(payload)
-        });
-        data = await response.json();
+        data = await updateJob(token, editingJobId, payload as any);
       } else {
         // Create new job
         data = await apiCreateJob(token, payload as any);
@@ -355,22 +335,13 @@ const NewJobPost: React.FC = () => {
   const fetchGeneratedLinks = async (): Promise<void> => {
     try {
       const token = getAuth()?.token || '';
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
       
-      const response = await fetch(`${baseUrl}/api/companies/form-links`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const data = await listCompanyFormLinks(token);
       
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setGeneratedLinks(data.data);
-        }
+      if (data.success) {
+        setGeneratedLinks(data.data);
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Error fetching generated links:', errorData);
+        console.error('Error fetching generated links:', data);
       }
     } catch (err) {
       console.error('Error fetching generated links:', err);
@@ -381,26 +352,26 @@ const NewJobPost: React.FC = () => {
   const handleRequestAction = async (requestId: string, action: 'approve' | 'reject') => {
     try {
       const token = getAuth()?.token || '';
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
-      const response = await fetch(`${baseUrl}/api/companies/requests/${requestId}/${action}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
       
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          fetchCompanyRequests(); // Refresh the list
-          if (action === 'approve') {
-            // When approved, also refresh job postings to show the new job
-            fetchJobPostings();
-            alert('Request approved and job posting created successfully!');
-          } else {
-            alert('Request rejected successfully');
-          }
+      let data;
+      if (action === 'approve') {
+        data = await approveCompanyRequest(token, requestId);
+      } else {
+        data = await rejectCompanyRequest(token, requestId);
+      }
+      
+      if (data.success) {
+        fetchCompanyRequests(); // Refresh the list
+        if (action === 'approve') {
+          // When approved, also refresh job postings to show the new job
+          fetchJobPostings();
+          alert('Request approved and job posting created successfully!');
+        } else {
+          alert('Request rejected successfully');
         }
+      } else {
+        console.error(`Error ${action}ing request:`, data);
+        alert(`Failed to ${action} request`);
       }
     } catch (err) {
       console.error(`Error ${action}ing request:`, err);
@@ -412,13 +383,9 @@ const NewJobPost: React.FC = () => {
   const handleViewApplications = async (job: any) => {
     try {
       const token = getAuth()?.token || ''
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
-      const res = await fetch(`${baseUrl}/api/jobs/${job._id}/applications`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-        credentials: 'include'
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.message || data?.error || 'Failed to load applications')
+      const data = await getJobApplications(token, job._id)
+      
+      if (!data.success) throw new Error('Failed to load applications')
 
       const apps = (data.items || []).map((a: any) => ({
         id: a._id,
@@ -743,7 +710,8 @@ const NewJobPost: React.FC = () => {
                           <h3 className="text-2xl lg:text-3xl xl:text-4xl font-bold text-gray-900 mb-3 lg:mb-0 lg:mr-4 break-words">{job.title}</h3>
                           <span className="px-4 py-2 bg-gray-900 text-white text-sm lg:text-base font-medium rounded-full w-fit">{job.jobType}</span>
                         </div>
-                        <p className="text-gray-700 text-lg lg:text-xl xl:text-2xl mb-6 break-words">{job.description}</p>
+                        {/* Hide long description in list view to keep cards compact */}
+                        {/* <p className="text-gray-700 text-lg lg:text-xl xl:text-2xl mb-6 break-words">{job.description}</p> */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6 text-sm lg:text-base">
                           <div className="flex items-center text-gray-700">
                             <Users className="h-4 w-4 mr-2 flex-shrink-0" />
@@ -752,10 +720,6 @@ const NewJobPost: React.FC = () => {
                           <div className="flex items-center text-gray-700">
                             <Globe className="h-4 w-4 mr-2 flex-shrink-0" />
                             <span className="break-words">{job.location}</span>
-                          </div>
-                          <div className="flex items-center text-gray-700">
-                            <FileText className="h-4 w-4 mr-2 flex-shrink-0" />
-                            <span className="break-words">Deadline: {job.deadline || 'N/A'}</span>
                           </div>
                           <div className="flex items-center text-gray-700">
                             <span className="font-medium break-words">CTC: ₹{job.ctc || 'Not specified'}</span>
@@ -872,7 +836,7 @@ const NewJobPost: React.FC = () => {
                           </button>
                           ) : (
                             <button 
-                              onClick={() => sendExternalJobEmail(job._id)}
+                              onClick={() => handleSendExternalJobEmail(job._id)}
                               className="flex items-center justify-center px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 text-sm"
                             >
                               <FileText className="h-4 w-4 mr-2" />
@@ -1227,18 +1191,11 @@ const NewJobPost: React.FC = () => {
                           try {
                             const email = sendAllEmail.trim();
                             if (!email) { alert('Enter an email'); return; }
-                            const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
                             const token = getAuth()?.token || '';
                             const jobId = selectedJobForApplications?._id;
                             if (!jobId) { alert('No job selected'); return; }
-                            const resp = await fetch(`${baseUrl}/api/jobs/${jobId}/applications/send-email`, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                              credentials: 'include',
-                              body: JSON.stringify({ to: email })
-                            });
-                            const data = await resp.json();
-                            if (!resp.ok) throw new Error(data?.error || data?.message || 'Failed to send email');
+                            const data = await sendJobApplicationsEmail(token, jobId, email);
+                            if (!data.success) throw new Error('Failed to send email');
                             alert(`Sent ${data.sent} applicants to ${email}.`);
                             setSendAllOpen(false);
                             setSendAllEmail('');
@@ -1372,17 +1329,13 @@ const NewJobPost: React.FC = () => {
                                 if (application.studentId) {
                                   // Fallback: fetch active-view JSON, then open its url
                                   const token = getAuth()?.token || ''
-                                  const resp = await fetch(`${baseUrl}/api/resume/admin/student/${application.studentId}/active-view`, {
-                                    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-                                    credentials: 'include'
-                                  })
-                                  const data = await resp.json().catch(() => ({}))
+                                  const data = await getStudentActiveResumeViewUrl(token, application.studentId)
                                   const viewUrl: string | undefined = data?.url
-                                  if (resp.ok && typeof viewUrl === 'string') {
+                                  if (data.success && typeof viewUrl === 'string') {
                                     const resolved = viewUrl.startsWith('http') ? viewUrl : `${baseUrl}${viewUrl}`
                                     window.open(resolved, '_blank', 'noopener')
                                   } else {
-                                    alert(data?.error || data?.message || 'Failed to get resume view url')
+                                    alert('Failed to get resume view url')
                                   }
                                   return
                                 }

@@ -1047,6 +1047,77 @@ export async function markMyNotificationsRead(token: string, ids: string[]) {
   return data as { success: boolean; updated: number }
 }
 
+// ------------------- COMPANIES ------------------- //
+
+export type Company = {
+  _id: string
+  name: string
+  email: string
+  phone?: string
+  website?: string
+  address?: string
+  description?: string
+  industry?: string
+  foundedYear?: number
+  employeeCount?: string
+  contactPerson?: string
+  status?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type CompanyListResponse = {
+  success: boolean
+  companies: Company[]
+  pagination: {
+    page: number
+    limit: number
+    total: number
+    pages: number
+  }
+}
+
+export function listCompanies(params: Record<string, string | number | undefined> = {}) {
+  const qs = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== '') qs.set(k, String(v)) })
+  return request<CompanyListResponse>(`/companies?${qs.toString()}`)
+}
+
+export function getCompany(id: string) {
+  return request<{ success: boolean; company: Company }>(`/companies/${id}`)
+}
+
+export function createCompany(payload: {
+  name: string
+  email: string
+  phone?: string
+  website?: string
+  address?: string
+  description?: string
+  industry?: string
+  foundedYear?: number
+  employeeCount?: string
+  contactPerson?: string
+}) {
+  return request<{ success: boolean; message: string; company: Company }>(`/companies`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateCompany(id: string, payload: Partial<Company>) {
+  return request<{ success: boolean; message: string; company: Company }>(`/companies/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteCompany(id: string) {
+  return request<{ success: boolean; message: string }>(`/companies/${id}`, {
+    method: 'DELETE',
+  })
+}
+
 // ------------------- COMPANY REQUESTS ------------------- //
 
 export type CreateCompanyRequestPayload = {
@@ -1059,18 +1130,438 @@ export type CreateCompanyRequestPayload = {
   endDate?: string
 }
 
+export type CompanyRequest = {
+  _id: string
+  company: string
+  jobRole: string
+  description: string
+  studentsRequired: number
+  minimumCGPA: number
+  startDate?: string
+  endDate?: string
+  status: 'Pending' | 'Approved' | 'Rejected'
+  formLinkId?: string
+  formData?: any
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
 export function listCompanyRequests(params: Record<string, string | number | undefined> = {}) {
   const qs = new URLSearchParams()
   Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== '') qs.set(k, String(v)) })
-  return request<{ success: boolean; data: any[]; pagination: any }>(`/companies/requests?${qs.toString()}`)
+  return request<{ success: boolean; data: CompanyRequest[]; pagination: any }>(`/companies/requests?${qs.toString()}`)
+}
+
+export function getCompanyRequest(id: string) {
+  return request<{ success: boolean; data: CompanyRequest }>(`/companies/requests/${id}`)
 }
 
 export function createCompanyRequest(token: string | null | undefined, payload: CreateCompanyRequestPayload) {
   const headers: Record<string, string> = { ...buildAuthHeaders(token || undefined) }
-  return request<{ success: boolean; data: any }>(`/companies/requests`, {
+  return request<{ success: boolean; data: CompanyRequest }>(`/companies/requests`, {
     method: 'POST',
     headers,
     body: JSON.stringify(payload),
+  })
+}
+
+export function updateCompanyRequest(token: string | null | undefined, id: string, payload: Partial<CompanyRequest>) {
+  const headers: Record<string, string> = { ...buildAuthHeaders(token || undefined) }
+  return request<{ success: boolean; data: CompanyRequest }>(`/companies/requests/${id}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteCompanyRequest(token: string | null | undefined, id: string) {
+  const headers: Record<string, string> = { ...buildAuthHeaders(token || undefined) }
+  return request<{ success: boolean; message: string }>(`/companies/requests/${id}`, {
+    method: 'DELETE',
+    headers,
+  })
+}
+
+export function approveCompanyRequest(token: string | null | undefined, id: string) {
+  const headers: Record<string, string> = { ...buildAuthHeaders(token || undefined) }
+  return request<{ success: boolean; message: string; data: { request: CompanyRequest; job: any } }>(`/companies/requests/${id}/approve`, {
+    method: 'PUT',
+    headers,
+  })
+}
+
+export function rejectCompanyRequest(token: string | null | undefined, id: string) {
+  const headers: Record<string, string> = { ...buildAuthHeaders(token || undefined) }
+  return request<{ success: boolean; message: string; data: CompanyRequest }>(`/companies/requests/${id}/reject`, {
+    method: 'PUT',
+    headers,
+  })
+}
+
+// ------------------- COMPANY FORM LINKS ------------------- //
+
+export type CompanyFormLink = {
+  _id: string
+  linkId: string
+  companyName: string
+  isActive: boolean
+  submissions: string[]
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export function createCompanyFormLink(token: string | null | undefined, payload: { companyName: string }) {
+  const headers: Record<string, string> = { ...buildAuthHeaders(token || undefined) }
+  return request<{ success: boolean; message: string; data: { linkId: string; companyName: string; link: string; createdAt: string } }>(`/companies/form-links`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  })
+}
+
+export function listCompanyFormLinks(token: string | null | undefined, params: Record<string, string | number | undefined> = {}) {
+  const qs = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== '') qs.set(k, String(v)) })
+  const headers: Record<string, string> = { ...buildAuthHeaders(token || undefined) }
+  return request<{ success: boolean; data: CompanyFormLink[]; pagination: any }>(`/companies/form-links?${qs.toString()}`, {
+    method: 'GET',
+    headers,
+  })
+}
+
+export function getCompanyFormLink(linkId: string) {
+  return request<{ success: boolean; data: { companyName: string } }>(`/companies/form-links/${linkId}`)
+}
+
+export function submitCompanyForm(payload: any, jdFile?: File) {
+  const formData = new FormData()
+  
+  // Add all form fields
+  Object.entries(payload).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      formData.append(key, String(value))
+    }
+  })
+  
+  // Add JD file if provided
+  if (jdFile) {
+    formData.append('jdFile', jdFile)
+  }
+  
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/companies/requests/submit`
+  
+  return fetch(url, {
+    method: 'POST',
+    body: formData,
+    credentials: 'include',
+  }).then(async (res) => {
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error(data?.error || data?.message || 'Form submission failed')
+    }
+    return data as { success: boolean; message: string; requestId: string; linkId: string }
+  })
+}
+
+// ------------------- EXTERNAL JOBS (Enhanced) ------------------- //
+
+export type ExternalJob = {
+  _id: string
+  companyName: string
+  jobTitle: string
+  description: string
+  location: string
+  jobType: string
+  externalUrl: string
+  salary?: string
+  requirements?: string[]
+  tags?: string[]
+  applicationDeadline?: string
+  status: 'Active' | 'Inactive' | 'Expired' | 'Filled'
+  postedBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type ExternalJobListResponse = {
+  success: boolean
+  data: ExternalJob[]
+  pagination: {
+    currentPage: number
+    totalPages: number
+    totalItems: number
+    itemsPerPage: number
+    hasNextPage: boolean
+    hasPrevPage: boolean
+  }
+}
+
+export function getExternalJob(id: string) {
+  return request<{ success: boolean; data: ExternalJob }>(`/external-jobs/${id}`)
+}
+
+export function updateExternalJob(token: string | null | undefined, id: string, payload: Partial<CreateExternalJobPayload>) {
+  const headers: Record<string, string> = { ...buildAuthHeaders(token || undefined) }
+  return request<{ success: boolean; message: string; data: ExternalJob }>(`/external-jobs/${id}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteExternalJob(token: string | null | undefined, id: string) {
+  const headers: Record<string, string> = { ...buildAuthHeaders(token || undefined) }
+  return request<{ success: boolean; message: string }>(`/external-jobs/${id}`, {
+    method: 'DELETE',
+    headers,
+  })
+}
+
+export function updateExternalJobStatus(token: string | null | undefined, id: string, status: 'Active' | 'Inactive' | 'Expired' | 'Filled') {
+  const headers: Record<string, string> = { ...buildAuthHeaders(token || undefined) }
+  return request<{ success: boolean; message: string; data: ExternalJob }>(`/external-jobs/${id}/status`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify({ status }),
+  })
+}
+
+export function getExternalJobsStats(token: string | null | undefined) {
+  const headers: Record<string, string> = { ...buildAuthHeaders(token || undefined) }
+  return request<{ success: boolean; data: { totalJobs: number; activeJobs: number; expiredJobs: number; recentJobs: number; statusBreakdown: any[]; jobsByType: any[] } }>(`/external-jobs/stats/overview`, {
+    method: 'GET',
+    headers,
+  })
+}
+
+export function bulkUpdateExpiredJobs(token: string | null | undefined) {
+  const headers: Record<string, string> = { ...buildAuthHeaders(token || undefined) }
+  return request<{ success: boolean; message: string; modifiedCount: number }>(`/external-jobs/bulk-update-expired`, {
+    method: 'POST',
+    headers,
+  })
+}
+
+export function sendExternalJobEmail(token: string | null | undefined, id: string) {
+  const headers: Record<string, string> = { ...buildAuthHeaders(token || undefined) }
+  return request<{ success: boolean; sent: number; total: number }>(`/external-jobs/${id}/send-email`, {
+    method: 'POST',
+    headers,
+  })
+}
+
+// ------------------- JOBS (Enhanced) ------------------- //
+
+export function updateJob(token: string | null | undefined, id: string, payload: Partial<CreateJobPayload>) {
+  const headers: Record<string, string> = { ...buildAuthHeaders(token || undefined) }
+  return request<{ success: boolean; message: string; data: any }>(`/jobs/${id}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteJob(token: string | null | undefined, id: string) {
+  const headers: Record<string, string> = { ...buildAuthHeaders(token || undefined) }
+  return request<{ success: boolean; message: string }>(`/jobs/${id}`, {
+    method: 'DELETE',
+    headers,
+  })
+}
+
+// Get job applications (for placement officers)
+export function getJobApplications(token: string | null | undefined, jobId: string) {
+  const headers: Record<string, string> = { ...buildAuthHeaders(token || undefined) }
+  return request<{ success: boolean; items: any[] }>(`/jobs/${jobId}/applications`, {
+    method: 'GET',
+    headers,
+  })
+}
+
+// Send job applications via email (for placement officers)
+export function sendJobApplicationsEmail(token: string | null | undefined, jobId: string, to?: string) {
+  const headers: Record<string, string> = { ...buildAuthHeaders(token || undefined) }
+  return request<{ success: boolean; sent: number }>(`/jobs/${jobId}/applications/send-email`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ to }),
+  })
+}
+
+// ------------------- STUDENT DASHBOARD & ANALYTICS ------------------- //
+
+export function getStudentDashboardData(token: string) {
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/students/dashboard`
+
+  const res = fetch(url, {
+    method: 'GET',
+    headers: { ...buildAuthHeaders(token) },
+    credentials: 'include',
+  })
+
+  return res.then(async (response) => {
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data?.error || data?.message || 'Failed to get dashboard data')
+    }
+    return data as { success: boolean; data: any }
+  })
+}
+
+// ------------------- PLACEMENT OFFICER DASHBOARD & ANALYTICS ------------------- //
+
+export function getPlacementOfficerDashboardData(token: string) {
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/placement-officer/dashboard`
+
+  const res = fetch(url, {
+    method: 'GET',
+    headers: { ...buildAuthHeaders(token) },
+    credentials: 'include',
+  })
+
+  return res.then(async (response) => {
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data?.error || data?.message || 'Failed to get dashboard data')
+    }
+    return data as { success: boolean; data: any }
+  })
+}
+
+// ------------------- STUDENT MANAGEMENT (Enhanced) ------------------- //
+
+export function getStudentById(token: string, studentId: string) {
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/placement-officer/students/${studentId}`
+
+  const res = fetch(url, {
+    method: 'GET',
+    headers: { ...buildAuthHeaders(token) },
+    credentials: 'include',
+  })
+
+  return res.then(async (response) => {
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data?.error || data?.message || 'Failed to get student')
+    }
+    return data as { success: boolean; student: any }
+  })
+}
+
+export function updateStudent(token: string, studentId: string, payload: any) {
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/placement-officer/students/${studentId}`
+
+  const res = fetch(url, {
+    method: 'PUT',
+    headers: { 
+      'Content-Type': 'application/json',
+      ...buildAuthHeaders(token)
+    },
+    body: JSON.stringify(payload),
+    credentials: 'include',
+  })
+
+  return res.then(async (response) => {
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data?.error || data?.message || 'Failed to update student')
+    }
+    return data as { success: boolean; message: string; student: any }
+  })
+}
+
+export function deleteStudent(token: string, studentId: string) {
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/placement-officer/students/${studentId}`
+
+  const res = fetch(url, {
+    method: 'DELETE',
+    headers: { ...buildAuthHeaders(token) },
+    credentials: 'include',
+  })
+
+  return res.then(async (response) => {
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data?.error || data?.message || 'Failed to delete student')
+    }
+    return data as { success: boolean; message: string }
+  })
+}
+
+// ------------------- RESUME MANAGEMENT (Enhanced) ------------------- //
+
+export function downloadResume(token: string, resumeId: string) {
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/resume/${resumeId}/download`
+
+  return fetch(url, {
+    method: 'GET',
+    headers: { ...buildAuthHeaders(token) },
+    credentials: 'include',
+  }).then(async (response) => {
+    if (!response.ok) {
+      const data = await response.json()
+      throw new Error(data?.error || data?.message || 'Failed to download resume')
+    }
+    return response.blob()
+  })
+}
+
+// ------------------- SHORTLIST MANAGEMENT ------------------- //
+
+export function forwardShortlist(token: string, shortlistId: string, payload: { recipients: string[]; message?: string }) {
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/po/shortlists/${shortlistId}/forward`
+
+  const res = fetch(url, {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      ...buildAuthHeaders(token)
+    },
+    body: JSON.stringify(payload),
+    credentials: 'include',
+  })
+
+  return res.then(async (response) => {
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data?.error || data?.message || 'Failed to forward shortlist')
+    }
+    return data as { success: boolean; message: string }
+  })
+}
+
+// ------------------- ATS ANALYSIS (Enhanced) ------------------- //
+
+export function analyzeATSWithResumeId(token: string, resumeId: string, jobRole: string) {
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/resume/analyze-ats`
+
+  const res = fetch(url, {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      ...buildAuthHeaders(token)
+    },
+    body: JSON.stringify({ resumeId, jobRole }),
+    credentials: 'include',
+  })
+
+  return res.then(async (response) => {
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data?.error || data?.message || 'ATS analysis failed')
+    }
+    return data as { success: boolean; atsAnalysis: ATSAnalysis; resume: any }
   })
 }
 

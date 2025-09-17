@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { getCompanyRequest } from '../../global/api'
 
 export default function RequestDetails() {
   const { id } = useParams<{ id: string }>()
@@ -13,10 +14,9 @@ export default function RequestDetails() {
       try {
         setLoading(true)
         setError(null)
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
-        const res = await fetch(`${baseUrl}/api/companies/requests/${id}`)
-        const data = await res.json()
-        if (!res.ok || !data?.success) throw new Error(data?.error || data?.message || 'Failed to load request')
+        if (!id) return
+        const data = await getCompanyRequest(id)
+        if (!data?.success) throw new Error(data?.message || 'Failed to load request')
         setRequest(data.data)
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Failed to load request')

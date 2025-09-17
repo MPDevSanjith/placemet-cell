@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Link, Copy, Check } from 'lucide-react';
 import { getAuth } from '../global/auth';
+import { createCompanyFormLink } from '../global/api';
 
 interface CompanyRequestForm {
   company: string;
@@ -49,29 +50,12 @@ const CompanyRequestModal: React.FC<CompanyRequestModalProps> = ({
         return;
       }
 
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
-      console.log('Making request to:', `${baseUrl}/api/companies/form-links`);
+      console.log('Making request to create company form link for:', formData.company);
       
-      const response = await fetch(`${baseUrl}/api/companies/form-links`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${auth.token}`
-        },
-        body: JSON.stringify({
-          companyName: formData.company
-        }),
+      const data = await createCompanyFormLink(auth.token, {
+        companyName: formData.company
       });
 
-      console.log('Response status:', response.status);
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Error response:', errorData);
-        throw new Error(errorData.error || `Failed to generate link (${response.status})`);
-      }
-
-      const data = await response.json();
       console.log('Success response:', data);
       
       if (data.success) {
@@ -79,7 +63,7 @@ const CompanyRequestModal: React.FC<CompanyRequestModalProps> = ({
         setIsLinkGenerated(true);
         onLinkGenerated(data.data);
       } else {
-        throw new Error(data.error || 'Failed to generate link');
+        throw new Error(data.message || 'Failed to generate link');
       }
     } catch (error) {
       console.error('Error generating link:', error);
@@ -110,12 +94,6 @@ const CompanyRequestModal: React.FC<CompanyRequestModalProps> = ({
     onClose();
   };
 
-  const resetForm = () => {
-    setFormData({ company: '' });
-    setGeneratedLink('');
-    setIsLinkGenerated(false);
-    setCopied(false);
-  };
 
   if (!isOpen) return null;
 
@@ -203,12 +181,7 @@ const CompanyRequestModal: React.FC<CompanyRequestModalProps> = ({
 
         {/* Footer */}
         <div className="mt-6 flex justify-between">
-          <button
-            onClick={resetForm}
-            className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
-          >
-            Reset
-          </button>
+          
           <div className="flex gap-2">
             <button
               onClick={handleClose}
