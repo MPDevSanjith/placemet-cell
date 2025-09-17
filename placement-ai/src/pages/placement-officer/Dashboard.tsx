@@ -5,8 +5,8 @@ import { useMemo, useState } from 'react'
 import Layout from '../../components/layout/Layout'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { listOfficerStudents, type OfficerStudent, type OfficerStudentListResponse } from '../../global/api'
-import { Download, Mail, Trophy, CalendarClock } from 'lucide-react'
+import { listOfficerStudents, type OfficerStudent, type OfficerStudentListResponse, getStudentFilterOptions } from '../../global/api'
+import { Download } from 'lucide-react'
 import {
   ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend,
@@ -23,12 +23,17 @@ type Filters = {
   section?: string
   placed?: string
   blocked?: string
+  programType?: string
+  minCgpa?: string
+  maxBacklogs?: string
+  minAttendance?: string
   page?: number
   limit?: number | 'all'
 }
 
-const ATTENDANCE_MIN = 75
-const BACKLOG_MAX = 1
+const DEFAULT_ATTENDANCE_MIN = 80
+const DEFAULT_BACKLOG_MAX = 0
+const DEFAULT_CGPA_MIN = 6
 
 export default function PlacementOfficerDashboard() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -43,6 +48,10 @@ export default function PlacementOfficerDashboard() {
     section: searchParams.get('section') || '',
     placed: searchParams.get('placed') || '',
     blocked: searchParams.get('blocked') || '',
+    programType: searchParams.get('programType') || '',
+    minCgpa: searchParams.get('minCgpa') || '',
+    maxBacklogs: searchParams.get('maxBacklogs') || '',
+    minAttendance: searchParams.get('minAttendance') || '',
     page: Number(searchParams.get('page') || 1),
     limit: Number(searchParams.get('limit') || 10),
   }))
@@ -60,20 +69,50 @@ export default function PlacementOfficerDashboard() {
 
   // (table query removed; charts use all data)
 
+  // Eligibility criteria (editable)
+  const [eligibility] = useState<{ attendanceMin: number; backlogMax: number; cgpaMin: number }>(() => {
+    const saved = localStorage.getItem('po_eligibility_criteria')
+    if (saved) {
+      try { return JSON.parse(saved) } catch { /* ignore malformed */ }
+    }
+    return { attendanceMin: DEFAULT_ATTENDANCE_MIN, backlogMax: DEFAULT_BACKLOG_MAX, cgpaMin: DEFAULT_CGPA_MIN }
+  })
+  // Note: eligibility is adjusted elsewhere when needed; persistence handled locally when used
+
+  // (no server-backed eligibility settings here)
+
   // data: all for charts/KPIs
   const allQuery = useQuery<OfficerStudentListResponse>({
     queryKey: ['po-students-all', { ...filters, page: 1, limit: 'all' }],
     queryFn: () => listOfficerStudents({ ...filters, page: 1, limit: 'all' } as Record<string, string | number | boolean | undefined>),
   })
 
-  type ExtendedStudent = OfficerStudent & { eligibilityCriteria?: { attendancePercentage?: number; backlogs?: number } }
+  // Fetch filter options to populate dropdowns
+  const filterOptionsQuery = useQuery<{ success: boolean; filters: { departments: string[]; courses: string[]; years: string[]; programTypes: string[] } }>({
+    queryKey: ['po-student-filter-options'],
+    queryFn: () => getStudentFilterOptions(),
+    staleTime: 5 * 60 * 1000
+  })
+
+  type ExtendedStudent = OfficerStudent & {
+    eligibilityCriteria?: { attendancePercentage?: number; backlogs?: number }
+    onboardingData?: { academicInfo?: { gpa?: number } }
+    onboardingCompleted?: boolean
+    programType?: string
+    section?: string
+  }
   const studentsAll: ExtendedStudent[] = useMemo(() => {
     return (allQuery.data?.items as ExtendedStudent[]) || []
   }, [allQuery.data])
 
   const kpis = useMemo(() => {
     const total = studentsAll.length
-    const eligible = studentsAll.filter(s => (s.eligibilityCriteria?.attendancePercentage ?? 0) >= ATTENDANCE_MIN && (s.eligibilityCriteria?.backlogs ?? 99) <= BACKLOG_MAX).length
+    const eligible = studentsAll.filter(s => {
+      const att = s.eligibilityCriteria?.attendancePercentage ?? 0
+      const bl = s.eligibilityCriteria?.backlogs ?? 99
+      const gpa = s.onboardingData?.academicInfo?.gpa ?? 0
+      return att >= eligibility.attendanceMin && bl <= eligibility.backlogMax && gpa >= eligibility.cgpaMin
+    }).length
     const placed = studentsAll.filter(s => s.isPlaced).length
     const blocked = studentsAll.filter(s => s.isActive === false).length
     const active = total - blocked
@@ -93,12 +132,15 @@ export default function PlacementOfficerDashboard() {
       const key = (s.year || 'NA') as string
       if (!map[key]) map[key] = { batch: key, total: 0, eligible: 0, placed: 0 }
       map[key].total += 1
-      const isEligible = (s.eligibilityCriteria?.attendancePercentage ?? 0) >= ATTENDANCE_MIN && (s.eligibilityCriteria?.backlogs ?? 99) <= BACKLOG_MAX
+      const att = s.eligibilityCriteria?.attendancePercentage ?? 0
+      const bl = s.eligibilityCriteria?.backlogs ?? 99
+      const gpa = s.onboardingData?.academicInfo?.gpa ?? 0
+      const isEligible = att >= eligibility.attendanceMin && bl <= eligibility.backlogMax && gpa >= eligibility.cgpaMin
       if (isEligible) map[key].eligible += 1
       if (s.isPlaced) map[key].placed += 1
     })
     return Object.values(map).sort((a,b)=>a.batch.localeCompare(b.batch))
-  }, [studentsAll])
+  }, [studentsAll, eligibility])
 
   const deptBar = useMemo(() => {
     const map: Record<string, { name: string; total: number; eligible: number; placed: number }> = {}
@@ -106,12 +148,15 @@ export default function PlacementOfficerDashboard() {
       const dept = s.branch || 'NA'
       if (!map[dept]) map[dept] = { name: dept, total: 0, eligible: 0, placed: 0 }
       map[dept].total += 1
-      const isEligible = (s.eligibilityCriteria?.attendancePercentage ?? 0) >= ATTENDANCE_MIN && (s.eligibilityCriteria?.backlogs ?? 99) <= BACKLOG_MAX
+      const att = s.eligibilityCriteria?.attendancePercentage ?? 0
+      const bl = s.eligibilityCriteria?.backlogs ?? 99
+      const gpa = s.onboardingData?.academicInfo?.gpa ?? 0
+      const isEligible = att >= eligibility.attendanceMin && bl <= eligibility.backlogMax && gpa >= eligibility.cgpaMin
       if (isEligible) map[dept].eligible += 1
       if (s.isPlaced) map[dept].placed += 1
     })
     return Object.values(map).sort((a,b)=>a.name.localeCompare(b.name))
-  }, [studentsAll])
+  }, [studentsAll, eligibility])
 
   const backlogHist = useMemo(() => {
     return [
@@ -121,6 +166,75 @@ export default function PlacementOfficerDashboard() {
       { name: '3+', value: kpis.backlogBuckets['3+'] },
     ]
   }, [kpis])
+
+  // Program Type segmentation
+  const programCards = useMemo(() => {
+    const map: Record<string, { program: string; total: number; registered: number; eligible: number; placed: number; placementRate: number; totalRate: number }> = {}
+    const normalizeProgram = (raw: string | undefined | null): string => {
+      const v = String(raw || '').trim().toLowerCase()
+      if (!v) return 'Unspecified'
+      if (/^ug$/.test(v)) return 'UG'
+      if (/^pg$/.test(v)) return 'PG'
+      if (/(btech|b\.tech|be|b\.e|bsc|b\.sc|ba|b\.a|bcom|b\.com|bca|bba|undergrad|under\s*graduate|ug)/.test(v)) return 'UG'
+      if (/(mtech|m\.tech|me|m\.e|msc|m\.sc|ma|m\.a|mcom|m\.com|mca|mba|postgrad|post\s*graduate|pg)/.test(v)) return 'PG'
+      if (/(diploma|poly|polytechnic)/.test(v)) return 'Diploma'
+      if (/(phd|doctorate)/.test(v)) return 'PhD'
+      return v.toUpperCase()
+    }
+    studentsAll.forEach((s: ExtendedStudent) => {
+      const program = normalizeProgram(s.programType)
+      if (!map[program]) map[program] = { program, total: 0, registered: 0, eligible: 0, placed: 0, placementRate: 0, totalRate: 0 }
+      map[program].total += 1
+      if (s.onboardingCompleted) map[program].registered += 1
+      const att = s.eligibilityCriteria?.attendancePercentage ?? 0
+      const bl = s.eligibilityCriteria?.backlogs ?? 99
+      const gpa = s.onboardingData?.academicInfo?.gpa ?? 0
+      const isEligible = att >= eligibility.attendanceMin && bl <= eligibility.backlogMax && gpa >= eligibility.cgpaMin
+      if (isEligible) map[program].eligible += 1
+      if (s.isPlaced) map[program].placed += 1
+    })
+    Object.values(map).forEach(p => {
+      const eligibleRate = p.eligible > 0 ? Math.round((p.placed / p.eligible) * 100) : 0
+      const totalRate = p.total > 0 ? Math.round((p.placed / p.total) * 100) : 0
+      p.placementRate = Math.max(0, Math.min(100, eligibleRate))
+      p.totalRate = Math.max(0, Math.min(100, totalRate))
+    })
+    return Object.values(map).sort((a,b)=>a.program.localeCompare(b.program))
+  }, [studentsAll, eligibility])
+
+  // Courses grouped by Program Type (UG/PG) with Total, Eligible, Placed
+  const courseByProgram = useMemo(() => {
+    const toBucket = (raw: string | undefined | null): 'UG' | 'PG' | 'Other' => {
+      const v = String(raw || '').trim().toLowerCase()
+      if (!v) return 'Other'
+      if (/^ug$/.test(v) || /(btech|b\.tech|be|b\.e|bsc|b\.sc|ba|b\.a|bcom|b\.com|bca|bba|undergrad|under\s*graduate|ug)/.test(v)) return 'UG'
+      if (/^pg$/.test(v) || /(mtech|m\.tech|me|m\.e|msc|m\.sc|ma|m\.a|mcom|m\.com|mca|mba|postgrad|post\s*graduate|pg)/.test(v)) return 'PG'
+      return 'Other'
+    }
+    const titleCase = (s: string) => String(s || '').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
+    type CourseAgg = { course: string; total: number; eligible: number; placed: number }
+    const ug: Record<string, CourseAgg> = {}
+    const pg: Record<string, CourseAgg> = {}
+    studentsAll.forEach((s: ExtendedStudent) => {
+      const bucket = toBucket(s.programType)
+      if (bucket === 'Other') return
+      const courseName = titleCase((s.course as string) || 'Unspecified')
+      const target = bucket === 'UG' ? ug : pg
+      if (!target[courseName]) target[courseName] = { course: courseName, total: 0, eligible: 0, placed: 0 }
+      const entry = target[courseName]
+      entry.total += 1
+      const att = s.eligibilityCriteria?.attendancePercentage ?? 0
+      const bl = s.eligibilityCriteria?.backlogs ?? 99
+      const gpa = s.onboardingData?.academicInfo?.gpa ?? 0
+      const isEligible = att >= eligibility.attendanceMin && bl <= eligibility.backlogMax && gpa >= eligibility.cgpaMin
+      if (isEligible) entry.eligible += 1
+      if (s.isPlaced) entry.placed += 1
+    })
+    const finalize = (m: Record<string, CourseAgg>) => Object.values(m).sort((a,b)=>a.course.localeCompare(b.course))
+    return { UG: finalize(ug), PG: finalize(pg) }
+  }, [studentsAll, eligibility.attendanceMin, eligibility.backlogMax, eligibility.cgpaMin])
+
+  // removed additional sections (dept full-width and course-wise)
 
   
 
@@ -225,125 +339,109 @@ export default function PlacementOfficerDashboard() {
               ))}
             </div>
 
-        {/* Card grids - Department, Eligibility, Placement */}
-        <div className="px-4 space-y-6" id="dept">
-          {/* Department quick filter chips */}
-          <div className="flex flex-wrap gap-2">
-            {deptBar.map(d => (
-              <button
-                key={d.name}
-                onClick={() => syncUrl({ department: filters.department === d.name ? '' : d.name, page: 1 })}
-                className={`text-sm px-3 py-1.5 rounded-full border shadow-subtle ${filters.department === d.name ? 'bg-primary-50 text-primary-700 border-primary-100' : 'bg-white text-secondary-700 border-accent-200 hover:bg-accent-50'}`}
-              >
-                {d.name}
-              </button>
-            ))}
-            {deptBar.length > 0 && (
-              <button onClick={() => syncUrl({ department: '', page: 1 })} className="text-sm px-3 py-1.5 rounded-full bg-secondary-800 text-white hover:bg-secondary-900">Clear</button>
-            )}
-          </div>
-          {/* Department cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {deptBar.map((d) => (
-              <div key={d.name} className="bg-white rounded-2xl p-4 border border-accent-200 shadow-subtle">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="text-sm text-secondary-500">Department</div>
-                    <div className="mt-0.5 text-lg font-semibold text-brand-text">{d.name}</div>
+        {/* Program Type segmentation (UG/PG/Diploma/etc.) */}
+        <div className="px-4 space-y-3">
+          <div className="text-sm text-secondary-600">Program Type</div>
+          <div className="grid grid-cols-1 gap-4">
+            {programCards.map((p)=> (
+              <div key={p.program} className="bg-white rounded-2xl p-5 border border-accent-200 shadow-subtle">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-semibold text-brand-text">Program Type: {p.program}</h3>
+                  <span className="text-xs px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">{p.placementRate}% rate</span>
                   </div>
-                  <span className="text-xs px-2 py-1 rounded-full bg-primary-50 text-primary-700 border border-primary-100">{d.total} total</span>
-                </div>
-                <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 text-center">
                   <div className="bg-accent-100 rounded-xl p-3">
-                    <div className="text-xs text-secondary-500">Total</div>
-                    <div className="mt-1 font-bold text-secondary-800">{d.total}</div>
+                    <div className="text-[11px] text-secondary-500">Total</div>
+                    <div className="mt-1 font-bold text-secondary-800">{p.total}</div>
+                  </div>
+                  <div className="bg-blue-50 rounded-xl p-3">
+                    <div className="text-[11px] text-secondary-500">Registered</div>
+                    <div className="mt-1 font-bold text-secondary-800">{p.registered}</div>
                   </div>
                   <div className="bg-emerald-50 rounded-xl p-3">
-                    <div className="text-xs text-secondary-500">Eligible</div>
-                    <div className="mt-1 font-bold text-secondary-800">{d.eligible}</div>
+                    <div className="text-[11px] text-secondary-500">Eligible</div>
+                    <div className="mt-1 font-bold text-secondary-800">{p.eligible}</div>
                   </div>
                   <div className="bg-insta-2/10 rounded-xl p-3">
-                    <div className="text-xs text-secondary-500">Placed</div>
-                    <div className="mt-1 font-bold text-secondary-800">{d.placed}</div>
+                    <div className="text-[11px] text-secondary-500">Placed</div>
+                    <div className="mt-1 font-bold text-secondary-800">{p.placed}</div>
+                  </div>
+                  <div className="bg-indigo-50 rounded-xl p-3">
+                    <div className="text-[11px] text-secondary-500">Rate (Total)</div>
+                    <div className="mt-1 font-bold text-secondary-800">{p.totalRate}%</div>
                   </div>
                 </div>
               </div>
             ))}
           </div>
-
-          {/* Eligibility cards */}
-          {(() => {
-            const eligible = kpis.eligible
-            const notEligible = Math.max(kpis.total - eligible, 0)
-            return (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" id="eligibility">
-                <div className="bg-white rounded-2xl p-5 border border-accent-200 shadow-subtle">
-                  <div className="text-sm text-secondary-500">Eligibility</div>
-                  <div className="mt-1 text-2xl font-bold text-brand-text">{eligible}</div>
-                  <div className="mt-3 h-2 w-full bg-accent-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500" style={{ width: `${kpis.total ? Math.round((eligible / kpis.total) * 100) : 0}%` }} />
-                  </div>
-                  <div className="mt-2 text-xs text-secondary-600">{kpis.total ? Math.round((eligible / kpis.total) * 100) : 0}% of total students</div>
-                   {/* action buttons removed per request */}
-                </div>
-                <div className="bg-white rounded-2xl p-5 border border-accent-200 shadow-subtle">
-                  <div className="text-sm text-secondary-500">Not Eligible</div>
-                  <div className="mt-1 text-2xl font-bold text-brand-text">{notEligible}</div>
-                  <div className="mt-3 h-2 w-full bg-accent-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-amber-500" style={{ width: `${kpis.total ? Math.round((notEligible / kpis.total) * 100) : 0}%` }} />
-                  </div>
-                  <div className="mt-2 text-xs text-secondary-600">{kpis.total ? Math.round((notEligible / kpis.total) * 100) : 0}% of total students</div>
-                </div>
-                <div className="bg-white rounded-2xl p-5 border border-accent-200 shadow-subtle">
-                  <div className="text-sm text-secondary-500">Placement Rate</div>
-                  <div className="mt-1 text-2xl font-bold text-brand-text">{kpis.placementRate}%</div>
-                  <div className="mt-3 h-2 w-full bg-accent-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-insta-2" style={{ width: `${kpis.placementRate}%` }} />
-                  </div>
-                  <div className="mt-2 text-xs text-secondary-600">Based on eligible students</div>
-                  <div className="mt-3 text-xs text-secondary-600">Insight: {kpis.placementRate >= 65 ? 'Top performing cohorts' : 'Consider eligibility drives'}
-                  </div>
-                </div>
-              </div>
-            )
-          })()}
-
-          {/* Placement cards */}
-          {(() => {
-            const placed = kpis.placed
-            const notPlaced = Math.max(kpis.total - placed, 0)
-            return (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" id="placement">
-                <div className="bg-white rounded-2xl p-5 border border-accent-200 shadow-subtle">
-                  <div className="text-sm text-secondary-500">Placed</div>
-                  <div className="mt-1 text-2xl font-bold text-brand-text">{placed}</div>
-                  <div className="mt-3 h-2 w-full bg-accent-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500" style={{ width: `${kpis.total ? Math.round((placed / kpis.total) * 100) : 0}%` }} />
-                  </div>
-                  {/* action buttons removed per request */}
-                </div>
-                <div className="bg-white rounded-2xl p-5 border border-accent-200 shadow-subtle">
-                  <div className="text-sm text-secondary-500">Not Placed</div>
-                  <div className="mt-1 text-2xl font-bold text-brand-text">{notPlaced}</div>
-                  <div className="mt-3 h-2 w-full bg-accent-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-red-400" style={{ width: `${kpis.total ? Math.round((notPlaced / kpis.total) * 100) : 0}%` }} />
-                  </div>
-                  {/* action buttons removed per request */}
-                </div>
-              </div>
-            )
-          })()}
         </div>
+
+        {/* Courses by Program Type (UG / PG) */}
+        <div className="px-4 space-y-3">
+          <div className="text-sm text-secondary-600">Courses by Program Type</div>
+          {(['UG','PG'] as const).map((bucket) => (
+            courseByProgram[bucket].length > 0 ? (
+              <div key={bucket} className="space-y-2">
+                <div className="text-xs text-secondary-500">{bucket}</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {courseByProgram[bucket].map((c) => (
+                    <div key={`${bucket}-${c.course}`} className="bg-white rounded-2xl p-4 border border-accent-200 shadow-subtle">
+                      <div className="flex items-center justify-between">
+                        <div className="text-lg font-semibold text-brand-text">{c.course}</div>
+                        <span className="text-[11px] px-2 py-1 rounded-full bg-primary-50 text-primary-700 border border-primary-100">{bucket}</span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                        <div className="bg-accent-100 rounded-xl p-3">
+                          <div className="text-[11px] text-secondary-500">Total</div>
+                          <div className="mt-1 font-bold text-secondary-800">{c.total}</div>
+                        </div>
+                        <div className="bg-emerald-50 rounded-xl p-3">
+                          <div className="text-[11px] text-secondary-500">Eligible</div>
+                          <div className="mt-1 font-bold text-secondary-800">{c.eligible}</div>
+                        </div>
+                        <div className="bg-insta-2/10 rounded-xl p-3">
+                          <div className="text-[11px] text-secondary-500">Placed</div>
+                          <div className="mt-1 font-bold text-secondary-800">{c.placed}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null
+          ))}
+        </div>
+
+        {/* Program Type Segmentation removed as requested */}
 
         {/* Filters */}
         <div className="mt-6 px-4">
-          <div className="bg-white rounded-2xl p-4 shadow-subtle border border-accent-200 grid md:grid-cols-3 lg:grid-cols-9 gap-3">
+          <div className="bg-white rounded-2xl p-4 shadow-subtle border border-accent-200 grid md:grid-cols-3 lg:grid-cols-12 gap-3">
             <input placeholder="Search" value={filters.q||''} onChange={e=>syncUrl({q:e.target.value,page:1})} className="form-input" />
-            <input placeholder="Batch" value={filters.batch||''} onChange={e=>syncUrl({batch:e.target.value,page:1})} className="form-input" />
-            <input placeholder="Course" value={filters.course||''} onChange={e=>syncUrl({course:e.target.value,page:1})} className="form-input" />
-            <input placeholder="Year" value={filters.year||''} onChange={e=>syncUrl({year:e.target.value,page:1})} className="form-input" />
-            <input placeholder="Department" value={filters.department||''} onChange={e=>syncUrl({department:e.target.value,page:1})} className="form-input" />
+            <select value={filters.batch||''} onChange={e=>syncUrl({batch:e.target.value,page:1})} className="form-input">
+              <option value="">Batch</option>
+              {(filterOptionsQuery.data?.filters.years || []).map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+            <select value={filters.course||''} onChange={e=>syncUrl({course:e.target.value,page:1})} className="form-input">
+              <option value="">Course</option>
+              {(filterOptionsQuery.data?.filters.courses || []).map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select value={filters.year||''} onChange={e=>syncUrl({year:e.target.value,page:1})} className="form-input">
+              <option value="">Year</option>
+              {(filterOptionsQuery.data?.filters.years || []).map(y => <option key={`yr-${y}`} value={y}>{y}</option>)}
+            </select>
+            <select value={filters.department||''} onChange={e=>syncUrl({department:e.target.value,page:1})} className="form-input">
+              <option value="">Department</option>
+              {(filterOptionsQuery.data?.filters.departments || []).map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
             <input placeholder="Section" value={filters.section||''} onChange={e=>syncUrl({section:e.target.value,page:1})} className="form-input" />
+            <select value={filters.programType||''} onChange={e=>syncUrl({programType:e.target.value,page:1})} className="form-input">
+              <option value="">Program</option>
+              {(filterOptionsQuery.data?.filters.programTypes || []).map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <input placeholder="Min CGPA" value={filters.minCgpa||''} onChange={e=>syncUrl({minCgpa:e.target.value,page:1})} className="form-input" />
+            <input placeholder="Max Backlogs" value={filters.maxBacklogs||''} onChange={e=>syncUrl({maxBacklogs:e.target.value,page:1})} className="form-input" />
+            <input placeholder="Min Attendance %" value={filters.minAttendance||''} onChange={e=>syncUrl({minAttendance:e.target.value,page:1})} className="form-input" />
             <select value={filters.placed||''} onChange={e=>syncUrl({placed:e.target.value,page:1})} className="form-input">
               <option value="">Placement</option>
               <option value="true">Placed</option>
@@ -375,7 +473,7 @@ export default function PlacementOfficerDashboard() {
                 <button className="text-secondary-400 hover:text-secondary-700" onClick={()=>syncUrl({[k]: ''} as Partial<Filters>)}>×</button>
               </span>
             ))}
-            <button className="text-sm text-white bg-secondary-800 hover:bg-secondary-900 rounded-full px-3 py-1.5" onClick={()=>syncUrl({ q:'', batch:'', course:'', year:'', department:'', section:'', placed:'', blocked:'', page:1 })}>Clear all</button>
+            <button className="text-sm text-white bg-secondary-800 hover:bg-secondary-900 rounded-full px-3 py-1.5" onClick={()=>syncUrl({ q:'', batch:'', course:'', year:'', department:'', section:'', placed:'', blocked:'', programType:'', minCgpa:'', maxBacklogs:'', minAttendance:'', page:1 })}>Clear all</button>
               </div>
             </div>
 

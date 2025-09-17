@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { getAuth, verifyAuthFromBackend, getUserRoleFromBackend, clearAuth } from '../global/auth'
+import { logout as apiLogout } from '../global/api'
 
 export interface AuthUser {
   id: string | number
@@ -95,11 +96,20 @@ export function useAuth(): UseAuthReturn {
   }, [verifyAuth])
 
   // Logout function
-  const logout = useCallback(() => {
-    clearAuth()
-    setAuth(null)
-    setUserRole(null)
-    window.location.href = '/login'
+  const logout = useCallback(async () => {
+    try {
+      // Call backend logout first to clear server-side session
+      await apiLogout()
+    } catch (error) {
+      console.warn('Backend logout failed, continuing with local logout:', error)
+      // Continue with local logout even if backend fails
+    } finally {
+      // Always clear local auth and redirect
+      clearAuth()
+      setAuth(null)
+      setUserRole(null)
+      window.location.href = '/login'
+    }
   }, [])
 
   // Check authentication on mount

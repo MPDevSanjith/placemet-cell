@@ -144,9 +144,9 @@ const Layout = ({
         {(() => {
           const hasHeader = Boolean(title || subtitle)
           const mainPadding = hasHeader
-            ? 'pt-16 p-6 lg:p-6 md:p-4 sm:p-3'
-            : 'pt-16 p-4 lg:p-5 md:p-4 sm:p-3'
-          const cardPadding = hasHeader ? 'p-6' : 'p-5'
+            ? 'pt-16 px-4 py-6 sm:px-6 lg:px-8'
+            : 'pt-16 px-4 py-6 sm:px-6 lg:px-8'
+          const cardPadding = hasHeader ? 'p-4 sm:p-6' : 'p-4 sm:p-5'
           return (
             <main className={`${mainPadding} min-h-screen`}>
               {(title || subtitle) && (
@@ -172,7 +172,7 @@ const Layout = ({
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className={`bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200/50 ${cardPadding}`}
+                className={`bg-white rounded-2xl shadow-lg border border-gray-200 ${cardPadding}`}
               >
                 {children}
               </motion.div>

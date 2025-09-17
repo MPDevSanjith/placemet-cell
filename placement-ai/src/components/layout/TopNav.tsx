@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Search, 
@@ -8,18 +8,18 @@ import {
   LogOut,
   Menu,
   ChevronDown,
-  MessageSquare,
   HelpCircle,
   Shield,
-  Sun,
-  Moon
+  Loader2
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { getAuth, logout } from '../../global/auth'
-import { getMyUnreadNotificationCount } from '../../global/api'
+import { getAuth } from '../../global/auth'
+import { getMyUnreadNotificationCount, listMyNotifications, listNotifications } from '../../global/api'
+import { useAuth } from '../../hooks/useAuth'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
 import Badge from '../ui/Badge'
+import SearchResults from '../SearchResults'
 
 interface TopNavProps {
   onMenuToggle: () => void
@@ -41,114 +41,138 @@ const TopNav = ({
   studentStatus
 }: TopNavProps) => {
   const navigate = useNavigate()
+  const { logout } = useAuth()
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [showNotificationsMenu, setShowNotificationsMenu] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [isDarkMode, setIsDarkMode] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [showSearchResults, setShowSearchResults] = useState(false)
+  const [searchPosition, setSearchPosition] = useState({ top: 0, left: 0, width: 0 })
   const auth = getAuth()
   const [unreadCount, setUnreadCount] = useState<number>(0)
+  const [notificationsData, setNotificationsData] = useState<Array<{ id?: string; title: string; message: string; time?: string; unread?: boolean }>>([])
+  const [loadingNotifications, setLoadingNotifications] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
-  }
-
-  // Real notifications based on user status
-  const getNotifications = () => {
-    const notifications = []
-    
-    if (userRole === 'student' && studentStatus) {
-      if (!studentStatus.hasResume) {
-        notifications.push({
-          id: 1,
-          title: 'Resume Required',
-          message: 'Upload your resume to complete your profile',
-          time: 'Just now',
-          unread: true,
-          type: 'warning'
-        })
-      }
-      
-      if (studentStatus.completionPercentage < 80) {
-        notifications.push({
-          id: 2,
-          title: 'Profile Incomplete',
-          message: `Complete your profile (${studentStatus.completionPercentage}% done)`,
-          time: '5 min ago',
-          unread: true,
-          type: 'info'
-        })
-      }
-      
-      if (studentStatus.hasResume && studentStatus.completionPercentage >= 80) {
-        notifications.push({
-          id: 3,
-          title: 'Profile Complete',
-          message: 'Your profile is ready for job applications',
-          time: '1 hour ago',
-          unread: false,
-          type: 'success'
-        })
-      }
-    } else {
-      // Default notifications for placement officers
-      notifications.push(
-        {
-          id: 1,
-          title: 'New Student Registration',
-          message: '5 new students have registered today',
-          time: '2 min ago',
-          unread: true,
-          type: 'info'
-        },
-        {
-          id: 2,
-          title: 'Resume Uploads',
-          message: '12 students uploaded resumes this week',
-          time: '1 hour ago',
-          unread: true,
-          type: 'info'
-        },
-        {
-          id: 3,
-          title: 'Company Request',
-          message: 'New job posting request from TechCorp',
-          time: '3 hours ago',
-          unread: false,
-          type: 'info'
-        }
-      )
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      await logout()
+    } catch (error) {
+      console.error('Logout error:', error)
+      // Force redirect even if logout fails
+      window.location.href = '/login'
     }
-    
-    return notifications
   }
 
-  const notifications = getNotifications()
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setSearchQuery(value)
+    
+    if (value.length >= 2) {
+      setShowSearchResults(true)
+      updateSearchPosition()
+    } else {
+      setShowSearchResults(false)
+    }
+  }
 
-  // Fetch unread count for students from server
+  const handleSearchFocus = () => {
+    if (searchQuery.length >= 2) {
+      setShowSearchResults(true)
+      updateSearchPosition()
+    }
+  }
+
+  const updateSearchPosition = () => {
+    if (searchRef.current) {
+      const rect = searchRef.current.getBoundingClientRect()
+      
+      // Simple positioning - always below the search bar
+      const top = rect.bottom + 5
+      const left = rect.left
+      const width = rect.width
+      
+      setSearchPosition({
+        top: top,
+        left: left,
+        width: width
+      })
+    }
+  }
+
+  const handleSearchClose = () => {
+    setShowSearchResults(false)
+  }
+
+  // Fetch unread count
   useEffect(() => {
     let cancelled = false
     const fetchCount = async () => {
       try {
-        if (userRole === 'student' && auth?.token) {
+        if (auth?.token) {
           const res = await getMyUnreadNotificationCount(auth.token)
           if (!cancelled) setUnreadCount(res.unread || 0)
         } else {
-          // fallback to local derived count for non-students
-          if (!cancelled) setUnreadCount(notifications.filter(n => n.unread).length)
+          if (!cancelled) setUnreadCount(0)
         }
       } catch {
-        if (!cancelled) setUnreadCount(notifications.filter(n => n.unread).length)
+        if (!cancelled) setUnreadCount(0)
       }
     }
     fetchCount()
-    // Refresh occasionally
     const id = setInterval(fetchCount, 60_000)
     return () => { cancelled = true; clearInterval(id) }
-  }, [userRole, auth?.token])
+  }, [auth?.token])
+
+  // Load real notifications when token/role changes and when menu opens
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      if (!auth?.token) { setNotificationsData([]); return }
+      try {
+        setLoadingNotifications(true)
+        if (userRole === 'student') {
+          const res = await listMyNotifications(auth.token)
+          if (cancelled) return
+          const mapped = (res.items || []).map((n: any) => ({ id: n._id, title: n.title, message: n.message, time: new Date(n.createdAt).toLocaleString(), unread: !n.read }))
+          setNotificationsData(mapped)
+        } else {
+          const res = await listNotifications(auth.token)
+          if (cancelled) return
+          const mapped = (res.items || []).slice(0, 20).map((n: any) => ({ id: n._id, title: n.title, message: n.message, time: new Date(n.createdAt).toLocaleString(), unread: false }))
+          setNotificationsData(mapped)
+        }
+      } catch {
+        if (!cancelled) setNotificationsData([])
+      } finally {
+        if (!cancelled) setLoadingNotifications(false)
+      }
+    }
+    load()
+    // also reload when opening menu
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth?.token, userRole, showNotificationsMenu])
+
+  // Update search position on window resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (showSearchResults) {
+        updateSearchPosition()
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+    window.addEventListener('scroll', handleResize)
+    
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('scroll', handleResize)
+    }
+  }, [showSearchResults])
 
   return (
-    <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 px-4 lg:px-6 py-3 flex items-center justify-between sticky top-0 z-40 shadow-sm">
+    <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 px-4 lg:px-6 py-3 flex items-center justify-between sticky top-0 z-[60] shadow-sm">
       {/* Left Section */}
       <div className="flex items-center gap-2 lg:gap-4">
         <Button
@@ -159,19 +183,29 @@ const TopNav = ({
         >
           <Menu className="w-5 h-5 text-gray-600" />
         </Button>
+        <div className="hidden sm:block">
+          <span className="font-brand text-lg text-gray-800 tracking-wide">beyondcampusX</span>
+        </div>
       </div>
 
       {/* Center Section - Search Bar */}
       {showSearch && (
         <div className="flex-1 max-w-md mx-4 hidden sm:block">
-          <div className="relative">
+          <div className="relative" ref={searchRef}>
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input
               type="text"
-              placeholder="Search opportunities..."
+              placeholder={userRole === 'student' ? "Search jobs, companies..." : "Search students, jobs, companies..."}
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={handleSearchChange}
+              onFocus={handleSearchFocus}
               className="pl-10 w-full bg-gray-50/50 border-gray-200/50 focus:bg-white focus:border-blue-300 transition-all duration-200"
+            />
+            <SearchResults
+              query={searchQuery}
+              isOpen={showSearchResults}
+              onClose={handleSearchClose}
+              position={searchPosition}
             />
           </div>
         </div>
@@ -184,21 +218,18 @@ const TopNav = ({
           <Button
             variant="ghost"
             size="sm"
+            onClick={() => {
+              const searchInput = document.querySelector('input[placeholder*="Search"]') as HTMLInputElement
+              if (searchInput) {
+                searchInput.focus()
+                searchInput.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              }
+            }}
             className="md:hidden hover:bg-gray-100 transition-colors duration-200"
           >
             <Search className="w-5 h-5 text-gray-600" />
           </Button>
         )}
-
-        {/* Theme Toggle */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setIsDarkMode(!isDarkMode)}
-          className="hover:bg-gray-100 transition-colors duration-200"
-        >
-          {isDarkMode ? <Sun className="w-4 h-4 text-gray-600" /> : <Moon className="w-4 h-4 text-gray-600" />}
-        </Button>
 
         {/* Notifications */}
         {showNotifications && (
@@ -234,33 +265,25 @@ const TopNav = ({
                   </div>
                   
                   <div className="max-h-64 overflow-y-auto">
-                    {notifications.map((notification) => (
+                    {loadingNotifications && (
+                      <div className="p-4 text-center text-gray-500 text-sm">Loading…</div>
+                    )}
+                    {!loadingNotifications && notificationsData.length === 0 && (
+                      <div className="p-6 text-center text-gray-500 text-sm">No notifications</div>
+                    )}
+                    {!loadingNotifications && notificationsData.length > 0 && notificationsData.map((notification) => (
                       <div
-                        key={notification.id}
-                        className={`p-4 border-b border-gray-100/50 hover:bg-gray-50/50 cursor-pointer transition-colors duration-200 ${
-                          notification.unread ? 'bg-blue-50/50' : ''
-                        }`}
+                        key={notification.id || notification.title}
+                        className={`p-4 border-b border-gray-100/50 hover:bg-gray-50/50 cursor-pointer transition-colors duration-200 ${notification.unread ? 'bg-blue-50/50' : ''}`}
                       >
                         <div className="flex items-start gap-3">
-                          <div className={`w-2 h-2 rounded-full mt-2 ${
-                            notification.unread 
-                              ? notification.type === 'warning' 
-                                ? 'bg-yellow-500' 
-                                : notification.type === 'success'
-                                ? 'bg-green-500'
-                                : 'bg-blue-500'
-                              : 'bg-gray-300'
-                          }`} />
+                          <div className={`w-2 h-2 rounded-full mt-2 ${notification.unread ? 'bg-blue-500' : 'bg-gray-300'}`} />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900">
-                              {notification.title}
-                            </p>
-                            <p className="text-sm text-gray-600 mt-1">
-                              {notification.message}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {notification.time}
-                            </p>
+                            <p className="text-sm font-medium text-gray-900">{notification.title}</p>
+                            <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
+                            {notification.time && (
+                              <p className="text-xs text-gray-500 mt-1">{notification.time}</p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -286,7 +309,7 @@ const TopNav = ({
             onClick={() => setShowProfileMenu(!showProfileMenu)}
             className="flex items-center gap-2 hover:bg-gray-100 transition-colors duration-200"
           >
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to purple-600 rounded-full flex items-center justify-center">
               <User className="w-4 h-4 text-white" />
             </div>
             <span className="hidden md:block text-sm font-medium text-gray-700">
@@ -318,7 +341,6 @@ const TopNav = ({
                       <Badge variant="outline" size="sm" className="mt-1 bg-blue-50 text-blue-700 border-blue-200">
                         {userRole.replace('_', ' ')}
                       </Badge>
-                      {/* Show completion status for students */}
                       {userRole === 'student' && studentStatus && (
                         <div className="mt-1">
                           <div className="flex items-center gap-1">
@@ -336,17 +358,6 @@ const TopNav = ({
                 <div className="py-2">
                   <button
                     onClick={() => {
-                      navigate('/profile')
-                      setShowProfileMenu(false)
-                    }}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50/50 transition-colors duration-200"
-                  >
-                    <User className="w-4 h-4" />
-                    Profile
-                  </button>
-                  
-                  <button
-                    onClick={() => {
                       navigate('/settings')
                       setShowProfileMenu(false)
                     }}
@@ -354,17 +365,6 @@ const TopNav = ({
                   >
                     <Settings className="w-4 h-4" />
                     Settings
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      navigate('/messages')
-                      setShowProfileMenu(false)
-                    }}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50/50 transition-colors duration-200"
-                  >
-                    <MessageSquare className="w-4 h-4" />
-                    Messages
                   </button>
                   
                   <button
@@ -396,10 +396,15 @@ const TopNav = ({
                   <Button
                     variant="ghost"
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-3 text-red-600 hover:bg-red-50/50 hover:text-red-700 transition-colors duration-200"
+                    disabled={isLoggingOut}
+                    className="w-full flex items-center gap-3 text-red-600 hover:bg-red-50/50 hover:text-red-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <LogOut className="w-4 h-4" />
-                    Logout
+                    {isLoggingOut ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <LogOut className="w-4 h-4" />
+                    )}
+                    {isLoggingOut ? 'Logging out...' : 'Logout'}
                   </Button>
                 </div>
               </motion.div>
@@ -409,12 +414,13 @@ const TopNav = ({
       </div>
 
       {/* Click outside to close menus */}
-      {(showProfileMenu || showNotificationsMenu) && (
+      {(showProfileMenu || showNotificationsMenu || showSearchResults) && (
         <div
           className="fixed inset-0 z-40"
           onClick={() => {
             setShowProfileMenu(false)
             setShowNotificationsMenu(false)
+            setShowSearchResults(false)
           }}
         />
       )}

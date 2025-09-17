@@ -20,6 +20,13 @@ const jobSchema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true })
 
+// Indexes to speed up common queries
+jobSchema.index({ status: 1, createdAt: -1 })
+jobSchema.index({ title: 'text', description: 'text', skills: 1 })
+jobSchema.index({ minCgpa: 1 })
+jobSchema.index({ location: 1 })
+jobSchema.index({ jobType: 1 })
+
 export default mongoose.model('Job', jobSchema)
 
 

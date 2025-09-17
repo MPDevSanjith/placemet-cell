@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# Disallow internal build assets
+Disallow: /assets/
+
+Sitemap: /sitemap.xml
+
+
+

@@ -85,23 +85,28 @@ export default function Login() {
         // OTP mode
         console.log('🔐 Verifying OTP for:', email)
         const res = await verifyStudentOtp(email, otpCode) as LoginResponse
-        if (res?.user?.role === 'student') {
+        if (res?.user?.role) {
+          const role = res.user.role === 'placement_officer' || res.user.role === 'admin' ? 'placement_officer' : 'student'
           saveAuth({ 
             token: res.token || 'cookie-session', 
-            user: { id: res.user.id!, email: res.user.email, name: res.user.name, role: 'student' } 
+            user: { id: res.user.id!, email: res.user.email, name: res.user.name, role } 
           })
           setHasNavigated(true)
-          const isAlreadyOnboarded = localStorage.getItem('student_onboarded') === 'true'
           setTimeout(() => {
-            window.location.href = isAlreadyOnboarded ? '/student' : '/student/onboarding'
+            if (role === 'placement_officer') {
+              window.location.href = '/placement-officer'
+            } else {
+              const isAlreadyOnboarded = localStorage.getItem('student_onboarded') === 'true'
+              window.location.href = isAlreadyOnboarded ? '/student' : '/student/onboarding'
+            }
           }, 100)
           return
         }
         setError('Invalid OTP or verification failed')
       }
-    } catch (err: unknown) {
-      console.error('❌ Login error:', err)
-      const message = err instanceof Error ? err.message : 'Login failed'
+    } catch (error: unknown) {
+      console.error('❌ Login error:', error)
+      const message = error instanceof Error ? error.message : 'Login failed'
       setError(message)
     } finally {
       setSubmitting(false)
@@ -127,7 +132,7 @@ export default function Login() {
       setOtpSending(true)
       await requestStudentOtp(email)
       setResendTimer(30)
-    } catch (err) {
+    } catch {
       setError('Could not send OTP. Try again.')
     } finally {
       setOtpSending(false)
@@ -297,10 +302,10 @@ export default function Login() {
             <p className="text-xs text-brand-subtext mt-3">By continuing you agree to our Terms and Privacy Policy.</p>
           </form>
 
-          <p className="mt-6 text-sm text-gray-600 text-center">
+          {/* <p className="mt-6 text-sm text-gray-600 text-center">
             Don’t have an account?{' '}
             <a href="#" className="text-brand-secondary hover:underline font-medium">Sign up</a>
-          </p>
+          </p> */}
         </div>
       </div>
 
@@ -321,9 +326,9 @@ export default function Login() {
           </div>
         </div>
       )}
-      <div className="fixed bottom-4 left-0 right-0 mx-auto text-center text-xs text-gray-500 px-4">
+      {/* <div className="fixed bottom-4 left-0 right-0 mx-auto text-center text-xs text-gray-500 px-4">
         Developed by <strong>Eloqix Technologies Pvt Ltd</strong> • Maintained by <strong>Datzon Technologies</strong>
-      </div>
+      </div> */}
     </div>
   )
 }

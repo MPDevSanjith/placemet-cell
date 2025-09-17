@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import Layout from '../../components/layout/Layout'
-import { listJobs, getStudentProfile, listResumes, applyToJob, listMyApplications, getJob } from '../../global/api'
+import { listJobs, getStudentProfile, listResumes, applyToJob, listMyApplications } from '../../global/api'
 import { getAuth } from '../../global/auth'
 import JobCard from '../../components/ui/job-card'
 import { useNavigate } from 'react-router-dom'
@@ -151,17 +151,7 @@ export default function StudentJobs() {
     return parseMinCgpa(obj as JobItem)
   }
 
-  const debugLogCgpa = (obj: any, where: string) => {
-    try {
-      const direct = obj?.minCgpa
-      const minUpper = obj?.minCGPA
-      const minimumUpper = obj?.minimumCGPA
-      const fromForm = obj?.formData?.minimumCGPA
-      const parsed = parseMinCgpa(obj as JobItem)
-      const resolved = resolveMinCgpa(obj)
-      console.log(`[CGPA DEBUG:${where}]`, { direct, minUpper, minimumUpper, fromForm, parsed, resolved })
-    } catch {}
-  }
+
 
   // Note: We intentionally don't hard-filter by eligibility here to match Dashboard behavior
 

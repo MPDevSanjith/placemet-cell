@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Brand font: use Google-hosted Pacifico for script-like brand text */
+.font-brand {
+  font-family: 'Pacifico', 'Poppins', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  letter-spacing: 0.5px;
+}
+
 /* Custom CSS Variables */
 :root {
   --primary: #2563eb;

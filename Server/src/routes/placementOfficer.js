@@ -9,9 +9,13 @@ import nodemailer from 'nodemailer';
 // Import MongoDB models
 import Student from '../models/Student.js';
 import User from '../models/User.js';
+import EligibilitySettings from '../models/EligibilitySettings.js';
 
 // Import email service
 import { sendEmail, emailTemplates } from '../email/email.js';
+
+// Import authentication middleware
+import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -246,9 +250,12 @@ router.post('/bulk-upload', upload.single('csvFile'), async (req, res) => {
           email: String(row.email).toLowerCase(),
           password,
           branch: row.branch,
+          course: row.course || undefined,
           year: row.year,
           phone: row.phone || '',
-          cgpa: row.cgpa ? parseFloat(row.cgpa) : null
+          cgpa: row.cgpa ? parseFloat(row.cgpa) : null,
+          programType: row.programtype || row.program || undefined,
+          admissionYear: row.admissionyear || row.batch || undefined
         });
 
         await student.save();
@@ -287,6 +294,40 @@ router.post('/bulk-upload', upload.single('csvFile'), async (req, res) => {
 
 // (Deprecated) Legacy list endpoint removed in favor of filtered listing below
 
+// Distinct filter options for dashboard (departments, courses, years, program types)
+// Place BEFORE '/students/:id' to avoid route conflicts where 'filters' is treated as an :id
+router.get('/students/filters', async (req, res) => {
+  try {
+    const normalizeDept = (raw) => {
+      const v = String(raw || '').trim().toLowerCase();
+      if (!v) return null;
+      if (/(^cs$|^cse$|computer\s*science)/.test(v)) return 'Computer Science';
+      if (/information\s*technology|^it$/.test(v)) return 'Information Technology';
+      if (/electronics|^ece$/.test(v)) return 'Electronics';
+      if (/mechanical|\bmech\b/.test(v)) return 'Mechanical';
+      if (/civil/.test(v)) return 'Civil';
+      if (/mca/.test(v)) return 'MCA';
+      return v.replace(/\b\w/g, (c) => c.toUpperCase());
+    };
+    const [rawDepartments, courses, years, programTypes] = await Promise.all([
+      Student.distinct('branch'),
+      Student.distinct('course').then(arr => arr.filter(Boolean).map(String).sort((a,b)=>a.localeCompare(b))),
+      Student.distinct('year').then(arr => arr.filter(Boolean).map(String).sort((a,b)=>a.localeCompare(b))),
+      Student.distinct('programType').then(arr => arr.filter(Boolean).map(String))
+    ]);
+    const deptSet = new Set();
+    (rawDepartments || []).forEach(d => {
+      const n = normalizeDept(d);
+      if (n) deptSet.add(n);
+    });
+    const departments = Array.from(deptSet).sort((a,b)=>a.localeCompare(b));
+    res.json({ success: true, filters: { departments, courses, years, programTypes } });
+  } catch (error) {
+    console.error('Get student filter options error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Get student by ID
 router.get('/students/:id', async (req, res) => {
   try {
@@ -307,7 +348,7 @@ router.get('/students/:id', async (req, res) => {
 // Update student
 router.put('/students/:id', async (req, res) => {
   try {
-    const { name, email, branch, year, phone, cgpa } = req.body;
+    const { name, email, branch, course, section, rollNumber, year, phone, cgpa, programType, admissionYear } = req.body;
     
     const student = await Student.findById(req.params.id);
     if (!student) {
@@ -317,10 +358,15 @@ router.put('/students/:id', async (req, res) => {
     // Update fields if provided
     if (name) student.name = name;
     if (email) student.email = String(email).toLowerCase();
-    if (branch) student.branch = branch;
+    if (branch !== undefined) student.branch = branch;
+    if (course !== undefined) student.course = course;
+    if (section !== undefined) student.section = section;
+    if (rollNumber !== undefined) student.rollNumber = rollNumber;
     if (year) student.year = year;
     if (phone !== undefined) student.phone = phone;
     if (cgpa !== undefined) student.cgpa = cgpa;
+    if (programType !== undefined) student.programType = programType;
+    if (admissionYear !== undefined) student.admissionYear = admissionYear;
 
     await student.save();
 
@@ -332,9 +378,15 @@ router.put('/students/:id', async (req, res) => {
         name: student.name,
         email: student.email,
         branch: student.branch,
+        course: student.course,
+        section: student.section,
+        rollNumber: student.rollNumber,
         year: student.year,
         phone: student.phone,
-        cgpa: student.cgpa
+        cgpa: student.cgpa,
+        programType: student.programType,
+        admissionYear: student.admissionYear,
+        passOutYear: student.passOutYear
       }
     });
 
@@ -386,6 +438,191 @@ router.get('/dashboard', async (req, res) => {
   }
 });
 
+// Get eligibility settings (singleton)
+router.get('/eligibility-settings', protect, authorize('placement_officer', 'admin'), async (req, res) => {
+  try {
+    const settings = await EligibilitySettings.getSingleton();
+    res.json({ success: true, settings });
+  } catch (error) {
+    console.error('Get eligibility settings error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Update eligibility settings and return updated along with recalculated program stats
+router.put('/eligibility-settings', protect, authorize('placement_officer', 'admin'), async (req, res) => {
+  try {
+    const { attendanceMin, backlogMax, cgpaMin, updatedBy } = req.body || {};
+    const settings = await EligibilitySettings.getSingleton();
+    if (attendanceMin !== undefined) settings.attendanceMin = Number(attendanceMin);
+    if (backlogMax !== undefined) settings.backlogMax = Number(backlogMax);
+    if (cgpaMin !== undefined) settings.cgpaMin = Number(cgpaMin);
+    if (updatedBy) settings.updatedBy = updatedBy;
+    settings.updatedAt = new Date();
+    await settings.save();
+
+    const stats = await computeProgramTypeStats(settings);
+    res.json({ success: true, settings, programStats: stats });
+  } catch (error) {
+    console.error('Update eligibility settings error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get placement officer profile
+router.get('/profile', async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'User not authenticated' });
+    }
+
+    const user = await User.findById(userId).select('-password -loginOtp -loginOtpExpires -passwordResetToken -passwordResetExpires -passwordResetOtp -passwordResetOtpExpires');
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    res.json({ success: true, user });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Update placement officer profile
+router.put('/profile', async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'User not authenticated' });
+    }
+
+    const { name, email } = req.body || {};
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    // Check if email is being changed and if it's already taken
+    if (email && email !== user.email) {
+      const existingUser = await User.findOne({ email: email.toLowerCase() });
+      if (existingUser) {
+        return res.status(409).json({ success: false, error: 'Email already exists' });
+      }
+      user.email = email.toLowerCase();
+    }
+
+    if (name) user.name = name;
+    user.updatedAt = new Date();
+
+    await user.save();
+
+    // Return user without sensitive data
+    const { password, loginOtp, loginOtpExpires, passwordResetToken, passwordResetExpires, passwordResetOtp, passwordResetOtpExpires, ...userResponse } = user.toObject();
+
+    res.json({ 
+      success: true, 
+      message: 'Profile updated successfully',
+      user: userResponse 
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Change password
+router.put('/change-password', async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'User not authenticated' });
+    }
+
+    const { currentPassword, newPassword } = req.body || {};
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, error: 'Current password and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, error: 'New password must be at least 6 characters long' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    // Verify current password
+    const isCurrentPasswordValid = await user.comparePassword(currentPassword);
+    if (!isCurrentPasswordValid) {
+      return res.status(400).json({ success: false, error: 'Current password is incorrect' });
+    }
+
+    // Update password
+    user.password = newPassword;
+    await user.save();
+
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Program-type statistics computed server-side using current settings
+router.get('/program-type-stats', async (req, res) => {
+  try {
+    const settings = await EligibilitySettings.getSingleton();
+    const stats = await computeProgramTypeStats(settings);
+    res.json({ success: true, settings, programStats: stats });
+  } catch (error) {
+    console.error('Program-type stats error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Helper to compute stats by programType
+async function computeProgramTypeStats(settingsDoc) {
+  const attendanceMin = Number(settingsDoc?.attendanceMin ?? 80);
+  const backlogMax = Number(settingsDoc?.backlogMax ?? 0);
+  const cgpaMin = Number(settingsDoc?.cgpaMin ?? 6.0);
+
+  // Project necessary fields to reduce memory
+  const students = await Student.find({}, {
+    programType: 1,
+    isPlaced: 1,
+    eligibilityCriteria: 1,
+    onboardingData: 1,
+  }).lean();
+
+  const map = new Map();
+  for (const s of students) {
+    const program = (s.programType || 'Unspecified');
+    if (!map.has(program)) map.set(program, { programType: program, total: 0, registered: 0, eligible: 0, placed: 0, placementRate: 0 });
+    const entry = map.get(program);
+    entry.total += 1;
+    entry.registered += 1; // total registered implies present in DB
+
+    const att = s.eligibilityCriteria?.attendancePercentage ?? 0;
+    const bl = s.eligibilityCriteria?.backlogs ?? 99;
+    const gpa = s.onboardingData?.academicInfo?.gpa ?? 0;
+    const isEligible = att >= attendanceMin && bl <= backlogMax && gpa >= cgpaMin;
+    if (isEligible) entry.eligible += 1;
+    if (s.isPlaced) entry.placed += 1;
+  }
+  const stats = Array.from(map.values());
+  stats.forEach(st => {
+    st.placementRate = st.eligible > 0 ? Math.round((st.placed / st.eligible) * 100) : 0;
+  });
+  // Also include overall totals
+  const overall = stats.reduce((acc, s) => {
+    acc.total += s.total; acc.registered += s.registered; acc.eligible += s.eligible; acc.placed += s.placed; return acc;
+  }, { total: 0, registered: 0, eligible: 0, placed: 0 });
+  const overallRate = overall.eligible > 0 ? Math.round((overall.placed / overall.eligible) * 100) : 0;
+  return { byProgram: stats.sort((a,b)=> String(a.programType).localeCompare(String(b.programType))), overall: { ...overall, placementRate: overallRate } };
+}
+
 // Get student by email
 router.get('/student-by-email', async (req, res) => {
   try {
@@ -421,6 +658,10 @@ router.get('/students', async (req, res) => {
       rollNumber,
       placed,
       blocked,
+      programType,
+      minCgpa,
+      maxBacklogs,
+      minAttendance,
       page = 1,
       limit = 20
     } = req.query;
@@ -441,6 +682,25 @@ router.get('/students', async (req, res) => {
     if (rollNumber) filter.rollNumber = { $regex: String(rollNumber), $options: 'i' };
     if (placed !== undefined) filter.isPlaced = String(placed).toLowerCase() === 'true';
     if (blocked !== undefined) filter.isActive = !(String(blocked).toLowerCase() === 'true');
+    if (programType) filter.programType = String(programType);
+
+    // Advanced eligibility-related filters
+    const andClauses = [];
+    if (minCgpa !== undefined && minCgpa !== '') {
+      const cg = Number(minCgpa);
+      if (!isNaN(cg)) andClauses.push({ 'onboardingData.academicInfo.gpa': { $gte: cg } });
+    }
+    if (maxBacklogs !== undefined && maxBacklogs !== '') {
+      const mb = Number(maxBacklogs);
+      if (!isNaN(mb)) andClauses.push({ 'eligibilityCriteria.backlogs': { $lte: mb } });
+    }
+    if (minAttendance !== undefined && minAttendance !== '') {
+      const ma = Number(minAttendance);
+      if (!isNaN(ma)) andClauses.push({ 'eligibilityCriteria.attendancePercentage': { $gte: ma } });
+    }
+    if (andClauses.length > 0) {
+      filter.$and = (filter.$and || []).concat(andClauses);
+    }
 
     const pageNum = Math.max(parseInt(String(page)), 1);
     const pageSize = Math.min(Math.max(parseInt(String(limit)), 1), 100);
@@ -479,6 +739,22 @@ router.get('/students', async (req, res) => {
   }
 });
 
+// Distinct filter options for dashboard (departments, courses, years, program types)
+router.get('/students/filters', async (req, res) => {
+  try {
+    const [departments, courses, years, programTypes] = await Promise.all([
+      Student.distinct('branch').then(arr => arr.filter(Boolean).map(String).sort((a,b)=>a.localeCompare(b))),
+      Student.distinct('course').then(arr => arr.filter(Boolean).map(String).sort((a,b)=>a.localeCompare(b))),
+      Student.distinct('year').then(arr => arr.filter(Boolean).map(String).sort((a,b)=>a.localeCompare(b))),
+      Student.distinct('programType').then(arr => arr.filter(Boolean).map(String))
+    ]);
+    res.json({ success: true, filters: { departments, courses, years, programTypes } });
+  } catch (error) {
+    console.error('Get student filter options error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Bulk actions: block/unblock, place/unplace
 router.post('/students/bulk', async (req, res) => {
   try {
@@ -507,7 +783,7 @@ router.post('/students/bulk', async (req, res) => {
 // Create student manually
 router.post('/create-student', async (req, res) => {
   try {
-    const { name, email, branch, section, rollNumber, phone, year } = req.body;
+    const { name, email, branch, course, section, rollNumber, phone, year, programType, admissionYear } = req.body;
     
     if (!name || !email || !branch || !rollNumber) {
       return res.status(400).json({ success: false, error: 'Name, email, branch, and roll number are required' });
@@ -528,10 +804,13 @@ router.post('/create-student', async (req, res) => {
       email: String(email).toLowerCase(),
       password,
       branch,
+      course: course || undefined,
       section: section || 'Not Specified',
       rollNumber,
       phone: phone || '',
-      year: year || new Date().getFullYear().toString()
+      year: year || new Date().getFullYear().toString(),
+      programType: programType || undefined,
+      admissionYear: admissionYear || undefined
     });
 
     await student.save();
@@ -625,10 +904,18 @@ router.post('/bulk-biodata', upload.single('csvFile'), async (req, res) => {
         // Update student with biodata
         student.name = row.name;
         student.branch = row.branch;
+        if (row.course) student.course = row.course;
         student.section = row.section || student.section || 'Not Specified';
         student.rollNumber = row.rollnumber;
         student.phone = row.phone || student.phone || '';
         student.year = row.year || student.year || new Date().getFullYear().toString();
+        // New fields from biodata
+        if (row.programtype || row.program) {
+          student.programType = row.programtype || row.program;
+        }
+        if (row.admissionyear || row.batch) {
+          student.admissionYear = row.admissionyear || row.batch;
+        }
 
         // Initialize onboarding data if not exists
         if (!student.onboardingData) {
@@ -970,5 +1257,146 @@ router.post('/create-biodata', async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+// Global search endpoint (for placement officers and admins)
+router.get('/search', async (req, res) => {
+  try {
+    const { q: query, type, limit = 20 } = req.query;
+    
+    if (!query || query.trim().length < 2) {
+      return res.json({
+        students: [],
+        jobs: [],
+        companies: [],
+        total: 0
+      });
+    }
+    
+    const searchQuery = query.trim();
+    const searchLimit = Math.min(parseInt(limit), 50); // Max 50 results per type
+    
+    const results = {
+      students: [],
+      jobs: [],
+      companies: [],
+      total: 0
+    };
+    
+    // Search students (only for placement officers and admins)
+    if (!type || type === 'students' || type === 'all') {
+      const studentResults = await Student.find({
+        $or: [
+          { name: { $regex: searchQuery, $options: 'i' } },
+          { email: { $regex: searchQuery, $options: 'i' } },
+          { rollNumber: { $regex: searchQuery, $options: 'i' } },
+          { department: { $regex: searchQuery, $options: 'i' } },
+          { course: { $regex: searchQuery, $options: 'i' } },
+          { programType: { $regex: searchQuery, $options: 'i' } },
+          { phone: { $regex: searchQuery, $options: 'i' } }
+        ]
+      })
+      .select('name email rollNumber department course programType phone cgpa attendance backlogs isPlaced')
+      .limit(searchLimit);
+      
+      results.students = studentResults.map(student => ({
+        id: student._id,
+        type: 'student',
+        name: student.name,
+        email: student.email,
+        rollNumber: student.rollNumber,
+        department: student.department,
+        course: student.course,
+        programType: student.programType,
+        phone: student.phone,
+        cgpa: student.cgpa,
+        attendance: student.attendance,
+        backlogs: student.backlogs,
+        isPlaced: student.isPlaced,
+        matchField: getMatchField(student, searchQuery)
+      }));
+    }
+    
+    // Search jobs (if you have a Job model)
+    if (!type || type === 'jobs' || type === 'all') {
+      // For now, return empty array - you can implement job search when Job model is available
+      results.jobs = [];
+    }
+    
+    // Search companies (if you have a Company model)
+    if (!type || type === 'companies' || type === 'all') {
+      // For now, return empty array - you can implement company search when Company model is available
+      results.companies = [];
+    }
+    
+    results.total = results.students.length + results.jobs.length + results.companies.length;
+    
+    res.json(results);
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({ error: 'Search failed' });
+  }
+});
+
+// Student search endpoint (restricted to companies and jobs only)
+router.get('/student-search', async (req, res) => {
+  try {
+    const { q: query, type, limit = 20 } = req.query;
+    
+    if (!query || query.trim().length < 2) {
+      return res.json({
+        jobs: [],
+        companies: [],
+        total: 0
+      });
+    }
+    
+    const searchQuery = query.trim();
+    const searchLimit = Math.min(parseInt(limit), 50); // Max 50 results per type
+    
+    const results = {
+      jobs: [],
+      companies: [],
+      total: 0
+    };
+    
+    // Search jobs (if you have a Job model)
+    if (!type || type === 'jobs' || type === 'all') {
+      // For now, return empty array - you can implement job search when Job model is available
+      results.jobs = [];
+    }
+    
+    // Search companies (if you have a Company model)
+    if (!type || type === 'companies' || type === 'all') {
+      // For now, return empty array - you can implement company search when Company model is available
+      results.companies = [];
+    }
+    
+    results.total = results.jobs.length + results.companies.length;
+    
+    res.json(results);
+  } catch (error) {
+    console.error('Student search error:', error);
+    res.status(500).json({ error: 'Search failed' });
+  }
+});
+
+// Helper function to determine which field matched the search query
+const getMatchField = (student, query) => {
+  const fields = [
+    { name: 'name', value: student.name },
+    { name: 'email', value: student.email },
+    { name: 'rollNumber', value: student.rollNumber },
+    { name: 'department', value: student.department },
+    { name: 'course', value: student.course },
+    { name: 'programType', value: student.programType },
+    { name: 'phone', value: student.phone }
+  ];
+  
+  const matchedField = fields.find(field => 
+    field.value && field.value.toString().toLowerCase().includes(query.toLowerCase())
+  );
+  
+  return matchedField ? matchedField.name : 'name';
+};
 
 export default router;

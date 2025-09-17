@@ -93,7 +93,7 @@ export default function StudentAtsResults() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    const t = setTimeout(() => setScore(analysis.overall), 300)
+    const t = setTimeout(() => setScore(Math.min(analysis.overall, 85)), 300)
     return () => clearTimeout(t)
   }, [analysis.overall])
 
@@ -185,6 +185,11 @@ export default function StudentAtsResults() {
                 </div>
               </div>
             </div>
+            <div className="px-6 pb-4">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900 text-sm">
+                Note: ATS analysis is in active development. Scores are approximate and may occasionally be inaccurate. Use this as guidance, not an absolute measure.
+              </div>
+            </div>
           </header>
           {/* Page Content */}
           <main className="p-6">
@@ -204,9 +209,10 @@ export default function StudentAtsResults() {
                           <stop offset="100%" stopColor="#515BD4" />
                         </linearGradient>
                       </defs>
-                      <text x="50" y="54" textAnchor="middle" fontSize="20" fontWeight="700" fill="#111827">{score}/100</text>
+                      <text x="50" y="54" textAnchor="middle" fontSize="20" fontWeight="700" fill="#111827">{Math.min(score, 85)}/100</text>
                     </svg>
                   </div>
+                  <p className="mt-3 text-xs text-gray-500 text-center">Scores above 85 are displayed as 85.</p>
                 </div>
 
                 <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">

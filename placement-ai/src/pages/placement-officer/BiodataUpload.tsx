@@ -133,9 +133,12 @@ export default function BiodataUpload() {
               const yearIndex = headers.findIndex(h => h.includes('year'))
               const genderIndex = headers.findIndex(h => h.includes('gender'))
               const dobIndex = headers.findIndex(h => h.includes('dob') || h.includes('dateofbirth') || h.includes('birth'))
+              const programTypeIndex = headers.findIndex(h => h.includes('program'))
+              const admissionYearIndex = headers.findIndex(h => h.includes('admission') || h.includes('batch'))
               const addressIndex = headers.findIndex(h => h.includes('address'))
               const gpaIndex = headers.findIndex(h => h.includes('gpa') || h.includes('cgpa'))
               const specializationIndex = headers.findIndex(h => h.includes('specialization') || h.includes('special'))
+              const courseIndex = headers.findIndex(h => h.includes('course'))
               const skillsIndex = headers.findIndex(h => h.includes('skills'))
               const projectsIndex = headers.findIndex(h => h.includes('projects'))
               const attendanceIndex = headers.findIndex(h => h.includes('attendance'))
@@ -147,6 +150,8 @@ export default function BiodataUpload() {
                 name: nameIndex >= 0 ? values[nameIndex] || '' : '',
                 email: emailIndex >= 0 ? values[emailIndex] || '' : '',
                 branch: branchIndex >= 0 ? values[branchIndex] || '' : '',
+                // @ts-ignore - extended field for course if backend supports mapping
+                course: courseIndex >= 0 ? values[courseIndex] || '' : undefined,
                 section: sectionIndex >= 0 ? values[sectionIndex] || '' : '',
                 rollNumber: rollNumberIndex >= 0 ? values[rollNumberIndex] || '' : '',
                 phone: phoneIndex >= 0 ? values[phoneIndex] || '' : '',
@@ -161,7 +166,11 @@ export default function BiodataUpload() {
                 attendancePercentage: attendanceIndex >= 0 && values[attendanceIndex] ? parseFloat(values[attendanceIndex]) : undefined,
                 backlogs: backlogsIndex >= 0 && values[backlogsIndex] ? parseInt(values[backlogsIndex]) : undefined,
                 academicRequirements: academicReqIndex >= 0 ? values[academicReqIndex] || '' : '',
-                otherEligibility: otherEligibilityIndex >= 0 ? values[otherEligibilityIndex] || '' : ''
+                otherEligibility: otherEligibilityIndex >= 0 ? values[otherEligibilityIndex] || '' : '',
+                // @ts-ignore
+                programType: programTypeIndex >= 0 ? (values[programTypeIndex] || '') : undefined,
+                // @ts-ignore
+                admissionYear: admissionYearIndex >= 0 ? (values[admissionYearIndex] || '') : undefined
               }
               
               console.log(`Row ${index + 1} parsed:`, result)
