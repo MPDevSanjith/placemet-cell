@@ -14,6 +14,11 @@ const studentSchema = new mongoose.Schema({
   phone: String,
   year: String,
   course: String,
+  // New academic meta
+  programType: { type: String }, // free text (e.g., UG, PG, Diploma, PhD, etc.)
+  programDurationYears: { type: Number },
+  admissionYear: String, // e.g., 2025
+  passOutYear: String, // computed when possible
   
   // Profile & Status
   isActive: { type: Boolean, default: true },
@@ -145,6 +150,25 @@ studentSchema.pre('save', async function (next) {
   
   // Update timestamp
   this.updatedAt = new Date();
+
+  // Infer duration heuristically if not explicitly set
+  if (!this.programDurationYears) {
+    const src = `${(this.programType || '').toLowerCase()}`;
+    let inferred;
+    if (/phd|doctorate/.test(src)) inferred = 3; // variable, keep minimal default
+    else if (/mba|msc|m\.tech|mtech|ma|mca|pg/.test(src)) inferred = 2;
+    else if (/bsc|b\.sc|bcom|b\.com|ba|btech|b\.tech|be|ug|bca|bba/.test(src)) inferred = 3;
+    else if (/diploma|poly/.test(src)) inferred = 3;
+    if (inferred) this.programDurationYears = inferred;
+  }
+
+  // Compute pass-out year from admission and duration when possible
+  if (!this.passOutYear && this.admissionYear && this.programDurationYears) {
+    const ay = parseInt(this.admissionYear);
+    if (!isNaN(ay)) {
+      this.passOutYear = String(ay + this.programDurationYears);
+    }
+  }
   next();
 });
 
@@ -171,7 +195,7 @@ studentSchema.methods.verifyLoginOtp = function(otp) {
     return false;
   }
   
-  return this.loginOtp === otp;
+  return String(this.loginOtp) === String(otp);
 };
 
 // Clear login OTP method

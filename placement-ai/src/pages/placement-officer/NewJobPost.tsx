@@ -83,6 +83,7 @@ const NewJobPost: React.FC = () => {
   const [isViewApplicationsModalOpen, setIsViewApplicationsModalOpen] = useState<boolean>(false);
   const [selectedJobApplications, setSelectedJobApplications] = useState<any[]>([]);
   const [selectedJobForApplications, setSelectedJobForApplications] = useState<any>(null);
+  // const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [sentJobs, setSentJobs] = useState<Record<string, boolean>>({});
   const [sendAllOpen, setSendAllOpen] = useState<boolean>(false);
   const [sendAllEmail, setSendAllEmail] = useState<string>('');
@@ -153,6 +154,9 @@ const NewJobPost: React.FC = () => {
 
   // Removed unused per-application status update handler
 
+  // const handleRequestSelection = (request: any) => {
+  //   setSelectedRequest(request);
+  // };
 
   const handleLinkGenerated = (linkData: { linkId: string; companyName: string; link: string }) => {
     setGeneratedLinks(prev => [linkData, ...prev]);

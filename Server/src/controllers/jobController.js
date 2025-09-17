@@ -47,13 +47,14 @@ const createJob = async (req, res) => {
 const getJobs = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = Math.min(parseInt(req.query.limit) || 10, 50);
     const search = req.query.search;
     const location = req.query.location;
     const jobType = req.query.jobType;
     const branch = req.query.branch;
     const minCgpa = req.query.minCgpa;
     const studentId = req.query.studentId;
+    const sortParam = (req.query.sort || 'newest');
 
     let query = { status: 'active' };
     
@@ -95,11 +96,18 @@ const getJobs = async (req, res) => {
 
     const skip = (page - 1) * limit;
     
+    const projection = 'company title description location jobType ctc deadline status branches skills minCgpa createdAt';
+    const sort = (() => {
+      if (sortParam === 'oldest') return { createdAt: 1 };
+      return { createdAt: -1 };
+    })();
+
     let jobs = await Job.find(query)
-      .populate('company', 'name companyDetails.companyName companyDetails.industry')
+      .select(projection)
       .skip(skip)
       .limit(limit)
-      .sort({ createdAt: -1 });
+      .sort(sort)
+      .lean();
 
     // Additional server-side filter: if a cgpa value is provided (explicit or via studentId),
     // also infer from description when field is missing

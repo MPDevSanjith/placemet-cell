@@ -10,15 +10,33 @@ let transporter = null;
 
 // Initialize email transporter
 const initializeEmail = () => {
-  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+  if (process.env.EMAIL_HOST && process.env.EMAIL_PORT && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    const secure = Number(process.env.EMAIL_PORT) === 465
     transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: process.env.EMAIL_HOST,
+      port: Number(process.env.EMAIL_PORT),
+      secure,
+      requireTLS: !secure, // STARTTLS on 587
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
+      tls: {
+        // Hostinger commonly requires modern TLS; don't fail on self-signed
+        rejectUnauthorized: false,
+        ciphers: 'TLSv1.2'
+      },
+      pool: true,
+      maxConnections: 5,
+      maxMessages: 50
     });
-    logger.success('Email transporter initialized');
+    transporter.verify((err, success) => {
+      if (err) {
+        logger.error('Email transporter verify failed:', err.message)
+      } else {
+        logger.success('Email transporter ready')
+      }
+    })
   } else {
     logger.warn('Email credentials not configured. Email functionality will be disabled.');
   }
@@ -38,7 +56,13 @@ const sendEmail = async (mailOptions) => {
       return { success: true, skipped: true };
     }
 
-    const result = await transporter.sendMail(mailOptions);
+    const fromAddress = mailOptions.from || process.env.EMAIL_FROM || process.env.EMAIL_USER
+    const finalMail = {
+      from: fromAddress,
+      replyTo: mailOptions.replyTo || fromAddress,
+      ...mailOptions,
+    }
+    const result = await transporter.sendMail(finalMail);
     logger.success(`Email sent successfully to ${mailOptions.to}`);
     return { success: true, messageId: result.messageId };
   } catch (error) {

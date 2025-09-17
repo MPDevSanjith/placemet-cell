@@ -5,6 +5,7 @@ import './index.css'
 import Login from './pages/Login'
 import PlacementOfficerDashboard from './pages/placement-officer/Dashboard'
 import OfficerStudents from './pages/placement-officer/OfficerStudents'
+import AllStudents from './pages/placement-officer/AllStudents'
 import BulkUpload from './pages/placement-officer/BulkUpload'
 import BiodataUpload from './pages/placement-officer/BiodataUpload'
 import CreateOfficerPage from './pages/placement-officer/CreateOfficer'
@@ -12,18 +13,19 @@ import CompaniesPage from './pages/placement-officer/Companies'
 import StudentDashboard from './pages/student/Dashboard'
 import StudentJobs from './pages/student/job'
 import MyJobs from './pages/student/MyJobs'
-import StudentOnboarding from './pages/student/Onboarding'
 import StudentAtsResults from './pages/student/AtsResults'
 import ProfilePage from './pages/student/ProfilePage'
 import StudentGate from './pages/student/StudentGate'
 import StudentNotificationsPage from './pages/student/Notifications'
 import PlacementAnalytics from './pages/placement-officer/Analytics'
+import Settings from './pages/placement-officer/Settings'
 import CompanyForm from './pages/CompanyForm'
 import PlacementGate from './pages/placement-officer/PlacementGate'
 import OfficerNotificationsPage from './pages/placement-officer/Notifications'
 import JobPortal from './pages/JobPortal'
 import JobDetails from './pages/JobDetails'
 import RequestDetails from './pages/placement-officer/RequestDetails'
+import SearchPage from './pages/SearchPage'
 import AboutUs from './pages/AboutUs'
 import Contact from './pages/Contact'
 import Help from './pages/Help'
@@ -192,9 +194,17 @@ function AppRoutes() {
       {/* Public Pages */}
       <Route path="/jobs" element={<JobPortal />} />
       <Route path="/jobs/:id" element={<JobDetails />} />
+      <Route path="/search" element={<SearchPage />} />
       <Route path="/about" element={<AboutUs />} />
       <Route path="/contact" element={<Contact />} />
       <Route path="/help" element={<Help />} />
+      <Route path="/settings" element={
+        isAuthenticated && userRole === 'placement_officer'
+          ? <Navigate to="/placement-officer/settings" replace />
+          : isAuthenticated && userRole === 'student'
+          ? <Navigate to="/student/profile" replace />
+          : <Navigate to="/login" replace />
+      } />
       
       {/* Test Route - For development only */}
       <Route path="/test-gates" element={<div>Test Gates Page</div>} />
@@ -213,9 +223,7 @@ function AppRoutes() {
                 </div>
               )
               : (
-                studentStatus.hasResume
-                  ? <StudentDashboard />
-                  : <Navigate to="/student/onboarding" replace />
+                <StudentDashboard />
               )
           )
           : <Navigate to="/login" replace />
@@ -231,26 +239,8 @@ function AppRoutes() {
           : <Navigate to="/login" replace />
       } />
       
-      <Route path="/student/onboarding" element={
-        isAuthenticated && userRole === 'student'
-          ? (
-            isLoadingStatus || !studentStatus
-              ? (
-                <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500 mx-auto mb-4"></div>
-                    <p className="text-gray-600">Preparing onboarding...</p>
-                  </div>
-                </div>
-              )
-              : (
-                studentStatus.hasResume
-                  ? <Navigate to="/student" replace />
-                  : <StudentOnboarding />
-              )
-          )
-          : <Navigate to="/login" replace />
-      } />
+      {/* Onboarding disabled */}
+      <Route path="/student/onboarding" element={<Navigate to="/student" replace />} />
       
       <Route path="/student/ats-results" element={
         isAuthenticated && userRole === 'student'
@@ -286,6 +276,11 @@ function AppRoutes() {
           ? <PlacementAnalytics />
           : <Navigate to="/login" replace />
       } />
+      <Route path="/placement-officer/settings" element={
+        isAuthenticated && userRole === 'placement_officer'
+          ? <Settings />
+          : <Navigate to="/login" replace />
+      } />
       
       <Route path="/placement-officer/bulk-upload" element={
         isAuthenticated && userRole === 'placement_officer'
@@ -301,6 +296,11 @@ function AppRoutes() {
       <Route path="/placement-officer/students" element={
         isAuthenticated && userRole === 'placement_officer'
           ? <OfficerStudents />
+          : <Navigate to="/login" replace />
+      } />
+      <Route path="/placement-officer/all-students" element={
+        isAuthenticated && userRole === 'placement_officer'
+          ? <AllStudents />
           : <Navigate to="/login" replace />
       } />
       

@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { 
   Home, 
@@ -37,12 +38,44 @@ const Sidebar = ({
   userRole,
   collapsed,
   onCollapseToggle: _onCollapseToggle,
-  studentStatus,
+  // studentStatus is currently not used within Sidebar; keep in type but don't destructure to avoid TS6133
   isLoadingStatus: _isLoadingStatus
 }: SidebarProps) => {
   const location = useLocation()
   const navigate = useNavigate()
   const auth = getAuth()
+
+  // Advanced mobile handling: dynamically position under the top bar
+  const [headerHeight, setHeaderHeight] = useState<number>(56)
+  const [isMobile, setIsMobile] = useState<boolean>(() => typeof window !== 'undefined' ? window.innerWidth < 1024 : true)
+
+  useEffect(() => {
+    const measure = () => {
+      const header = document.querySelector('header') as HTMLElement | null
+      const h = header?.getBoundingClientRect().height
+      setHeaderHeight(Math.max(48, Math.min(96, Math.round(h || 56))))
+      setIsMobile(window.innerWidth < 1024)
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    window.addEventListener('orientationchange', measure)
+    return () => {
+      window.removeEventListener('resize', measure)
+      window.removeEventListener('orientationchange', measure)
+    }
+  }, [])
+
+  // Lock body scroll when sidebar is open on mobile
+  useEffect(() => {
+    if (!isMobile) return
+    const original = document.body.style.overflow
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = original
+    }
+    return () => { document.body.style.overflow = original }
+  }, [isOpen, isMobile])
 
   // Navigation items based on user role
   const getNavigationItems = () => {
@@ -70,13 +103,6 @@ const Sidebar = ({
           description: 'Personal information'
         },
         {
-          id: 'ats-results',
-          label: 'ATS Analysis',
-          icon: BarChart3,
-          path: '/student/ats-results',
-          description: 'Resume analysis'
-        },
-        {
           id: 'jobs',
           label: 'Job Portal',
           icon: Briefcase,
@@ -94,19 +120,13 @@ const Sidebar = ({
       ]
     } else if (userRole === 'placement_officer') {
       return [
+        // Core functionality (highest priority)
         {
           id: 'dashboard',
           label: 'Dashboard',
           icon: Home,
           path: '/placement-officer',
-          description: 'Overview and analytics'
-        },
-        {
-          id: 'push-notifications',
-          label: 'Push Notifications',
-          icon: MessageSquare,
-          path: '/placement-officer/notifications',
-          description: 'Notify students'
+          description: 'Overview and key metrics'
         },
         {
           id: 'students',
@@ -116,19 +136,21 @@ const Sidebar = ({
           description: 'Student management'
         },
         {
+          id: 'all-students',
+          label: 'All Students',
+          icon: Users,
+          path: '/placement-officer/all-students',
+          description: 'Complete student database'
+        },
+        {
           id: 'companies',
           label: 'Companies',
           icon: Building2,
           path: '/placement-officer/new-job-post',
           description: 'Company management'
         },
-        {
-          id: 'jobs',
-          label: 'Job Posts',
-          icon: Briefcase,
-          path: '/placement-officer/jobs',
-          description: 'Job posting management'
-        },
+        
+        // Secondary functionality (medium priority)
         {
           id: 'analytics',
           label: 'Analytics',
@@ -137,11 +159,11 @@ const Sidebar = ({
           description: 'Reports and insights'
         },
         {
-          id: 'biodata-upload',
-          label: 'Biodata Upload',
-          icon: Upload,
-          path: '/placement-officer/biodata-upload',
-          description: 'Bulk data upload'
+          id: 'push-notifications',
+          label: 'Notifications',
+          icon: MessageSquare,
+          path: '/placement-officer/notifications',
+          description: 'Student communications'
         },
         {
           id: 'bulk-upload',
@@ -149,6 +171,22 @@ const Sidebar = ({
           icon: Upload,
           path: '/placement-officer/bulk-upload',
           description: 'Mass data import'
+        },
+        {
+          id: 'biodata-upload',
+          label: 'Biodata Upload',
+          icon: Upload,
+          path: '/placement-officer/biodata-upload',
+          description: 'Student biodata upload'
+        },
+        
+        // Administrative (lowest priority)
+        {
+          id: 'settings',
+          label: 'Settings',
+          icon: Settings,
+          path: '/placement-officer/settings',
+          description: 'Account and system settings'
         },
         {
           id: 'create-officer',
@@ -187,6 +225,13 @@ const Sidebar = ({
   }
 
   const navigationItems = getNavigationItems()
+  // Reorder for placement officer priority
+  const orderedItems = userRole === 'placement_officer'
+    ? [...navigationItems].sort((a,b)=>{
+        const order = ['dashboard','students','all-students','companies','analytics','push-notifications','bulk-upload','biodata-upload','settings','create-officer']
+        return order.indexOf(a.id) - order.indexOf(b.id)
+      })
+    : navigationItems
 
   const handleNavigation = (path: string) => {
     navigate(path)
@@ -213,7 +258,7 @@ const Sidebar = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
+            className="fixed left-0 right-0 bottom-0 top-14 bg-black/20 z-20 lg:hidden"
             onClick={onClose}
           />
         )}
@@ -227,55 +272,41 @@ const Sidebar = ({
           width: collapsed ? 80 : 288
         }}
         transition={{ duration: 0.3, ease: 'easeInOut' }}
-        className={`fixed left-0 top-0 h-full bg-white/95 backdrop-blur-xl border-r border-gray-200/50 shadow-xl z-30 flex flex-col ${
+        className={`fixed left-0 lg:top-0 lg:h-full bg-white border-r border-gray-200 shadow-2xl z-30 flex flex-col ${
           collapsed ? 'lg:w-20' : 'lg:w-72'
         } w-72 lg:w-auto`}
         style={{
-          width: collapsed ? 'var(--sidebar-collapsed-width)' : 'var(--sidebar-width)'
+          width: collapsed ? 'var(--sidebar-collapsed-width)' : 'var(--sidebar-width)',
+          top: isMobile ? `${headerHeight}px` : undefined,
+          height: isMobile ? `calc(100vh - ${headerHeight}px)` : undefined
         }}
       >
-      
-        
+        {/* Brand */}
+        {!collapsed && (
+          <div className="px-4 pt-4">
+            <div className="font-brand text-xl text-gray-800 tracking-wide">beyondcampusX</div>
+          </div>
+        )}
+
         {/* User Info */}
         {!collapsed && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="p-4 border-b border-gray-200/50"
+            className="p-4 border-b border-gray-200/50 bg-gradient-to-r from-white to-blue-50/40"
           >
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
                 <User className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
+                <p className="text-sm font-semibold text-gray-900 truncate">
                   {auth?.user?.name || 'User'}
                 </p>
                 <p className="text-xs text-gray-500 truncate">
                   {auth?.user?.email}
                 </p>
-                {/* Student Status Indicator */}
-                {userRole === 'student' && studentStatus && (
-                  <div className="mt-2">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-gray-200 rounded-full h-1.5">
-                        <motion.div
-                          className="bg-gradient-to-r from-blue-500 to-purple-600 h-1.5 rounded-full"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${studentStatus.completionPercentage}%` }}
-                          transition={{ duration: 0.5, delay: 0.3 }}
-                        />
-                      </div>
-                      <span className="text-xs text-gray-600 font-medium">
-                        {studentStatus.completionPercentage}%
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Profile Complete
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
           </motion.div>
@@ -284,52 +315,55 @@ const Sidebar = ({
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-4">
           <div className="space-y-1">
-            {navigationItems.map((item, index) => {
+            {orderedItems.map((item, index) => {
               const Icon = item.icon
               const active = isActive(item.path)
               
+              // Add separators for placement officer navigation
+              const shouldAddSeparator = userRole === 'placement_officer' && (
+                (item.id === 'analytics' && index > 0) || // Before Analytics (secondary group)
+                (item.id === 'settings' && index > 0) // Before Settings (admin group)
+              )
+              
               return (
-                <motion.button
-                  key={item.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.1 + index * 0.05 }}
-                  onClick={() => handleNavigation(item.path)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group ${
-                    active
-                      ? 'bg-primary-50 text-primary-700 border border-primary-100'
-                      : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                  }`}
-                >
-                  <Icon className={`w-5 h-5 flex-shrink-0 ${
-                    active ? 'text-primary-600' : 'text-gray-500 group-hover:text-gray-700'
-                  }`} />
-                  
-                  {!collapsed && (
-                    <div className="flex-1 text-left">
-                      <p className="text-sm font-medium">{item.label}</p>
-                      <p className={`text-xs ${
-                        active ? 'text-blue-100' : 'text-gray-500'
-                      }`}>
-                        {item.description}
-                      </p>
+                <div key={item.id}>
+                  {shouldAddSeparator && !collapsed && (
+                    <div className="my-3 mx-2">
+                      <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent"></div>
                     </div>
                   )}
-                  
-                  {active && !collapsed && (
-                    <motion.div
-                      layoutId="activeIndicator"
-                      className="ml-auto w-1.5 h-6 bg-primary-500 rounded-full"
-                    />
-                  )}
-                </motion.button>
+                  <motion.button
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.06 + index * 0.04 }}
+                    onClick={() => handleNavigation(item.path)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group ${
+                      active
+                        ? 'bg-primary-50/70 text-primary-800 border border-primary-100 shadow-sm'
+                        : 'text-gray-700 hover:bg-gray-50 hover:shadow-sm hover:translate-x-0.5'
+                    }`}
+                  >
+                    <div className={`${active ? 'bg-primary-100' : 'bg-gray-100 group-hover:bg-gray-200'} w-9 h-9 rounded-lg flex items-center justify-center`}>
+                      <Icon className={`w-5 h-5 ${active ? 'text-primary-600' : 'text-gray-600'}`} />
+                    </div>
+                    {!collapsed && (
+                      <div className="flex-1 text-left">
+                        <p className="text-sm font-semibold tracking-wide">{item.label}</p>
+                        <p className={`text-xs ${active ? 'text-primary-600/70' : 'text-gray-500'}`}>{item.description}</p>
+                      </div>
+                    )}
+                    {active && !collapsed && (
+                      <motion.div layoutId="activeIndicator" className="ml-auto w-1.5 h-6 bg-gradient-to-b from-primary-400 to-primary-600 rounded-full" />
+                    )}
+                  </motion.button>
+                </div>
               )
             })}
           </div>
         </nav>
 
         {/* Footer */}
-        {!collapsed && (
+        {!collapsed && userRole !== 'student' && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

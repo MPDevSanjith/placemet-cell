@@ -11,6 +11,9 @@ interface StudentData {
   rollNumber: string
   phone?: string
   year?: string
+  programType?: 'UG' | 'PG'
+  admissionYear?: string
+  course?: string
 }
 
 interface UploadResult {
@@ -38,7 +41,7 @@ export default function BulkUpload() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Manual entry state
-  const [manual, setManual] = useState<StudentData>({ name: '', email: '', branch: '', section: '', rollNumber: '', phone: '', year: '' })
+  const [manual, setManual] = useState<StudentData>({ name: '', email: '', branch: '', section: '', rollNumber: '', phone: '', year: '', programType: undefined, admissionYear: '', course: '' })
   const [manualLoading, setManualLoading] = useState(false)
   const [manualMessage, setManualMessage] = useState<string | null>(null)
 
@@ -76,6 +79,9 @@ export default function BulkUpload() {
               const rollNumberIndex = headers.findIndex(h => h.includes('roll') || h.includes('rollnumber'))
               const phoneIndex = headers.findIndex(h => h.includes('phone'))
               const yearIndex = headers.findIndex(h => h.includes('year'))
+              const programTypeIndex = headers.findIndex(h => h.includes('program'))
+              const admissionYearIndex = headers.findIndex(h => h.includes('admission') || h.includes('batch'))
+              const courseIndex = headers.findIndex(h => h.includes('course'))
               
               const result = {
                 name: nameIndex >= 0 ? values[nameIndex] || '' : '',
@@ -84,7 +90,10 @@ export default function BulkUpload() {
                 section: sectionIndex >= 0 ? values[sectionIndex] || 'Not Specified' : 'Not Specified',
                 rollNumber: rollNumberIndex >= 0 ? values[rollNumberIndex] || `ROLL${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}` : `ROLL${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
                 phone: phoneIndex >= 0 ? values[phoneIndex] || '' : '',
-                year: yearIndex >= 0 ? values[yearIndex] || new Date().getFullYear().toString() : new Date().getFullYear().toString()
+                year: yearIndex >= 0 ? values[yearIndex] || new Date().getFullYear().toString() : new Date().getFullYear().toString(),
+                programType: programTypeIndex >= 0 ? (values[programTypeIndex] || '') as any : undefined,
+                admissionYear: admissionYearIndex >= 0 ? values[admissionYearIndex] || '' : '',
+                course: (courseIndex >= 0 ? values[courseIndex] : (branchIndex >= 0 ? values[branchIndex] : '')) || ''
               }
               
               console.log(`Row ${index + 1} parsed:`, result)
@@ -225,6 +234,7 @@ export default function BulkUpload() {
           rollNumber: (s as any).rollNumber || prev.rollNumber,
           phone: (s as any).phone || prev.phone,
           year: (s as any).year || prev.year,
+          course: (s as any).course || prev.course,
         }))
         setManualMessage('Details fetched from existing record')
       } else {
@@ -271,7 +281,7 @@ export default function BulkUpload() {
         ],
       }))
       // Reset minimal fields
-      setManual({ name: '', email: '', branch: '', section: '', rollNumber: '', phone: '', year: '' })
+      setManual({ name: '', email: '', branch: '', section: '', rollNumber: '', phone: '', year: '', programType: undefined, admissionYear: '', course: '' })
     } catch (e: any) {
       setManualMessage(e?.message || 'Create failed')
     } finally {
@@ -528,6 +538,22 @@ export default function BulkUpload() {
               <label className="block text-sm text-gray-700 mb-1">Year (optional)</label>
               <input value={manual.year} onChange={e => setManual({ ...manual, year: e.target.value })} className="w-full border rounded-lg px-3 py-2" placeholder="2026" />
             </div>
+            <div>
+              <label className="block text-sm text-gray-700 mb-1">Program Type</label>
+              <select value={manual.programType || ''} onChange={e => setManual({ ...manual, programType: (e.target.value === '' ? undefined : (e.target.value as 'UG'|'PG')) })} className="w-full border rounded-lg px-3 py-2">
+                <option value="">Select program</option>
+                <option value="UG">UG</option>
+                <option value="PG">PG</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-gray-700 mb-1">Admission Year (Batch)</label>
+              <input value={manual.admissionYear || ''} onChange={e => setManual({ ...manual, admissionYear: e.target.value })} className="w-full border rounded-lg px-3 py-2" placeholder="2025" />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-700 mb-1">Course</label>
+              <input value={manual.course || ''} onChange={e => setManual({ ...manual, course: e.target.value })} className="w-full border rounded-lg px-3 py-2" placeholder="MCA / BSc / MBA" />
+            </div>
           </div>
           <div className="mt-4 flex items-center gap-2">
             <button onClick={handleManualCreate} disabled={manualLoading} className="px-5 py-2 bg-green-600 text-white rounded-lg disabled:opacity-50">{manualLoading ? 'Creating...' : 'Create & Send Email'}</button>
@@ -542,7 +568,7 @@ export default function BulkUpload() {
             Your CSV file should include the following columns:
           </p>
           <div className="bg-gray-50 rounded-lg p-4 font-mono text-sm">
-            Name,Email,Branch,Section,Roll Number,Phone,Year
+            Name,Email,Branch,Section,Roll Number,Phone,Year,Course,Program Type (free-text),Admission Year (Batch)
           </div>
           <div className="mt-4 text-sm text-gray-500">
             <p>• All fields except Phone and Year are required</p>

@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+import { generateOtp } from '../utils/generateOtp.js';
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -29,6 +30,10 @@ const userSchema = new mongoose.Schema({
     default: 'active'
   },
   lastLogin: Date,
+  
+  // Login OTP (for placement officers/admins)
+  loginOtp: String,
+  loginOtpExpires: Date,
   
   // Password reset
   passwordResetToken: String,
@@ -63,6 +68,31 @@ userSchema.pre('save', async function(next) {
 // Compare password method
 userSchema.methods.comparePassword = async function(candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
+};
+
+// Generate login OTP method (for officers/admins)
+userSchema.methods.generateLoginOtp = function() {
+  const otp = generateOtp();
+  this.loginOtp = otp;
+  this.loginOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+  return otp;
+};
+
+// Verify login OTP method (for officers/admins)
+userSchema.methods.verifyLoginOtp = function(otp) {
+  if (!this.loginOtp || !this.loginOtpExpires) {
+    return false;
+  }
+  if (new Date() > this.loginOtpExpires) {
+    return false;
+  }
+  return String(this.loginOtp) === String(otp);
+};
+
+// Clear login OTP method
+userSchema.methods.clearLoginOtp = function() {
+  this.loginOtp = undefined;
+  this.loginOtpExpires = undefined;
 };
 
 // Update timestamp on save

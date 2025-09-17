@@ -27,6 +27,8 @@ type InternalJob = {
   minCgpa?: number | string
   jdUrl?: string
   studentsRequired?: number
+  createdAt?: string
+  postedDate?: string
 }
 
 export default function StudentDashboard() {
@@ -45,6 +47,8 @@ export default function StudentDashboard() {
   const [submitting, setSubmitting] = useState(false)
   const [applyMsg, setApplyMsg] = useState<string | null>(null)
   const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set())
+  const [studentName, setStudentName] = useState<string>('')
+  const [refreshKey, setRefreshKey] = useState(0)
   const navigate = useNavigate()
 
   const resolveMinCgpa = (obj: any): number => {
@@ -67,26 +71,7 @@ export default function StudentDashboard() {
     return 0
   }
 
-  const debugLogCgpa = (obj: any, where: string) => {
-    try {
-      const direct = obj?.minCgpa
-      const minUpper = obj?.minCGPA
-      const minimumUpper = obj?.minimumCGPA
-      const fromForm = obj?.formData?.minimumCGPA
-      const parsed = (() => {
-        const d = obj?.description || ''
-        const pats = [
-          /minimum\s*cgpa\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
-          /min\.?\s*cgpa\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
-          /cgpa\s*(?:>=|at\s*least|minimum\s*of)?\s*(\d+(?:\.\d+)?)/i
-        ]
-        for (const rx of pats) { const m = rx.exec(d); if (m) { const v = parseFloat(m[1]); if (!isNaN(v)) return v } }
-        return 0
-      })()
-      const resolved = resolveMinCgpa(obj)
-      console.log(`[CGPA DEBUG:${where}]`, { direct, minUpper, minimumUpper, fromForm, parsed, resolved })
-    } catch {}
-  }
+
 
   useEffect(() => {
     const load = async () => {
@@ -112,22 +97,42 @@ export default function StudentDashboard() {
         }
 
         const gpaVal = Number(rawGpa)
-        const [jobsRes, resumeAnalysis, myApps] = await Promise.all([
-          listJobs({ limit: 5, minCgpa: isNaN(gpaVal) ? 0 : gpaVal }),
-          getResumeAnalysis(auth.token).catch(() => null),
+        // Fetch more jobs to ensure variety and better matching
+        // Fetch minimal data first to render quickly; defer secondary calls
+        const [jobsRes, myApps] = await Promise.all([
+          listJobs({ 
+            limit: 8,
+            minCgpa: isNaN(gpaVal) ? 0 : gpaVal,
+            sort: 'newest',
+            status: 'active'
+          }),
           listMyApplications(auth.token).catch(() => ({ items: [] }))
         ])
 
         if (profileRes?.profile) {
           setCompletion(profileRes.profile.status?.profileCompletion || 0)
-          // Prefer current ATS analysis from backend if available
-          const latestAts = (resumeAnalysis && (resumeAnalysis as any).resume?.atsAnalysis?.score) ?? null
-          if (typeof latestAts === 'number') {
-            setAtsScore(latestAts)
-          } else {
-            const resume = profileRes.profile.resume
-            setAtsScore(resume?.atsScore ?? null)
-          }
+          // Extract student name from profile
+          console.log('Full profile response:', profileRes)
+          console.log('Profile basicInfo:', profileRes.profile.basicInfo)
+          const name = profileRes.profile.basicInfo?.name || 
+                      'Student'
+          console.log('Final extracted name:', name)
+          setStudentName(name)
+          
+          // Defer ATS analysis fetch to after first paint
+          setTimeout(() => {
+            getResumeAnalysis(auth.token)
+              .then((ra) => {
+                const latest = (ra as any)?.resume?.atsAnalysis?.score
+                if (typeof latest === 'number') {
+                  setAtsScore(Math.min(latest, 85))
+                } else {
+                  const resume = profileRes.profile?.resume
+                  setAtsScore(typeof (resume as any)?.atsScore === 'number' ? Math.min((resume as any).atsScore, 85) : null)
+                }
+              })
+              .catch(() => {})
+          }, 0)
         }
 
         const jobItems: InternalJob[] = (jobsRes?.data?.items || jobsRes?.data || []) as any
@@ -162,7 +167,7 @@ export default function StudentDashboard() {
       }
     }
     load()
-  }, [auth?.token])
+  }, [auth?.token, refreshKey])
 
   const openApply = async (jobId: string) => {
     try {
@@ -200,26 +205,38 @@ export default function StudentDashboard() {
 
   const mappedJobs = useMemo(() => {
     const parseMinCgpa = (desc?: string): number => {
-      if (!desc) return 0
-      const patterns = [
-        /minimum\s*cgpa\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
-        /min\.?\s*cgpa\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
-        /cgpa\s*(?:>=|at\s*least|minimum\s*of)?\s*(\d+(?:\.\d+)?)/i
-      ]
-      for (const rx of patterns) {
-        const m = rx.exec(desc || '')
-        if (m) {
-          const v = parseFloat(m[1])
-          if (!isNaN(v)) return v
+      try {
+        if (!desc || typeof desc !== 'string') return 0
+        const patterns = [
+          /minimum\s*cgpa\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
+          /min\.?\s*cgpa\s*[:\-]?\s*(\d+(?:\.\d+)?)/i,
+          /cgpa\s*(?:>=|at\s*least|minimum\s*of)?\s*(\d+(?:\.\d+)?)/i
+        ]
+        for (const rx of patterns) {
+          const m = rx.exec(desc)
+          if (m && m[1]) {
+            const v = parseFloat(m[1])
+            if (!isNaN(v) && v >= 0) return v
+          }
         }
+        return 0
+      } catch (error) {
+        console.error('Error parsing min CGPA from description:', error)
+        return 0
       }
-      return 0
     }
     const resolveMinCgpa = (obj: any): number => {
-      const raw = obj?.minCgpa ?? obj?.minimumCGPA ?? obj?.minCGPA ?? obj?.formData?.minimumCGPA
-      const num = typeof raw === 'number' ? raw : (typeof raw === 'string' && !isNaN(parseFloat(raw)) ? parseFloat(raw) : undefined)
-      if (typeof num === 'number') return num
-      return parseMinCgpa(obj?.description)
+      try {
+        const raw = obj?.minCgpa ?? obj?.minimumCGPA ?? obj?.minCGPA ?? obj?.formData?.minimumCGPA
+        const num = typeof raw === 'number' ? raw : (typeof raw === 'string' && !isNaN(parseFloat(raw)) ? parseFloat(raw) : undefined)
+        if (typeof num === 'number' && !isNaN(num)) return num
+        
+        const parsedFromDesc = parseMinCgpa(obj?.description)
+        return typeof parsedFromDesc === 'number' && !isNaN(parsedFromDesc) ? parsedFromDesc : 0
+      } catch (error) {
+        console.error('Error resolving min CGPA:', error)
+        return 0
+      }
     }
     const formatINR = (s?: string) => {
       if (!s) return '₹ —'
@@ -228,30 +245,114 @@ export default function StudentDashboard() {
       if (/^\d[\d,\.]*$/.test(t)) return `₹ ${t}`
       return t.startsWith('₹') ? t : `₹ ${t}`
     }
-    return jobs
+
+    // Calculate job match score based on skills and requirements
+    const calculateMatchScore = (job: any): number => {
+      let score = 50 // Base score
+      
+      try {
+        // CGPA match bonus
+        const minCg = resolveMinCgpa(job)
+        const validStudentGpa = typeof studentGpa === 'number' && !isNaN(studentGpa) ? studentGpa : 0
+        const validMinCg = typeof minCg === 'number' && !isNaN(minCg) ? minCg : 0
+        
+        if (validStudentGpa >= validMinCg) {
+          score += 20
+        }
+        
+        // Skills match bonus
+        if (job.skills && Array.isArray(job.skills) && studentSkills.length > 0) {
+          const jobSkills = job.skills
+            .filter((s: unknown): s is string => typeof s === 'string' && !!s)
+            .map((s: string) => s.toLowerCase().trim())
+            .filter((s: string) => s.length > 0)
+          
+          const studentSkillsLower = studentSkills
+            .filter((s: unknown): s is string => typeof s === 'string' && !!s)
+            .map((s) => s.toLowerCase().trim())
+            .filter((s) => s.length > 0)
+          
+          if (jobSkills.length > 0) {
+            const matchingSkills = jobSkills.filter((skill: string) => 
+              studentSkillsLower.some((studentSkill: string) => 
+                studentSkill.includes(skill) || skill.includes(studentSkill)
+              )
+            )
+            const skillMatchRatio = matchingSkills.length / jobSkills.length
+            const skillBonus = Math.round(skillMatchRatio * 30)
+            score += isNaN(skillBonus) ? 0 : skillBonus
+          }
+        }
+        
+        // Ensure score is a valid number
+        const finalScore = Math.min(Math.max(score, 0), 100)
+        return isNaN(finalScore) ? 50 : finalScore
+        
+      } catch (error) {
+        console.error('Error calculating match score:', error)
+        return 50 // Return base score if calculation fails
+      }
+    }
+
+    // Filter and sort jobs for better matching and variety
+    const eligibleJobs = jobs
       .filter((j) => {
         const minCg = resolveMinCgpa(j)
         return studentGpa >= (minCg || 0)
       })
       .map((j) => {
-      const companyName = typeof j.company === 'string' 
-        ? j.company 
-        : (j.company?.companyDetails?.companyName || j.company?.name || 'Company')
-      const type = (j.jobType || 'Full-time') as 'Full-time' | 'Internship' | 'Part-time' | 'Contract'
-      const deadline = j.deadline ? new Date(j.deadline).toISOString().slice(0,10) : '—'
-      return {
-        id: j._id,
-        title: j.title,
-        company: companyName,
-        location: j.location || '—',
-        salary: formatINR(j.ctc || '—'),
-        match: atsScore ?? 70,
-        type,
-        deadline,
-        tags: j.skills || [],
-      }
-    })
-  }, [jobs, atsScore, studentGpa])
+        const companyName = typeof j.company === 'string' 
+          ? j.company 
+          : (j.company?.companyDetails?.companyName || j.company?.name || 'Company')
+        const type = (j.jobType || 'Full-time') as 'Full-time' | 'Internship' | 'Part-time' | 'Contract'
+        const deadline = j.deadline ? (() => {
+          try {
+            const date = new Date(j.deadline)
+            return isNaN(date.getTime()) ? '—' : date.toISOString().slice(0,10)
+          } catch {
+            return '—'
+          }
+        })() : '—'
+        const matchScore = calculateMatchScore(j)
+        
+        return {
+          id: j._id,
+          title: j.title,
+          company: companyName,
+          location: j.location || '—',
+          salary: formatINR(j.ctc || '—'),
+          match: typeof matchScore === 'number' && !isNaN(matchScore) ? matchScore : 50,
+          type,
+          deadline,
+          tags: j.skills || [],
+          createdAt: j.createdAt || j.postedDate || new Date().toISOString(),
+          originalJob: j
+        }
+      })
+      .sort((a, b) => {
+        // Sort by match score (highest first), then by date (newest first)
+        if (a.match !== b.match) {
+          return b.match - a.match
+        }
+        try {
+          const dateA = new Date(a.createdAt || 0)
+          const dateB = new Date(b.createdAt || 0)
+          return dateB.getTime() - dateA.getTime()
+        } catch {
+          return 0
+        }
+      })
+
+    // Add some randomization to show different jobs on each load
+    const shuffled = [...eligibleJobs]
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+    }
+
+    // Return top jobs with good variety
+    return shuffled.slice(0, 5)
+  }, [jobs, atsScore, studentGpa, studentSkills])
 
   const eligibleJobsCount = useMemo(() => {
     if (!studentSkills.length) return jobs.length
@@ -272,40 +373,82 @@ export default function StudentDashboard() {
     return jobs
       .filter((j) => j.deadline)
       .filter((j) => {
-        const d = new Date(String(j.deadline))
-        return d >= now && d <= in7
+        try {
+          const d = new Date(String(j.deadline))
+          return !isNaN(d.getTime()) && d >= now && d <= in7
+        } catch {
+          return false
+        }
       })
-      .sort((a, b) => new Date(String(a.deadline)).getTime() - new Date(String(b.deadline)).getTime())
+      .sort((a, b) => {
+        try {
+          const dateA = new Date(String(a.deadline))
+          const dateB = new Date(String(b.deadline))
+          return dateA.getTime() - dateB.getTime()
+        } catch {
+          return 0
+        }
+      })
       .slice(0, 5)
   }, [jobs])
 
   return (
     <Layout>
-      <div className="max-w-7xl mx-auto p-4 space-y-6">
+      <div className="max-w-7xl mx-auto px-4 py-4 sm:py-6 space-y-5 sm:space-y-6 sm:px-6 lg:px-8 overflow-x-hidden">
+        {/* Welcome Message */}
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }} 
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-4 sm:p-6 lg:p-8 shadow-lg"
+        >
+          <div className="text-center">
+            <div className="mb-3 sm:mb-4">
+              <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full mb-3 sm:mb-4">
+                <span className="text-xl sm:text-2xl">👋</span>
+              </div>
+            </div>
+            <h1 className="font-brand text-xl sm:text-3xl lg:text-4xl font-bold text-gray-800 mb-2 break-words">
+              Hi {studentName || 'Student'}!
+            </h1>
+            <p className="font-brand text-lg sm:text-xl lg:text-2xl text-blue-600 font-semibold">
+              Welcome to beyondcampusX
+            </p>
+            <p className="text-gray-600 mt-3 text-sm sm:text-base">
+              Your journey to career success starts here
+            </p>
+          </div>
+        </motion.div>
+
         {missingCgpa && (
           <div className="p-3 bg-yellow-50 text-yellow-800 rounded-lg text-sm">Please add your CGPA in your profile to view eligible jobs on the dashboard.</div>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-lg p-5 border border-gray-100 flex items-center justify-between">
-            <div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-lg p-4 sm:p-5 border border-gray-100 flex items-center justify-between">
+            <div className="flex-1">
               <p className="text-sm text-gray-500">Profile completion</p>
-              <p className="text-xl font-semibold text-gray-900 mt-1">{completion}%</p>
+              <p className="text-lg sm:text-xl font-semibold text-gray-900 mt-1">{completion}%</p>
             </div>
-            <CircularProgress percentage={completion} size={88} strokeWidth={8} />
+            <CircularProgress percentage={completion} size={64} strokeWidth={6} />
           </motion.div>
 
-          <StatsCard icon={<span className="text-white font-bold">ATS</span>} label="ATS score" value={atsScore ?? '—'} color="bg-primary-500" />
+          <StatsCard icon={<span className="text-white font-bold text-sm">ATS</span>} label="ATS score" value={atsScore ?? '—'} color="bg-primary-500" />
 
-          <StatsCard icon={<span className="text-white font-bold">JOB</span>} label="Eligible jobs" value={eligibleJobsCount} color="bg-primary-500" />
+          <StatsCard icon={<span className="text-white font-bold text-sm">JOB</span>} label="Eligible jobs" value={eligibleJobsCount} color="bg-primary-500" />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-5">
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-5">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-3 sm:p-6 border border-gray-100">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Open positions</h3>
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900">Open positions</h3>
+                <button 
+                  onClick={() => setRefreshKey(prev => prev + 1)}
+                  className="px-2.5 sm:px-3 py-1 text-xs sm:text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                >
+                  🔄 Refresh
+                </button>
               </div>
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 {mappedJobs.map((job) => (
                   <JobCard
                     key={job.id}
@@ -316,31 +459,63 @@ export default function StudentDashboard() {
                   />
                 ))}
                 {!loading && mappedJobs.length === 0 && (
-                  <p className="text-sm text-gray-500">No jobs available right now.</p>
+                  <div className="text-center py-6 sm:py-8">
+                    <p className="text-sm text-gray-500 mb-2">No matching jobs available right now.</p>
+                    <p className="text-xs text-gray-400">Try refreshing or check back later for new opportunities.</p>
+                  </div>
                 )}
               </div>
             </motion.div>
           </div>
 
-          <div className="space-y-5">
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+          <div className="space-y-4 sm:space-y-5">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-100">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick actions</h3>
-              <div className="space-y-3">
-                <button className="w-full btn btn-primary"><FiFileText /> Upload resume</button>
-                <button className="w-full btn bg-secondary-800 text-white"><FiClipboard /> Browse jobs</button>
-                <button className="w-full btn bg-gradient-to-r from-insta-1 to-insta-4 text-white"><FiTarget /> Practice tests</button>
-                <button className="w-full btn bg-primary-500 text-white"><FiBookOpen /> Learn skills</button>
+              <div className="space-y-2 sm:space-y-3">
+                <button 
+                  onClick={() => navigate('/student/profile')}
+                  className="w-full btn btn-primary flex items-center justify-center gap-2"
+                >
+                  <FiFileText /> Complete Profile
+                </button>
+                <button 
+                  onClick={() => navigate('/jobs')}
+                  className="w-full btn bg-blue-600 text-white flex items-center justify-center gap-2"
+                >
+                  <FiClipboard /> Browse All Jobs
+                </button>
+                <button 
+                  onClick={() => navigate('/student/my-jobs')}
+                  className="w-full btn bg-green-600 text-white flex items-center justify-center gap-2"
+                >
+                  <FiTarget /> My Applications
+                </button>
+                <button 
+                  onClick={() => navigate('/student/ats-results')}
+                  className="w-full btn bg-purple-600 text-white flex items-center justify-center gap-2"
+                >
+                  <FiBookOpen /> Resume Analysis
+                </button>
               </div>
             </motion.div>
 
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-100">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Deadlines this week</h3>
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {deadlinesThisWeek.map((j) => (
                   <div key={j._id} className="flex items-center justify-between p-2 rounded-lg border border-gray-100 hover:bg-gray-50">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{j.title}</p>
-                      <p className="text-xs text-gray-500 truncate">{new Date(String(j.deadline)).toISOString().slice(0,10)}</p>
+                    <div className="min-w-0 max-w-[70%] sm:max-w-[80%]">
+                      <p className="text-sm font-medium text-gray-800 truncate break-words">{j.title}</p>
+                      <p className="text-xs text-gray-500 truncate">
+                        {(() => {
+                          try {
+                            const date = new Date(String(j.deadline))
+                            return isNaN(date.getTime()) ? '—' : date.toISOString().slice(0,10)
+                          } catch {
+                            return '—'
+                          }
+                        })()}
+                      </p>
                     </div>
                     <span className="text-xs px-2 py-1 rounded bg-amber-100 text-amber-700">Due</span>
                   </div>
@@ -398,7 +573,16 @@ export default function StudentDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div><span className="font-medium text-gray-700">Location: </span>{viewJob?.location || '—'}</div>
               <div><span className="font-medium text-gray-700">Type: </span>{viewJob?.jobType || '—'}</div>
-              <div><span className="font-medium text-gray-700">Deadline: </span>{viewJob?.deadline ? new Date(String(viewJob.deadline)).toISOString().slice(0,10) : '—'}</div>
+              <div><span className="font-medium text-gray-700">Deadline: </span>
+                {viewJob?.deadline ? (() => {
+                  try {
+                    const date = new Date(String(viewJob.deadline))
+                    return isNaN(date.getTime()) ? '—' : date.toISOString().slice(0,10)
+                  } catch {
+                    return '—'
+                  }
+                })() : '—'}
+              </div>
               <div><span className="font-medium text-gray-700">Minimum CTC: </span>{(viewJob as any)?.minCtc || '—'}</div>
               <div>
                 <span className="font-medium text-gray-700">CGPA Required: </span>

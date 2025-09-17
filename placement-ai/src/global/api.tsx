@@ -1,5 +1,8 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string | undefined
 
+// Lightweight client-side cache for GET requests (per-URL+auth header)
+const responseCache = new Map<string, { expiry: number; data: unknown }>()
+
 async function request<TResponse>(path: string, options: RequestInit = {}): Promise<TResponse> {
   const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
   const url = `${baseUrl}/api${path}`
@@ -8,25 +11,93 @@ async function request<TResponse>(path: string, options: RequestInit = {}): Prom
     'Content-Type': 'application/json',
   }
 
-  const response = await fetch(url, {
-    method: options.method ?? 'GET',
-    headers: { ...defaultHeaders, ...(options.headers || {}) },
-    body: options.body,
-    credentials: 'include',
-  })
+  // Timeout and retry logic
+  const timeoutMs = 12000
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
 
-  const isJson = response.headers.get('content-type')?.includes('application/json')
-  const data: unknown = isJson ? await response.json().catch(() => ({})) : await response.text()
+  const headersCombined = { ...defaultHeaders, ...(options.headers || {}) } as Record<string, string>
 
-  if (!response.ok) {
-    const message =
-      (isJson && typeof data === 'object'
-        ? ((data as Record<string, unknown>)?.message as string || (data as Record<string, unknown>)?.error as string)
-        : undefined) || response.statusText || 'Request failed'
-    throw new Error(message)
+  // Simple cache: only for GET, no body, and public-ish endpoints
+  const isGet = (options.method ?? 'GET').toUpperCase() === 'GET'
+  const authKey = headersCombined.Authorization ? `|auth:${headersCombined.Authorization}` : ''
+  const cacheKey = isGet ? `${url}${authKey}` : ''
+  const now = Date.now()
+  if (isGet && responseCache.has(cacheKey)) {
+    const entry = responseCache.get(cacheKey)!
+    if (entry.expiry > now) {
+      return entry.data as TResponse
+    } else {
+      responseCache.delete(cacheKey)
+    }
   }
 
-  return data as TResponse
+  const doFetch = async (): Promise<{ ok: boolean; status: number; data: unknown; isJson: boolean; statusText: string }> => {
+    const res = await fetch(url, {
+      method: options.method ?? 'GET',
+      headers: headersCombined,
+      body: options.body,
+      credentials: 'include',
+      signal: controller.signal,
+      // keepalive can help on some browsers for short-lived connections
+      keepalive: true as any,
+    })
+    const isJson = res.headers.get('content-type')?.includes('application/json') ?? false
+    const data = isJson ? await res.json().catch(() => ({})) : await res.text()
+    return { ok: res.ok, status: res.status, data, isJson, statusText: res.statusText }
+  }
+
+  let attempt = 0
+  let lastError: Error | null = null
+  try {
+    while (attempt < 2) {
+      try {
+        const res = await doFetch()
+        if (!res.ok) {
+          // Retry on 5xx
+          if (res.status >= 500 && attempt === 0) {
+            attempt++
+            await new Promise(r => setTimeout(r, 300))
+            continue
+          }
+          const message = (res.isJson && typeof res.data === 'object'
+            ? ((res.data as Record<string, unknown>)?.message as string || (res.data as Record<string, unknown>)?.error as string)
+            : undefined) || res.statusText || 'Request failed'
+          throw new Error(message)
+        }
+
+        // Populate cache with short TTL for frequently-hit GET endpoints
+        if (isGet) {
+          let ttl = 0
+          if (/\/jobs(\?|$)/.test(path) || /\/external-jobs(\?|$)/.test(path)) ttl = 15_000
+          else if (/\/notifications\//.test(path)) ttl = 10_000
+          else if (/\/profile\//.test(path)) ttl = 10_000
+          if (ttl > 0) {
+            responseCache.set(cacheKey, { expiry: now + ttl, data: res.data })
+          }
+        }
+
+        return res.data as TResponse
+      } catch (e: any) {
+        if (e?.name === 'AbortError') {
+          lastError = new Error('Request timed out')
+          break
+        }
+        lastError = e instanceof Error ? e : new Error('Network error')
+        // Retry once for network errors
+        if (attempt === 0) {
+          attempt++
+          await new Promise(r => setTimeout(r, 300))
+          continue
+        }
+        break
+      }
+    }
+  } finally {
+    clearTimeout(timer)
+  }
+
+  throw lastError || new Error('Request failed')
 }
 
 // Helper: only attach bearer if token looks like a real JWT (avoid 'cookie-session')
@@ -44,6 +115,92 @@ export type LoginPayload = {
   email: string
   password: string
   role?: 'student' | 'placement_officer' | 'admin' | 'recruiter'
+}
+
+export const logout = async (): Promise<{ success: boolean; message: string }> => {
+  return request('/auth/logout', { 
+    method: 'POST',
+    credentials: 'include' // Ensure cookies are sent for logout
+  })
+}
+
+// ------------------- SEARCH ------------------- //
+
+export type SearchResult = {
+  id: string
+  type: 'student' | 'job' | 'company'
+  name: string
+  email?: string
+  rollNumber?: string
+  department?: string
+  course?: string
+  programType?: string
+  phone?: string
+  cgpa?: number
+  attendance?: number
+  backlogs?: number
+  isPlaced?: boolean
+  matchField: string
+}
+
+export type SearchResponse = {
+  students: SearchResult[]
+  jobs: SearchResult[]
+  companies: SearchResult[]
+  total: number
+}
+
+export const search = async (query: string, type?: string, limit?: number): Promise<SearchResponse> => {
+  const params = new URLSearchParams()
+  params.append('q', query)
+  if (type) params.append('type', type)
+  if (limit) params.append('limit', limit.toString())
+  
+  return request(`/placement-officer/search?${params.toString()}`)
+}
+
+export const studentSearch = async (query: string, type?: string, limit?: number): Promise<Omit<SearchResponse, 'students'>> => {
+  const params = new URLSearchParams()
+  params.append('q', query)
+  if (type) params.append('type', type)
+  if (limit) params.append('limit', limit.toString())
+  
+  return request(`/placement-officer/student-search?${params.toString()}`)
+}
+
+// ------------------- PLACEMENT OFFICER SETTINGS ------------------- //
+
+export type OfficerProfile = {
+  _id: string
+  name: string
+  email: string
+  role: 'placement_officer' | 'admin'
+  status: 'active' | 'inactive'
+  lastLogin?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export const getOfficerProfile = async (token: string): Promise<{ success: boolean; user: OfficerProfile }> => {
+  return request('/placement-officer/profile', {
+    headers: buildAuthHeaders(token)
+  })
+}
+
+export const updateOfficerProfile = async (token: string, data: { name?: string; email?: string }): Promise<{ success: boolean; message: string; user: OfficerProfile }> => {
+  return request('/placement-officer/profile', {
+    method: 'PUT',
+    headers: buildAuthHeaders(token),
+    body: JSON.stringify(data)
+  })
+}
+
+export const changeOfficerPassword = async (token: string, data: { currentPassword: string; newPassword: string }): Promise<{ success: boolean; message: string }> => {
+  return request('/placement-officer/change-password', {
+    method: 'PUT',
+    headers: buildAuthHeaders(token),
+    body: JSON.stringify(data)
+  })
 }
 
 export type LoginResponse = {
@@ -324,6 +481,13 @@ export function bulkOfficerStudentAction(action: 'block'|'unblock'|'place'|'unpl
   return request<{ success: boolean; updated: number }>(`/placement-officer/students/bulk`, {
     method: 'POST',
     body: JSON.stringify({ action, ids })
+  })
+}
+
+export function updateOfficerStudent(id: string, payload: Partial<{ name: string; email: string; branch: string; course: string; section: string; rollNumber: string; year: string; phone: string; cgpa: number; programType: string; admissionYear: string }>) {
+  return request<{ success: boolean; student: any; message: string }>(`/placement-officer/students/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
   })
 }
 
@@ -1566,3 +1730,36 @@ export function analyzeATSWithResumeId(token: string, resumeId: string, jobRole:
 }
 
 export { request }
+
+// ---------- Filters ---------- //
+export function getStudentFilterOptions() {
+  return request<{ success: boolean; filters: { departments: string[]; courses: string[]; years: string[]; programTypes: string[] } }>(`/placement-officer/students/filters`)
+}
+
+// ------------------- ELIGIBILITY & PROGRAM STATS ------------------- //
+
+export type EligibilitySettings = {
+  attendanceMin: number
+  backlogMax: number
+  cgpaMin: number
+  updatedBy?: string
+  updatedAt?: string
+}
+
+export async function getEligibilitySettings(token: string) {
+  return request<{ success: boolean; settings: EligibilitySettings }>(`/placement-officer/eligibility-settings`, {
+    headers: buildAuthHeaders(token)
+  })
+}
+
+export async function updateEligibilitySettings(token: string, payload: Partial<EligibilitySettings>) {
+  return request<{ success: boolean; settings: EligibilitySettings; programStats: { overall: { total: number; registered: number; eligible: number; placed: number; placementRate: number }; byProgram: Array<{ programType: string; total: number; registered: number; eligible: number; placed: number; placementRate: number }> } }>(`/placement-officer/eligibility-settings`, {
+    method: 'PUT',
+    headers: buildAuthHeaders(token),
+    body: JSON.stringify(payload)
+  })
+}
+
+export async function getProgramTypeStats() {
+  return request<{ success: boolean; settings: EligibilitySettings; programStats: { overall: { total: number; registered: number; eligible: number; placed: number; placementRate: number }; byProgram: Array<{ programType: string; total: number; registered: number; eligible: number; placed: number; placementRate: number }> } }>(`/placement-officer/program-type-stats`)
+}

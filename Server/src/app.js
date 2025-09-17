@@ -7,6 +7,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
+import compression from 'compression';
 import dotenv from 'dotenv';
 
 import connectDB from './config/database.js';
@@ -59,9 +60,15 @@ app.use(
           "https://res.cloudinary.com",
           "https://*.cloudinary.com"
         ],
-        "script-src": ["'self'"],
+        "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "blob:"],
+        "script-src-elem": ["'self'", "'unsafe-inline'", "blob:"],
         "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
         "style-src-elem": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
+        "font-src": [
+          "'self'",
+          "data:",
+          "https://fonts.gstatic.com"
+        ],
         "connect-src": [
           "'self'",
           "http://localhost:5173",
@@ -70,9 +77,12 @@ app.use(
           "http://127.0.0.1:3000",
           "http://localhost:5000",
           "https://placement-final.vercel.app",
+          "https://beyondcampusx.com",
+          "https://www.beyondcampusx.com",
           "https://api.cloudinary.com",
           "https://res.cloudinary.com"
         ],
+        "worker-src": ["'self'", "blob:"],
         "object-src": ["'none'"],
         "media-src": [
           "'self'",
@@ -98,7 +108,9 @@ app.use(
         'http://127.0.0.1:3000',
         'http://localhost:4173', // Vite preview
         'http://127.0.0.1:4173',
-        'https://placement-final.vercel.app'
+        'https://placement-final.vercel.app',
+        'https://beyondcampusx.com',
+        'https://www.beyondcampusx.com'
       ];
       
       if (allowedOrigins.indexOf(origin) !== -1) {
@@ -123,6 +135,8 @@ initializeEmail();
 app.options('*', cors());
 
 app.use(morgan('combined'));
+// Gzip compression
+app.use(compression({ threshold: '1kb' }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());

@@ -67,10 +67,10 @@ export const JobCard: React.FC<JobCardProps> = ({
       `}
       onClick={onView}
     >
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex-1">
+      <div className="flex items-start justify-between mb-4 gap-4">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center space-x-2 mb-2">
-            <h4 className="text-lg font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">
+            <h4 className="text-lg font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors truncate">
               {title}
             </h4>
             {featured && (
@@ -81,12 +81,12 @@ export const JobCard: React.FC<JobCardProps> = ({
             )}
           </div>
           
-          <p className="text-gray-600 mb-2 flex items-center space-x-1">
-            <span>{company}</span>
+          <p className="text-gray-600 mb-2 flex items-center space-x-1 truncate">
+            <span className="truncate max-w-[50%]">{company}</span>
             <span>•</span>
             <span className="flex items-center space-x-1">
               <FiMapPin className="w-3 h-3" />
-              <span>{location}</span>
+              <span className="truncate max-w-[40%]">{location}</span>
             </span>
           </p>
           
@@ -105,19 +105,18 @@ export const JobCard: React.FC<JobCardProps> = ({
             </span>
           </div>
           
-          <div className="flex items-center space-x-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap overflow-hidden">
             {tags.map((tag, index) => (
               <span 
                 key={index} 
-                className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 transition-colors"
+                className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 transition-colors whitespace-nowrap"
               >
                 {tag}
               </span>
             ))}
           </div>
         </div>
-        
-        <div className="text-right ml-4">
+        <div className="text-right ml-4 shrink-0">
           <div className="flex items-center space-x-2 mb-2">
             <span className="text-sm text-gray-500">Match</span>
             <span className="text-lg font-bold text-emerald-600">{match}%</span>

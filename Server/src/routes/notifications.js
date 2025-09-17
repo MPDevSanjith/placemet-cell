@@ -2,6 +2,7 @@ import express from 'express'
 import Notification from '../models/Notification.js'
 import Student from '../models/Student.js'
 import NotificationDelivery from '../models/NotificationDelivery.js'
+import { cacheSeconds } from '../middleware/cache.js'
 import { sendEmail, isEmailConfigured } from '../email/email.js'
 import { authenticateToken, authorize } from '../middleware/auth.js'
 
@@ -75,7 +76,7 @@ router.post('/', authenticateToken, authorize('placement_officer', 'admin'), asy
 })
 
 // List notifications (with optional filters)
-router.get('/', authenticateToken, authorize('placement_officer', 'admin'), async (req, res) => {
+router.get('/', authenticateToken, authorize('placement_officer', 'admin'), cacheSeconds(10), async (req, res) => {
   try {
     const items = await Notification.find({}).sort({ createdAt: -1 }).limit(200)
     return res.json({ success: true, items })
@@ -120,7 +121,7 @@ router.delete('/:id', authenticateToken, authorize('placement_officer', 'admin')
 })
 
 // Student: list my notifications (targeted to the authenticated student)
-router.get('/my', authenticateToken, authorize('student', 'placement_officer', 'admin'), async (req, res) => {
+router.get('/my', authenticateToken, authorize('student', 'placement_officer', 'admin'), cacheSeconds(8), async (req, res) => {
   try {
     const studentId = req.user.id
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
@@ -161,7 +162,7 @@ router.get('/my', authenticateToken, authorize('student', 'placement_officer', '
 })
 
 // Student: unread count (deliveries not yet read)
-router.get('/my/unread-count', authenticateToken, authorize('student', 'placement_officer', 'admin'), async (req, res) => {
+router.get('/my/unread-count', authenticateToken, authorize('student', 'placement_officer', 'admin'), cacheSeconds(5), async (req, res) => {
   try {
     const studentId = req.user.id
     const count = await NotificationDelivery.countDocuments({ student: studentId, status: 'delivered' })

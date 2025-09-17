@@ -5,7 +5,12 @@ const connectDB = async () => {
     // Use MongoDB URI from environment variables with fallback
     const mongoURI = process.env.MONGODB_URI;
     
-    const conn = await mongoose.connect(mongoURI)
+    const conn = await mongoose.connect(mongoURI, {
+      maxPoolSize: 20,
+      minPoolSize: 5,
+      serverSelectionTimeoutMS: 8000,
+      socketTimeoutMS: 30000,
+    })
 
     console.log('✅ MongoDB Connected:', conn.connection.host);
   } catch (error) {

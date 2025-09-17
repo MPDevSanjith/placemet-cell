@@ -241,57 +241,45 @@ export const verifyOtp = async (req, res) => {
     }
 
     const normalizedEmail = String(email).trim().toLowerCase();
+    
+    // First, try as Placement Officer/Admin
+    const userAccount = await User.findOne({ email: normalizedEmail });
+    if (userAccount) {
+      if (userAccount.status !== 'active') {
+        return res.status(401).json({ success: false, error: 'Account is not active' });
+      }
+      if (!userAccount.verifyLoginOtp || !userAccount.verifyLoginOtp(otp)) {
+        return res.status(401).json({ success: false, error: 'Invalid or expired OTP' });
+      }
+      userAccount.clearLoginOtp && userAccount.clearLoginOtp();
+      userAccount.lastLogin = new Date();
+      await userAccount.save();
+
+      const token = signJwt({ id: userAccount._id, email: userAccount.email, role: userAccount.role, name: userAccount.name });
+      const isProd = process.env.NODE_ENV === 'production'
+      res.cookie('auth_token', token, { httpOnly: true, sameSite: isProd ? 'lax' : 'none', secure: isProd ? true : false, maxAge: 7 * 24 * 60 * 60 * 1000, path: '/', });
+
+      logger.success(`Officer/Admin login via OTP successful: ${userAccount.email}`);
+      return res.json({ success: true, message: 'Login successful', token, user: { id: userAccount._id, name: userAccount.name, email: userAccount.email, role: userAccount.role || 'placement_officer', }, requiresOtp: false });
+    }
+
+    // Then, try as Student
     const studentAccount = await Student.findOne({ email: normalizedEmail });
-
-    if (!studentAccount) {
-      return res.status(401).json({ 
-        success: false, 
-        error: 'Invalid credentials' 
-      });
+    if (studentAccount) {
+      if (!studentAccount.verifyLoginOtp(otp)) {
+        return res.status(401).json({ success: false, error: 'Invalid or expired OTP' });
+      }
+      studentAccount.clearLoginOtp();
+      studentAccount.lastLogin = new Date();
+      await studentAccount.save();
+      const token = signJwt({ id: studentAccount._id, email: studentAccount.email, role: 'student', name: studentAccount.name });
+      const isProd = process.env.NODE_ENV === 'production'
+      res.cookie('auth_token', token, { httpOnly: true, sameSite: isProd ? 'lax' : 'none', secure: isProd ? true : false, maxAge: 7 * 24 * 60 * 60 * 1000, path: '/', });
+      logger.success(`Student login successful: ${studentAccount.email}`);
+      return res.json({ success: true, message: 'Login successful', token, user: { id: studentAccount._id, name: studentAccount.name, email: studentAccount.email, role: 'student', }, requiresOtp: false });
     }
 
-    if (!studentAccount.verifyLoginOtp(otp)) {
-      return res.status(401).json({ 
-        success: false, 
-        error: 'Invalid or expired OTP' 
-      });
-    }
-
-    // Clear OTP after successful verification
-    studentAccount.clearLoginOtp();
-    studentAccount.lastLogin = new Date();
-    await studentAccount.save();
-
-    const token = signJwt({ 
-      id: studentAccount._id, 
-      email: studentAccount.email, 
-      role: 'student', 
-      name: studentAccount.name 
-    });
-
-    // Issue cookie session
-    const isProd = process.env.NODE_ENV === 'production'
-    res.cookie('auth_token', token, {
-      httpOnly: true,
-      sameSite: isProd ? 'lax' : 'none',
-      secure: isProd ? true : false,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/',
-    });
-
-    logger.success(`Student login successful: ${studentAccount.email}`);
-    return res.json({
-      success: true,
-      message: 'Login successful',
-      token, // still return token for backward compatibility
-      user: {
-        id: studentAccount._id,
-        name: studentAccount.name,
-        email: studentAccount.email,
-        role: 'student',
-      },
-      requiresOtp: false
-    });
+    return res.status(401).json({ success: false, error: 'Invalid credentials' });
 
   } catch (error) {
     logger.error('OTP verification error:', error);
@@ -315,25 +303,28 @@ export const requestLoginOtp = async (req, res) => {
     }
 
     const normalizedEmail = String(email).trim().toLowerCase();
-    const studentAccount = await Student.findOne({ email: normalizedEmail });
 
-    if (!studentAccount) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Student not found' 
-      });
+    // 1) Try student
+    const studentAccount = await Student.findOne({ email: normalizedEmail });
+    if (studentAccount) {
+      const otp = studentAccount.generateLoginOtp();
+      await studentAccount.save();
+      await sendLoginOtpEmail(studentAccount.email, studentAccount.name, otp);
+      return res.json({ success: true, message: 'OTP sent to your email', email: studentAccount.email });
     }
 
-    // Generate and email OTP
-    const otp = studentAccount.generateLoginOtp();
-    await studentAccount.save();
-    await sendLoginOtpEmail(studentAccount.email, studentAccount.name, otp);
-
-    return res.json({
-      success: true,
-      message: 'OTP sent to your email',
-      email: studentAccount.email
-    });
+    // 2) Try placement officer/admin
+    const userAccount = await User.findOne({ email: normalizedEmail });
+    if (!userAccount) {
+      return res.status(404).json({ success: false, error: 'Account not found' });
+    }
+    if (userAccount.status !== 'active') {
+      return res.status(401).json({ success: false, error: 'Account is not active' });
+    }
+    const otp = userAccount.generateLoginOtp();
+    await userAccount.save();
+    await sendLoginOtpEmail(userAccount.email, userAccount.name, otp);
+    return res.json({ success: true, message: 'OTP sent to your email', email: userAccount.email });
   } catch (error) {
     logger.error('Request login OTP error:', error);
     return res.status(500).json({ success: false, error: 'Internal server error' });
