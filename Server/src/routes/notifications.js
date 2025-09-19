@@ -50,7 +50,7 @@ router.post('/', authenticateToken, authorize('placement_officer', 'admin'), asy
 
     // Optionally send emails
     if (sendEmailFlag && recipients.length) {
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+      const frontendUrl = process.env.FRONTEND_URL || 'https://beyondcampusx.com'
       const subject = `[Placement] ${title}`
       const html = `<!DOCTYPE html><html><body>
         <div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:0 auto;padding:16px;border:1px solid #eee;border-radius:8px">

@@ -116,7 +116,7 @@ const emailTemplates = {
                   
                   <!-- CTA Button -->
                   <div style="text-align: center; margin: 30px 0;">
-                      <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/login" 
+                      <a href="${process.env.FRONTEND_URL || 'https://beyondcampusx.com'}/login" 
                          class="button" style="background: #2563eb; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block; font-size: 15px; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);">
                           🚀 Get Started Now
                       </a>

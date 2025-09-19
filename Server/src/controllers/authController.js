@@ -26,7 +26,7 @@ const sendLoginOtpEmail = async (email, name, otp) => {
 };
 
 const sendPasswordResetEmail = async (email, name, token) => {
-  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
+  const resetUrl = `${process.env.FRONTEND_URL || 'https://beyondcampusx.com'}/reset-password?token=${token}`;
   const mailOptions = emailTemplates.passwordReset(name, email, resetUrl);
   return await sendEmail(mailOptions);
 };

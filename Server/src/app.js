@@ -184,11 +184,11 @@ if (distExists) {
     // For company form routes, serve a simple HTML page
     if (req.path.startsWith('/company-form/')) {
       const linkId = req.path.split('/')[2];
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://beyondcampusx.com';
       res.redirect(`${frontendUrl}/company-form/${linkId}`);
     } else {
       // Redirect other routes to frontend dev server
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://beyondcampusx.com';
       res.redirect(frontendUrl);
     }
   });
