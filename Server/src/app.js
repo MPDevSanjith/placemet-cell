@@ -13,6 +13,7 @@ import dotenv from 'dotenv';
 import connectDB from './config/database.js';
 import { initializeEmail } from './email/email.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
+import { rateLimit, authRateLimit } from './middleware/rateLimit.js';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -24,6 +25,7 @@ import externalJobsRoutes from './routes/externalJobs.js';
 import companiesRoutes from './routes/companies.js';
 import notificationsRoutes from './routes/notifications.js';
 import profileRoutes from './routes/profile.js';
+import aiAnalysisRoutes from './routes/aiAnalysis.js';
 
 dotenv.config();
 
@@ -60,14 +62,15 @@ app.use(
           "https://res.cloudinary.com",
           "https://*.cloudinary.com"
         ],
-        "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "blob:"],
-        "script-src-elem": ["'self'", "'unsafe-inline'", "blob:"],
+        "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "blob:", "https://infird.com"],
+        "script-src-elem": ["'self'", "'unsafe-inline'", "blob:", "https://infird.com"],
         "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
         "style-src-elem": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
         "font-src": [
           "'self'",
           "data:",
-          "https://fonts.gstatic.com"
+          "https://fonts.gstatic.com",
+          "https://r2cdn.perplexity.ai"
         ],
         "connect-src": [
           "'self'",
@@ -80,7 +83,8 @@ app.use(
           "https://beyondcampusx.com",
           "https://www.beyondcampusx.com",
           "https://api.cloudinary.com",
-          "https://res.cloudinary.com"
+          "https://res.cloudinary.com",
+          "https://www.google-analytics.com"
         ],
         "worker-src": ["'self'", "blob:"],
         "object-src": ["'none'"],
@@ -134,10 +138,22 @@ initializeEmail();
 // Add preflight handling
 app.options('*', cors());
 
+// Rate limiting middleware
+app.use(rateLimit());
+
 app.use(morgan('combined'));
 // Gzip compression
 app.use(compression({ threshold: '1kb' }));
-app.use(express.json({ limit: '50mb' }));
+
+// JSON parsing middleware - exclude file upload routes
+app.use((req, res, next) => {
+  // Skip JSON parsing for file upload routes
+  if (req.path.includes('/college-logo') && req.method === 'POST') {
+    return next();
+  }
+  express.json({ limit: '50mb' })(req, res, next);
+});
+
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 
@@ -151,7 +167,7 @@ app.get('/health', (req, res) => {
 });
 
 // Routes
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authRateLimit(), authRoutes);
 app.use('/api/students', studentsRoutes);
 app.use('/api/placement-officer', placementOfficerRoutes);
 app.use('/api/resume', resumeRoutes);
@@ -160,6 +176,7 @@ app.use('/api/jobs', jobsRoutes);
 app.use('/api/external-jobs', externalJobsRoutes);
 app.use('/api/companies', companiesRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/ai-analysis', aiAnalysisRoutes);
 
 // Static frontend hosting - Handle both development and production
 const frontendDistPath = path.resolve(__dirname, '../../placement-ai/dist');

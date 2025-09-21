@@ -325,7 +325,7 @@
 
 
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import Layout from '../../components/layout/Layout'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -356,7 +356,6 @@ const BACKLOG_MAX = 1
 export default function PlacementOfficerDashboard() {
   const [searchParams, setSearchParams] = useSearchParams()
   
-
   const [filters, setFilters] = useState<Filters>(() => ({
     q: searchParams.get('q') || '',
     batch: searchParams.get('batch') || '',
@@ -369,6 +368,19 @@ export default function PlacementOfficerDashboard() {
     page: Number(searchParams.get('page') || 1),
     limit: Number(searchParams.get('limit') || 10),
   }))
+
+  // Debounced search for better performance
+  const [searchDraft, setSearchDraft] = useState(filters.q || '')
+  
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchDraft !== filters.q) {
+        syncUrl({ q: searchDraft, page: 1 })
+      }
+    }, 500) // 500ms debounce
+    
+    return () => clearTimeout(timeoutId)
+  }, [searchDraft])
 
   // keep URL in sync
   const syncUrl = (next: Partial<Filters>) => {
@@ -400,14 +412,31 @@ export default function PlacementOfficerDashboard() {
     const placed = studentsAll.filter(s => s.isPlaced).length
     const blocked = studentsAll.filter(s => s.isActive === false).length
     const active = total - blocked
-    const placementRate = eligible > 0 ? Math.round((placed / eligible) * 100) : 0
+    
+    // Calculate placement rates
+    const overallPlacementRate = total > 0 ? Math.round((placed / total) * 100) : 0
+    const eligiblePlacementRate = eligible > 0 ? Math.round((placed / eligible) * 100) : 0
+    
+    // Use overall placement rate as the main metric (more meaningful when eligible count is low)
+    const placementRate = overallPlacementRate
+    
     const backlogBuckets = {
       '0': studentsAll.filter(s => (s.eligibilityCriteria?.backlogs ?? 0) === 0).length,
       '1': studentsAll.filter(s => (s.eligibilityCriteria?.backlogs ?? 0) === 1).length,
       '2': studentsAll.filter(s => (s.eligibilityCriteria?.backlogs ?? 0) === 2).length,
       '3+': studentsAll.filter(s => (s.eligibilityCriteria?.backlogs ?? 0) >= 3).length,
     }
-    return { total, eligible, placed, blocked, active, placementRate, backlogBuckets }
+    return { 
+      total, 
+      eligible, 
+      placed, 
+      blocked, 
+      active, 
+      placementRate, 
+      overallPlacementRate,
+      eligiblePlacementRate,
+      backlogBuckets 
+    }
   }, [studentsAll])
 
   const batchBar = useMemo(() => {
@@ -501,10 +530,9 @@ export default function PlacementOfficerDashboard() {
         {/* Filters */}
         <div className="mt-6 px-4">
           <div className="bg-white rounded-2xl p-4 shadow grid md:grid-cols-3 lg:grid-cols-8 gap-3">
-            <input placeholder="Search" value={filters.q||''} onChange={e=>syncUrl({q:e.target.value,page:1})} className="border rounded-lg px-3 py-2" />
+            <input placeholder="Search" value={searchDraft} onChange={e=>setSearchDraft(e.target.value)} className="border rounded-lg px-3 py-2" />
             <input placeholder="Batch" value={filters.batch||''} onChange={e=>syncUrl({batch:e.target.value,page:1})} className="border rounded-lg px-3 py-2" />
             <input placeholder="Course" value={filters.course||''} onChange={e=>syncUrl({course:e.target.value,page:1})} className="border rounded-lg px-3 py-2" />
-            <input placeholder="Year" value={filters.year||''} onChange={e=>syncUrl({year:e.target.value,page:1})} className="border rounded-lg px-3 py-2" />
             <input placeholder="Department" value={filters.department||''} onChange={e=>syncUrl({department:e.target.value,page:1})} className="border rounded-lg px-3 py-2" />
             <input placeholder="Section" value={filters.section||''} onChange={e=>syncUrl({section:e.target.value,page:1})} className="border rounded-lg px-3 py-2" />
             <select value={filters.placed||''} onChange={e=>syncUrl({placed:e.target.value,page:1})} className="border rounded-lg px-3 py-2">

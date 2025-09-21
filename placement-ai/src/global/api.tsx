@@ -1,31 +1,65 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string | undefined
+import { getAuth } from './auth'
 
 // Lightweight client-side cache for GET requests (per-URL+auth header)
 const responseCache = new Map<string, { expiry: number; data: unknown }>()
+
+// Request throttling to prevent excessive API calls
+const requestThrottle = new Map<string, number>()
+const THROTTLE_DELAY = 100 // Reduced from 500ms to 100ms for better UX
 
 async function request<TResponse>(path: string, options: RequestInit = {}): Promise<TResponse> {
   const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
   const url = `${baseUrl}/api${path}`
 
+  // Check request throttling - only throttle non-critical endpoints
+  const isCriticalEndpoint = path.includes('/auth/verify') || 
+                            path.includes('/auth/login') ||
+                            path.includes('/auth/send-otp') ||
+                            path.includes('/auth/verify-otp') ||
+                            path.includes('/profile/completion') ||
+                            path.includes('/notifications/my/unread-count')
+  
+  if (!isCriticalEndpoint) {
+    const currentTime = Date.now()
+    const lastRequest = requestThrottle.get(url)
+    if (lastRequest && (currentTime - lastRequest) < THROTTLE_DELAY) {
+      // Instead of throwing error, return cached response if available
+      const cacheKey = `${url}|${JSON.stringify(options)}`
+      const cached = responseCache.get(cacheKey)
+      if (cached && cached.expiry > currentTime) {
+        return cached.data as TResponse
+      }
+      // If no cache, wait briefly instead of throwing error
+      await new Promise(resolve => setTimeout(resolve, THROTTLE_DELAY))
+    }
+    requestThrottle.set(url, currentTime)
+  }
+
   const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
   }
 
-  // Timeout and retry logic
-  const timeoutMs = 12000
+  // Timeout and retry logic - longer timeout for email operations and AI analysis
+  const timeoutMs = path.includes('/send-welcome-emails') ? 60000 :
+                   path.includes('/ai-analysis') ? 15000 : 12000
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
 
-  const headersCombined = { ...defaultHeaders, ...(options.headers || {}) } as Record<string, string>
+  // Don't set Content-Type for FormData - let browser set it automatically
+  const isFormData = options.body instanceof FormData
+  const headersCombined = isFormData 
+    ? { ...(options.headers || {}) } as Record<string, string>
+    : { ...defaultHeaders, ...(options.headers || {}) } as Record<string, string>
 
   // Simple cache: only for GET, no body, and public-ish endpoints
   const isGet = (options.method ?? 'GET').toUpperCase() === 'GET'
   const authKey = headersCombined.Authorization ? `|auth:${headersCombined.Authorization}` : ''
   const cacheKey = isGet ? `${url}${authKey}` : ''
-  const now = Date.now()
+  const cacheTime = Date.now()
   if (isGet && responseCache.has(cacheKey)) {
     const entry = responseCache.get(cacheKey)!
-    if (entry.expiry > now) {
+    if (entry.expiry > cacheTime) {
       return entry.data as TResponse
     } else {
       responseCache.delete(cacheKey)
@@ -72,8 +106,9 @@ async function request<TResponse>(path: string, options: RequestInit = {}): Prom
           if (/\/jobs(\?|$)/.test(path) || /\/external-jobs(\?|$)/.test(path)) ttl = 15_000
           else if (/\/notifications\//.test(path)) ttl = 10_000
           else if (/\/profile\//.test(path)) ttl = 10_000
+          else if (/\/college-logo(\?|$)/.test(path)) ttl = 30_000 // Cache college logo for 30 seconds
           if (ttl > 0) {
-            responseCache.set(cacheKey, { expiry: now + ttl, data: res.data })
+            responseCache.set(cacheKey, { expiry: Date.now() + ttl, data: res.data })
           }
         }
 
@@ -262,18 +297,11 @@ export type BulkUploadResponse = {
 export function bulkUploadStudents(formData: FormData) {
   const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
   const url = `${baseUrl}/api/placement-officer/bulk-upload`
-  return fetch(url, { method: 'POST', body: formData, credentials: 'include' }).then(async (res) => {
-    const contentType = res.headers.get('content-type') || ''
-    const isJson = contentType.includes('application/json')
-    const data: unknown = isJson ? await res.json().catch(() => ({})) : await res.text()
-    if (!res.ok) {
-      const message =
-        (isJson && typeof data === 'object' ? (data as Record<string, unknown>)?.error as string || (data as Record<string, unknown>)?.message as string : undefined)
-        || `${res.status} ${res.statusText}` || 'Upload failed'
-      throw new Error(message)
-    }
-    return data as BulkUploadResponse
-  })
+  return fetch(url, {
+    method: 'POST',
+    body: formData,
+    credentials: 'include'
+  }).then(r => r.json())
 }
 
 export function sendBulkWelcomeEmails(studentIds: string[]) {
@@ -458,6 +486,17 @@ export type OfficerStudent = {
   course?: string
   isActive: boolean
   isPlaced?: boolean
+  placementDetails?: {
+    companyName?: string
+    designation?: string
+    ctc?: number
+    workLocation?: string
+    joiningDate?: string
+    remarks?: string
+    offerLetterDriveLink?: string
+    placedBy?: string
+    placedAt?: string
+  }
 }
 
 export type OfficerStudentListResponse = {
@@ -1245,6 +1284,28 @@ export function getStudentFilterOptions() {
   return request<{ success: boolean; filters: { departments: string[]; courses: string[]; years: string[]; programTypes: string[] } }>(`/placement-officer/students/filters`)
 }
 
+// ---------- Templates ---------- //
+export async function downloadBulkStudentsTemplate() {
+  const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
+  const url = `${baseUrl}/api/placement-officer/bulk-upload/template`
+  const token = getAuth()?.token
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { 'Accept': 'text/csv', ...buildAuthHeaders(token) },
+    credentials: 'include',
+  })
+  if (!res.ok) throw new Error('Failed to download template')
+  const blob = await res.blob()
+  const a = document.createElement('a')
+  const downloadUrl = URL.createObjectURL(blob)
+  a.href = downloadUrl
+  a.download = 'bulk-students-template.csv'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(downloadUrl)
+}
+
 // ------------------- ELIGIBILITY & PROGRAM STATS ------------------- //
 
 export type EligibilitySettings = {
@@ -1271,4 +1332,88 @@ export async function updateEligibilitySettings(token: string, payload: Partial<
 
 export async function getProgramTypeStats() {
   return request<{ success: boolean; settings: EligibilitySettings; programStats: { overall: { total: number; registered: number; eligible: number; placed: number; placementRate: number }; byProgram: Array<{ programType: string; total: number; registered: number; eligible: number; placed: number; placementRate: number }> } }>(`/placement-officer/program-type-stats`)
+}
+
+// ---------- College Logo Management ---------- //
+export function uploadCollegeLogo(formData: FormData) {
+  return request<{ success: boolean; collegeInfo: any; error?: string }>('/placement-officer/college-logo', {
+    method: 'POST',
+    body: formData,
+    headers: buildAuthHeaders(getAuth()?.token) // Don't set Content-Type for FormData
+  })
+}
+
+export function getCollegeLogo() {
+  return request<{ success: boolean; collegeInfo: any; error?: string }>('/placement-officer/college-logo', {
+    headers: buildAuthHeaders(getAuth()?.token)
+  })
+}
+
+export function deleteCollegeLogo() {
+  return request<{ success: boolean; error?: string }>('/placement-officer/college-logo', {
+    method: 'DELETE',
+    headers: buildAuthHeaders(getAuth()?.token)
+  })
+}
+
+export function updateCollegeName(name: string) {
+  return request<{ success: boolean; collegeInfo: any; error?: string }>('/placement-officer/college-name', {
+    method: 'PUT',
+    body: JSON.stringify({ name }),
+    headers: buildAuthHeaders(getAuth()?.token)
+  })
+}
+
+// ------------------- AI ANALYSIS ------------------- //
+
+export type AIAnalysisRequest = {
+  query: string
+  analysisType?: 'general' | 'student_analysis' | 'placement_analysis' | 'eligibility_analysis' | 'report_generation' | 'trend_analysis' | 'comparative_analysis'
+}
+
+export type AIAnalysisResponse = {
+  success: boolean
+  query: string
+  analysisType: string
+  response: {
+    type: 'ai_response' | 'fallback_response'
+    content: string
+    confidence: 'high' | 'medium' | 'low'
+    model: string
+  }
+  reports?: Array<{
+    type: 'csv' | 'pdf' | 'excel'
+    filename: string
+    content: string
+    recordCount: number
+    generatedAt: string
+  }>
+  timestamp: string
+  dataContext: {
+    totalStudents: number
+    totalJobs: number
+    totalCompanies: number
+  }
+  error?: string
+}
+
+export type AICapabilities = {
+  analysisTypes: string[]
+  sampleQueries: string[]
+  supportedFormats: string[]
+  dataSources: string[]
+}
+
+export async function analyzeWithAI(token: string, analysisRequest: AIAnalysisRequest): Promise<AIAnalysisResponse> {
+  return request('/ai-analysis/analyze', {
+    method: 'POST',
+    headers: buildAuthHeaders(token),
+    body: JSON.stringify(analysisRequest)
+  })
+}
+
+export async function getAICapabilities(token: string): Promise<{ success: boolean; capabilities: AICapabilities }> {
+  return request('/ai-analysis/capabilities', {
+    headers: buildAuthHeaders(token)
+  })
 }

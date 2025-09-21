@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createPortal } from 'react-dom'
 import { Search, User, Briefcase, Building2, GraduationCap, MapPin, Star } from 'lucide-react'
@@ -20,6 +20,56 @@ const SearchResults = ({ query, isOpen, onClose, position }: SearchResultsProps)
   const navigate = useNavigate()
   const containerRef = useRef<HTMLDivElement>(null)
   const { userRole } = useAuth()
+  
+  // Request cancellation
+  const abortControllerRef = useRef<AbortController | null>(null)
+
+  const performSearch = useCallback(async () => {
+    // Cancel previous request if it exists
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    
+    // Create new abort controller for this request
+    const abortController = new AbortController()
+    abortControllerRef.current = abortController
+    
+    setIsLoading(true)
+    setError(null)
+    
+    try {
+      let searchResults: SearchResponse
+      
+      if (userRole === 'student') {
+        // Students can only search companies and jobs
+        const studentResults = await studentSearch(query, 'all', 10)
+        searchResults = {
+          ...studentResults,
+          students: [] // Ensure students array is empty for students
+        }
+      } else {
+        // Placement officers and admins can search everything
+        searchResults = await search(query, 'all', 10)
+      }
+      
+      // Check if request was cancelled
+      if (abortController.signal.aborted) {
+        return
+      }
+      
+      setResults(searchResults)
+    } catch (err) {
+      // Don't show error if request was cancelled
+      if (!abortController.signal.aborted) {
+        setError(err instanceof Error ? err.message : 'Search failed')
+        setResults(null)
+      }
+    } finally {
+      if (!abortController.signal.aborted) {
+        setIsLoading(false)
+      }
+    }
+  }, [query, userRole])
 
   useEffect(() => {
     if (!query || query.length < 2) {
@@ -27,37 +77,9 @@ const SearchResults = ({ query, isOpen, onClose, position }: SearchResultsProps)
       return
     }
 
-    const searchWithDebounce = async () => {
-      setIsLoading(true)
-      setError(null)
-      
-      try {
-        let searchResults: SearchResponse
-        
-        if (userRole === 'student') {
-          // Students can only search companies and jobs
-          const studentResults = await studentSearch(query, 'all', 10)
-          searchResults = {
-            ...studentResults,
-            students: [] // Ensure students array is empty for students
-          }
-        } else {
-          // Placement officers and admins can search everything
-          searchResults = await search(query, 'all', 10)
-        }
-        
-        setResults(searchResults)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Search failed')
-        setResults(null)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    const timeoutId = setTimeout(searchWithDebounce, 300) // 300ms debounce
+    const timeoutId = setTimeout(performSearch, 500) // Increased debounce to 500ms
     return () => clearTimeout(timeoutId)
-  }, [query, userRole])
+  }, [query, performSearch])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -86,7 +108,7 @@ const SearchResults = ({ query, isOpen, onClose, position }: SearchResultsProps)
     onClose()
     
     if (result.type === 'student') {
-      navigate(`/placement-officer/all-students?highlight=${result.id}`)
+      navigate(`/placement-officer/students?highlight=${result.id}`)
     } else if (result.type === 'job') {
       navigate(`/placement-officer/jobs?highlight=${result.id}`)
     } else if (result.type === 'company') {

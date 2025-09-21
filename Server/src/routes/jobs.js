@@ -1,6 +1,6 @@
 import express from 'express';
 import { getJobs, getJob, createJob, updateJob } from '../controllers/jobController.js';
-import { cacheSeconds } from '../middleware/cache.js'
+import { cacheSeconds, cacheMinutes } from '../middleware/cache.js'
 import { protect, authorize } from '../middleware/auth.js';
 import JobApplication from '../models/JobApplication.js'
 import Resume from '../models/Resume.js'
@@ -13,12 +13,12 @@ const router = express.Router();
 // @desc    Get all jobs
 // @route   GET /api/jobs
 // @access  Public
-router.get('/', cacheSeconds(10), getJobs);
+router.get('/', cacheMinutes(5), getJobs);
 
 // @desc    Get single job
 // @route   GET /api/jobs/:id
 // @access  Public
-router.get('/:id', cacheSeconds(15), getJob);
+router.get('/:id', cacheMinutes(10), getJob);
 
 // Protected create
 router.post('/', protect, authorize('placement_officer', 'admin'), createJob);

@@ -12,11 +12,13 @@ import {
   Shield,
   Bell,
   Database,
-  Users
+  Users,
+  Image
 } from 'lucide-react'
 import Layout from '../../components/layout/Layout'
 import { useAuth } from '../../hooks/useAuth'
 import { getOfficerProfile, updateOfficerProfile, changeOfficerPassword, getEligibilitySettings, updateEligibilitySettings, type OfficerProfile } from '../../global/api'
+import CollegeLogoManagement from './CollegeLogoManagement'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import Card from '../../components/ui/Card'
@@ -82,10 +84,7 @@ const Settings = () => {
         if (profileRes.success) {
           const user = profileRes.user
           setProfile(user)
-          setProfileForm({
-            name: user.name,
-            email: user.email
-          })
+          setProfileForm({ name: user.name || '', email: user.email || '' })
         }
         
         if (eligibilityRes.success) {
@@ -108,7 +107,7 @@ const Settings = () => {
       }
     }
     
-    loadData()
+    void loadData()
   }, [auth?.token])
 
   // Handle profile update
@@ -122,6 +121,7 @@ const Settings = () => {
       
       if (response.success) {
         setProfile(response.user)
+        setProfileForm({ name: response.user.name || '', email: response.user.email || '' })
         toast({
           title: 'Success',
           description: 'Profile updated successfully',
@@ -229,6 +229,7 @@ const Settings = () => {
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'security', label: 'Security', icon: Lock },
     { id: 'eligibility', label: 'Eligibility', icon: Shield },
+    { id: 'college-logo', label: 'College Logo', icon: Image },
     { id: 'system', label: 'System', icon: SettingsIcon }
   ]
 
@@ -551,6 +552,17 @@ const Settings = () => {
                     </div>
                   </form>
                 </Card>
+              </motion.div>
+            )}
+
+            {/* College Logo Tab */}
+            {activeTab === 'college-logo' && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <CollegeLogoManagement />
               </motion.div>
             )}
 

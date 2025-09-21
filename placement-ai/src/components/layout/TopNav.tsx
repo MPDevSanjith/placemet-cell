@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Search, 
@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { getAuth } from '../../global/auth'
-import { getMyUnreadNotificationCount, listMyNotifications, listNotifications } from '../../global/api'
+import { getMyUnreadNotificationCount, listMyNotifications, listNotifications, getCollegeLogo } from '../../global/api'
 import { useAuth } from '../../hooks/useAuth'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
@@ -52,9 +52,36 @@ const TopNav = ({
   const [unreadCount, setUnreadCount] = useState<number>(0)
   const [notificationsData, setNotificationsData] = useState<Array<{ id?: string; title: string; message: string; time?: string; unread?: boolean }>>([])
   const [loadingNotifications, setLoadingNotifications] = useState(false)
+  const [collegeInfo, setCollegeInfo] = useState<{ name: string; logoUrl?: string } | null>(null)
+  const [loadingCollege, setLoadingCollege] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
 
-  const handleLogout = async () => {
+  // Load college information with debouncing
+  const loadCollegeInfo = useCallback(async () => {
+    if (!auth?.token || userRole !== 'placement_officer' || loadingCollege) return
+    
+    try {
+      setLoadingCollege(true)
+      const response = await getCollegeLogo()
+      if (response.success && response.collegeInfo) {
+        setCollegeInfo({
+          name: response.collegeInfo.name || 'Your College',
+          logoUrl: response.collegeInfo.logoUrl
+        })
+      } else {
+        // Set default college info if API call fails
+        setCollegeInfo({ name: 'Your College' })
+      }
+    } catch (error) {
+      console.error('Failed to load college info:', error)
+      // Set default college info on error
+      setCollegeInfo({ name: 'Your College' })
+    } finally {
+      setLoadingCollege(false)
+    }
+  }, [auth?.token, userRole, loadingCollege])
+
+  const handleLogout = useCallback(async () => {
     setIsLoggingOut(true)
     try {
       await logout()
@@ -63,9 +90,9 @@ const TopNav = ({
       // Force redirect even if logout fails
       window.location.href = '/login'
     }
-  }
+  }, [logout])
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     setSearchQuery(value)
     
@@ -75,16 +102,16 @@ const TopNav = ({
     } else {
       setShowSearchResults(false)
     }
-  }
+  }, [])
 
-  const handleSearchFocus = () => {
+  const handleSearchFocus = useCallback(() => {
     if (searchQuery.length >= 2) {
       setShowSearchResults(true)
       updateSearchPosition()
     }
-  }
+  }, [searchQuery])
 
-  const updateSearchPosition = () => {
+  const updateSearchPosition = useCallback(() => {
     if (searchRef.current) {
       const rect = searchRef.current.getBoundingClientRect()
       
@@ -99,13 +126,22 @@ const TopNav = ({
         width: width
       })
     }
-  }
+  }, [])
 
-  const handleSearchClose = () => {
+  const handleSearchClose = useCallback(() => {
     setShowSearchResults(false)
-  }
+  }, [])
 
-  // Fetch unread count
+  // Load college information on mount with debouncing
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      loadCollegeInfo()
+    }, 100) // Small delay to prevent rapid calls
+    
+    return () => clearTimeout(timeoutId)
+  }, [loadCollegeInfo])
+
+  // Fetch unread count with optimized interval
   useEffect(() => {
     let cancelled = false
     const fetchCount = async () => {
@@ -121,26 +157,41 @@ const TopNav = ({
       }
     }
     fetchCount()
-    const id = setInterval(fetchCount, 60_000)
+    const id = setInterval(fetchCount, 120_000) // Increased from 60s to 120s for better performance
     return () => { cancelled = true; clearInterval(id) }
   }, [auth?.token])
 
-  // Load real notifications when token/role changes and when menu opens
+  // Load real notifications when token/role changes and when menu opens (optimized)
   useEffect(() => {
     let cancelled = false
     const load = async () => {
-      if (!auth?.token) { setNotificationsData([]); return }
+      if (!auth?.token || !showNotificationsMenu) { 
+        setNotificationsData([]); 
+        return 
+      }
       try {
         setLoadingNotifications(true)
         if (userRole === 'student') {
           const res = await listMyNotifications(auth.token)
           if (cancelled) return
-          const mapped = (res.items || []).map((n: any) => ({ id: n._id, title: n.title, message: n.message, time: new Date(n.createdAt).toLocaleString(), unread: !n.read }))
+          const mapped = (res.items || []).map((n: any) => ({ 
+            id: n._id, 
+            title: n.title, 
+            message: n.message, 
+            time: new Date(n.createdAt).toLocaleString(), 
+            unread: !n.read 
+          }))
           setNotificationsData(mapped)
         } else {
           const res = await listNotifications(auth.token)
           if (cancelled) return
-          const mapped = (res.items || []).slice(0, 20).map((n: any) => ({ id: n._id, title: n.title, message: n.message, time: new Date(n.createdAt).toLocaleString(), unread: false }))
+          const mapped = (res.items || []).slice(0, 20).map((n: any) => ({ 
+            id: n._id, 
+            title: n.title, 
+            message: n.message, 
+            time: new Date(n.createdAt).toLocaleString(), 
+            unread: false 
+          }))
           setNotificationsData(mapped)
         }
       } catch {
@@ -150,30 +201,37 @@ const TopNav = ({
       }
     }
     load()
-    // also reload when opening menu
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth?.token, userRole, showNotificationsMenu])
 
-  // Update search position on window resize
+  // Update search position on window resize (optimized with debouncing)
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout
     const handleResize = () => {
-      if (showSearchResults) {
-        updateSearchPosition()
-      }
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        if (showSearchResults) {
+          updateSearchPosition()
+        }
+      }, 100) // Debounce resize events
     }
 
     window.addEventListener('resize', handleResize)
     window.addEventListener('scroll', handleResize)
     
     return () => {
+      clearTimeout(timeoutId)
       window.removeEventListener('resize', handleResize)
       window.removeEventListener('scroll', handleResize)
     }
-  }, [showSearchResults])
+  }, [showSearchResults, updateSearchPosition])
+
+  // Memoize expensive computations
+  const memoizedNotifications = useMemo(() => notificationsData, [notificationsData])
+  const memoizedCollegeInfo = useMemo(() => collegeInfo, [collegeInfo])
 
   return (
     <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 px-4 lg:px-6 py-3 flex items-center justify-between sticky top-0 z-[60] shadow-sm">
-      {/* Left Section */}
+      {/* Left Section - College Logo & Name */}
       <div className="flex items-center gap-2 lg:gap-4">
         <Button
           variant="ghost"
@@ -183,8 +241,37 @@ const TopNav = ({
         >
           <Menu className="w-5 h-5 text-gray-600" />
         </Button>
-        <div className="hidden sm:block">
-          <span className="font-brand text-lg text-gray-800 tracking-wide">beyondcampusX</span>
+        <div className="flex items-center gap-3">
+          {loadingCollege ? (
+            <div className="flex items-center gap-2">
+              <div className="w-12 h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+              <div className="w-24 h-4 bg-gray-200 rounded animate-pulse"></div>
+            </div>
+          ) : (
+            <>
+              {memoizedCollegeInfo?.logoUrl ? (
+                <img 
+                  src={memoizedCollegeInfo.logoUrl} 
+                  alt="College Logo" 
+                  className="w-12 h-12 object-contain rounded-lg"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none'
+                  }}
+                />
+              ) : (
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-lg">
+                    {memoizedCollegeInfo?.name?.charAt(0) || 'C'}
+                  </span>
+                </div>
+              )}
+              <div className="hidden sm:block">
+                <span className="font-semibold text-lg text-gray-800 tracking-wide">
+                  {memoizedCollegeInfo?.name || 'Your College'}
+                </span>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -268,10 +355,10 @@ const TopNav = ({
                     {loadingNotifications && (
                       <div className="p-4 text-center text-gray-500 text-sm">Loading…</div>
                     )}
-                    {!loadingNotifications && notificationsData.length === 0 && (
+                    {!loadingNotifications && memoizedNotifications.length === 0 && (
                       <div className="p-6 text-center text-gray-500 text-sm">No notifications</div>
                     )}
-                    {!loadingNotifications && notificationsData.length > 0 && notificationsData.map((notification) => (
+                    {!loadingNotifications && memoizedNotifications.length > 0 && memoizedNotifications.map((notification) => (
                       <div
                         key={notification.id || notification.title}
                         className={`p-4 border-b border-gray-100/50 hover:bg-gray-50/50 cursor-pointer transition-colors duration-200 ${notification.unread ? 'bg-blue-50/50' : ''}`}

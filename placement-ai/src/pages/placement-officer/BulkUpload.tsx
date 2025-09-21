@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
-import { FaUpload, FaDownload, FaEye, FaEyeSlash, FaCheckCircle, FaExclamationTriangle, FaSpinner, FaEnvelope } from 'react-icons/fa'
-import { bulkUploadStudents, sendBulkWelcomeEmailsWithCredentials, sendBulkWelcomeEmailsByEmails, fetchStudentByEmail, createStudentManual } from '../../global/api'
+import { FaUpload, FaDownload, FaEye, FaEyeSlash, FaCheckCircle, FaExclamationTriangle, FaSpinner } from 'react-icons/fa'
+import { bulkUploadStudents, fetchStudentByEmail, createStudentManual, downloadBulkStudentsTemplate } from '../../global/api'
 import Layout from '../../components/layout/Layout'
 
 interface StudentData {
@@ -10,10 +10,10 @@ interface StudentData {
   section: string
   rollNumber: string
   phone?: string
-  year?: string
   programType?: 'UG' | 'PG'
   admissionYear?: string
   course?: string
+  batchRange?: string
 }
 
 interface UploadResult {
@@ -32,16 +32,16 @@ interface UploadResult {
 
 export default function BulkUpload() {
   const [isUploading, setIsUploading] = useState(false)
-  const [isSendingEmails, setIsSendingEmails] = useState(false)
+  
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
   const [showPasswords, setShowPasswords] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewData, setPreviewData] = useState<StudentData[]>([])
-  const [emailResults, setEmailResults] = useState<any>(null)
+  
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Manual entry state
-  const [manual, setManual] = useState<StudentData>({ name: '', email: '', branch: '', section: '', rollNumber: '', phone: '', year: '', programType: undefined, admissionYear: '', course: '' })
+  const [manual, setManual] = useState<StudentData>({ name: '', email: '', branch: '', section: '', rollNumber: '', phone: '', programType: undefined, admissionYear: '', course: '', batchRange: '' })
   const [manualLoading, setManualLoading] = useState(false)
   const [manualMessage, setManualMessage] = useState<string | null>(null)
 
@@ -63,13 +63,13 @@ export default function BulkUpload() {
           const lines = csv.split('\n')
           const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
           
-          console.log('CSV Headers found:', headers)
+          if (!import.meta.env.PROD) console.log('CSV Headers found:', headers)
           
           const data: StudentData[] = lines.slice(1)
             .filter(line => line.trim())
             .map((line, index) => {
               const values = line.split(',').map(v => v.trim())
-              console.log(`Row ${index + 1} values:`, values)
+              if (!import.meta.env.PROD) console.log(`Row ${index + 1} values:`, values)
               
               // More flexible column mapping
               const nameIndex = headers.findIndex(h => h.includes('name'))
@@ -78,25 +78,35 @@ export default function BulkUpload() {
               const sectionIndex = headers.findIndex(h => h.includes('section'))
               const rollNumberIndex = headers.findIndex(h => h.includes('roll') || h.includes('rollnumber'))
               const phoneIndex = headers.findIndex(h => h.includes('phone'))
-              const yearIndex = headers.findIndex(h => h.includes('year'))
+              const yearIndex = headers.findIndex(h => h === 'year')
               const programTypeIndex = headers.findIndex(h => h.includes('program'))
-              const admissionYearIndex = headers.findIndex(h => h.includes('admission') || h.includes('batch'))
+              const batchIndex = headers.findIndex(h => h.includes('batch'))
               const courseIndex = headers.findIndex(h => h.includes('course'))
               
-              const result = {
+              const result: StudentData = {
                 name: nameIndex >= 0 ? values[nameIndex] || '' : '',
                 email: emailIndex >= 0 ? values[emailIndex] || '' : '',
                 branch: branchIndex >= 0 ? values[branchIndex] || 'Not Specified' : 'Not Specified',
                 section: sectionIndex >= 0 ? values[sectionIndex] || 'Not Specified' : 'Not Specified',
                 rollNumber: rollNumberIndex >= 0 ? values[rollNumberIndex] || `ROLL${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}` : `ROLL${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
                 phone: phoneIndex >= 0 ? values[phoneIndex] || '' : '',
-                year: yearIndex >= 0 ? values[yearIndex] || new Date().getFullYear().toString() : new Date().getFullYear().toString(),
+                // year removed from template; if present in CSV keep it otherwise leave undefined
+                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                // @ts-expect-error
+                year: yearIndex >= 0 && values[yearIndex] ? values[yearIndex] : undefined,
                 programType: programTypeIndex >= 0 ? (values[programTypeIndex] || '') as any : undefined,
-                admissionYear: admissionYearIndex >= 0 ? values[admissionYearIndex] || '' : '',
-                course: (courseIndex >= 0 ? values[courseIndex] : (branchIndex >= 0 ? values[branchIndex] : '')) || ''
+                course: (courseIndex >= 0 ? values[courseIndex] : (branchIndex >= 0 ? values[branchIndex] : '')) || '',
+                admissionYear: '',
+                batchRange: batchIndex >= 0 ? values[batchIndex] || '' : ''
+              }
+
+              // If batch is like "2025-2028", set admissionYear from first part
+              if (result.batchRange && /\d{4}\s*-\s*\d{4}/.test(result.batchRange)) {
+                const start = result.batchRange.split('-')[0].trim()
+                result.admissionYear = start
               }
               
-              console.log(`Row ${index + 1} parsed:`, result)
+              if (!import.meta.env.PROD) console.log(`Row ${index + 1} parsed:`, result)
               return result
             })
           
@@ -163,57 +173,7 @@ export default function BulkUpload() {
     URL.revokeObjectURL(url)
   }
 
-  const sendWelcomeEmails = async () => {
-    if (!uploadResult || uploadResult.successful === 0) {
-      alert('No successful accounts to send emails to')
-      return
-    }
-
-    setIsSendingEmails(true)
-    
-    try {
-      // Prefer sending plain credentials from fresh upload
-      const studentsWithCreds = uploadResult.accounts
-        .filter(account => account.status === 'created' && account.password)
-        .map(account => ({ email: account.email, password: account.password, name: account.name }))
-
-      let result
-      if (studentsWithCreds.length > 0) {
-        result = await sendBulkWelcomeEmailsWithCredentials(studentsWithCreds)
-      } else {
-        // Fallback to sending by emails only
-        const studentEmails = uploadResult.accounts
-          .filter(account => account.status === 'created')
-          .map(account => account.email)
-        result = await sendBulkWelcomeEmailsByEmails(studentEmails)
-      }
-
-      setEmailResults({
-        success: result.success,
-        results: {
-          successful: result.results.filter(r => r.status === 'sent').length,
-          failed: result.results.filter(r => r.status !== 'sent').length,
-          total: result.results.length
-        },
-        raw: result.results
-      })
-      const sentCount = result.results.filter(r => r.status === 'sent').length
-      const failCount = result.results.filter(r => r.status !== 'sent').length
-      if (failCount === 0) {
-        alert(`Successfully sent ${sentCount} welcome emails!`)
-      } else if (sentCount > 0) {
-        alert(`Sent ${sentCount} emails, ${failCount} failed. Check details below.`)
-      } else {
-        alert('Failed to send welcome emails. Please check details below.')
-      }
-      
-    } catch (error) {
-      console.error('Error sending emails:', error)
-      alert('Failed to send welcome emails. Please try again.')
-    } finally {
-      setIsSendingEmails(false)
-    }
-  }
+  // Email sending is intentionally removed from Bulk Upload.
 
   const handleAutofill = async () => {
     try {
@@ -233,7 +193,6 @@ export default function BulkUpload() {
           section: (s as any).section || prev.section,
           rollNumber: (s as any).rollNumber || prev.rollNumber,
           phone: (s as any).phone || prev.phone,
-          year: (s as any).year || prev.year,
           course: (s as any).course || prev.course,
         }))
         setManualMessage('Details fetched from existing record')
@@ -259,6 +218,9 @@ export default function BulkUpload() {
         return
       }
       setManualLoading(true)
+      // Derive admissionYear from batch range for manual create (best-effort)
+      const admissionYear = manual.batchRange && /\d{4}\s*-\s*\d{4}/.test(manual.batchRange) ? manual.batchRange.split('-')[0].trim() : undefined
+
       const res = await createStudentManual({
         name: manual.name,
         email: manual.email,
@@ -266,9 +228,9 @@ export default function BulkUpload() {
         section: manual.section || undefined,
         rollNumber: manual.rollNumber,
         phone: manual.phone || undefined,
-        year: manual.year || undefined,
+        year: admissionYear,
       })
-      setManualMessage('Student created and email sent')
+      setManualMessage('Student account created successfully')
       // Append to results table for visibility
       setUploadResult(prev => ({
         total: (prev?.total || 0) + 1,
@@ -281,7 +243,7 @@ export default function BulkUpload() {
         ],
       }))
       // Reset minimal fields
-      setManual({ name: '', email: '', branch: '', section: '', rollNumber: '', phone: '', year: '', programType: undefined, admissionYear: '', course: '' })
+      setManual({ name: '', email: '', branch: '', section: '', rollNumber: '', phone: '', programType: undefined, admissionYear: '', course: '', batchRange: '' })
     } catch (e: any) {
       setManualMessage(e?.message || 'Create failed')
     } finally {
@@ -292,7 +254,7 @@ export default function BulkUpload() {
   return (
     <Layout
       title="Bulk Student Upload"
-      subtitle="Upload CSV file to create student accounts and send login credentials"
+      subtitle="Upload CSV to create/save student accounts. Send emails later from Batch Management."
     >
       <div className="max-w-6xl mx-auto p-6">
 
@@ -409,6 +371,7 @@ export default function BulkUpload() {
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-white">
                       <tr className="border-b">
+                        <th className="text-left p-2">Name</th>
                         <th className="text-left p-2">Email</th>
                         <th className="text-left p-2">Password</th>
                         <th className="text-left p-2">Status</th>
@@ -418,6 +381,7 @@ export default function BulkUpload() {
                     <tbody>
                       {uploadResult?.accounts?.map((account, index) => (
                         <tr key={index} className="border-b">
+                          <td className="p-2">{account.name || '—'}</td>
                           <td className="p-2">{account.email}</td>
                           <td className="p-2 font-mono">
                             {showPasswords ? account.password : '••••••••'}
@@ -447,52 +411,19 @@ export default function BulkUpload() {
                 {/* Action Buttons */}
                 <div className="space-y-2">
                   <button
-                    onClick={sendWelcomeEmails}
-                    disabled={!uploadResult || uploadResult.successful === 0 || isSendingEmails}
-                    className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    {isSendingEmails ? (
-                      <>
-                        <FaSpinner className="animate-spin" />
-                        Sending Emails...
-                      </>
-                    ) : (
-                      <>
-                        <FaEnvelope />
-                        Send Welcome Emails ({uploadResult?.successful || 0})
-                      </>
-                    )}
-                  </button>
-                  
-                  <button
                     onClick={downloadReport}
                     className="w-full bg-brand-secondary text-white py-2 rounded-lg hover:bg-brand-primary transition-colors flex items-center justify-center gap-2"
                   >
                     <FaDownload />
-                    Download Report
+                    Save Report (CSV)
                   </button>
+                  <div className="text-center text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
+                    <p>✓ Student accounts have been saved successfully.</p>
+                    <p className="text-xs mt-1">Send welcome emails later from Batch Management.</p>
+                  </div>
                 </div>
 
-                {/* Email Results */}
-                {emailResults && (
-                  <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                    <h3 className="font-semibold text-blue-800 mb-2">Email Results</h3>
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-green-600">{emailResults.results?.successful || 0}</div>
-                        <div className="text-green-600">Sent</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-red-600">{emailResults.results?.failed || 0}</div>
-                        <div className="text-red-600">Failed</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-blue-600">{emailResults.results?.total || 0}</div>
-                        <div className="text-blue-600">Total</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                {/* Email results removed on Bulk Upload */}
               </div>
             ) : (
               <div className="text-center text-gray-500 py-8">
@@ -505,7 +436,7 @@ export default function BulkUpload() {
 
         {/* Manual Entry */}
         <div className="bg-white rounded-xl p-6 mt-6 shadow-lg">
-          <h2 className="text-xl font-semibold text-brand-primary mb-4">Manual Entry (Email first, then save)</h2>
+          <h2 className="text-xl font-semibold text-brand-primary mb-4">Manual Entry</h2>
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-gray-700 mb-1">Email</label>
@@ -534,10 +465,7 @@ export default function BulkUpload() {
               <label className="block text-sm text-gray-700 mb-1">Phone (optional)</label>
               <input value={manual.phone} onChange={e => setManual({ ...manual, phone: e.target.value })} className="w-full border rounded-lg px-3 py-2" placeholder="10-digit" />
             </div>
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">Year (optional)</label>
-              <input value={manual.year} onChange={e => setManual({ ...manual, year: e.target.value })} className="w-full border rounded-lg px-3 py-2" placeholder="2026" />
-            </div>
+            {/* Removed standalone Year field */}
             <div>
               <label className="block text-sm text-gray-700 mb-1">Program Type</label>
               <select value={manual.programType || ''} onChange={e => setManual({ ...manual, programType: (e.target.value === '' ? undefined : (e.target.value as 'UG'|'PG')) })} className="w-full border rounded-lg px-3 py-2">
@@ -547,8 +475,8 @@ export default function BulkUpload() {
               </select>
             </div>
             <div>
-              <label className="block text-sm text-gray-700 mb-1">Admission Year (Batch)</label>
-              <input value={manual.admissionYear || ''} onChange={e => setManual({ ...manual, admissionYear: e.target.value })} className="w-full border rounded-lg px-3 py-2" placeholder="2025" />
+              <label className="block text-sm text-gray-700 mb-1">Batch Range</label>
+              <input value={manual.batchRange || ''} onChange={e => setManual({ ...manual, batchRange: e.target.value })} className="w-full border rounded-lg px-3 py-2" placeholder="2025-2028" />
             </div>
             <div>
               <label className="block text-sm text-gray-700 mb-1">Course</label>
@@ -556,7 +484,7 @@ export default function BulkUpload() {
             </div>
           </div>
           <div className="mt-4 flex items-center gap-2">
-            <button onClick={handleManualCreate} disabled={manualLoading} className="px-5 py-2 bg-green-600 text-white rounded-lg disabled:opacity-50">{manualLoading ? 'Creating...' : 'Create & Send Email'}</button>
+            <button onClick={handleManualCreate} disabled={manualLoading} className="px-5 py-2 bg-green-600 text-white rounded-lg disabled:opacity-50">{manualLoading ? 'Creating...' : 'Create Account'}</button>
             {manualMessage && <span className="text-sm text-gray-700">{manualMessage}</span>}
           </div>
         </div>
@@ -568,12 +496,17 @@ export default function BulkUpload() {
             Your CSV file should include the following columns:
           </p>
           <div className="bg-gray-50 rounded-lg p-4 font-mono text-sm">
-            Name,Email,Branch,Section,Roll Number,Phone,Year,Course,Program Type (free-text),Admission Year (Batch)
+            Name,Email,Branch,Section,Roll Number,Phone,Course,Program Type (free-text),Batch (e.g., 2025-2028)
           </div>
           <div className="mt-4 text-sm text-gray-500">
-            <p>• All fields except Phone and Year are required</p>
+            <p>• All fields except Phone are required</p>
             <p>• Email addresses must be unique</p>
-            <p>• Passwords will be auto-generated and sent via email</p>
+            <p>• Passwords will be auto-generated. Emails can be sent later from Batch Management.</p>
+          </div>
+          <div className="mt-4">
+            <button onClick={()=>void downloadBulkStudentsTemplate()} className="px-4 py-2 rounded-lg bg-brand-secondary text-white hover:bg-brand-primary flex items-center gap-2">
+              <FaDownload /> Download CSV Template
+            </button>
           </div>
         </div>
       </div>

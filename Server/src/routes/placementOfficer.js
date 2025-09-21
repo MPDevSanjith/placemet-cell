@@ -10,24 +10,44 @@ import nodemailer from 'nodemailer';
 import Student from '../models/Student.js';
 import User from '../models/User.js';
 import EligibilitySettings from '../models/EligibilitySettings.js';
+import College from '../models/College.js';
 
 // Import email service
 import { sendEmail, emailTemplates } from '../email/email.js';
+
+// Import Cloudinary service
+import cloudinaryService from '../utils/cloudinaryService.js';
 
 // Import authentication middleware
 import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Configure multer for CSV upload (memory storage for serverless/Vercel)
+// Configure multer for file uploads
+const storage = multer.memoryStorage();
+// CSV Template download for Bulk Upload
+router.get('/bulk-upload/template', protect, authorize('placement_officer'), (req, res) => {
+  const header = 'Name,Email,Branch,Section,Roll Number,Phone,Course,Program Type (free-text),Batch\n';
+  const example = 'John Doe,john@example.com,CSE,A,23CSE1234,9876543210,BTech,UG,2025-2028\n';
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="bulk-students-template.csv"');
+  res.status(200).send(header + example);
+});
+
+
+// Configure multer for file uploads (CSV and images)
 const upload = multer({
   storage: multer.memoryStorage(),
   fileFilter: (req, file, cb) => {
-    const allowed = ['text/csv', 'application/vnd.ms-excel'];
-    if (allowed.includes(file.mimetype) || file.originalname.toLowerCase().endsWith('.csv')) {
+    // Allow CSV files for bulk upload
+    const allowedCSV = ['text/csv', 'application/vnd.ms-excel'];
+    // Allow image files for logo upload
+    const allowedImages = ['image/jpeg', 'image/png', 'image/gif', 'image/svg+xml', 'image/webp'];
+    
+    if (allowedCSV.includes(file.mimetype) || file.originalname.toLowerCase().endsWith('.csv') || allowedImages.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only CSV files are allowed'), false);
+      cb(new Error('Only CSV or image files are allowed'), false);
     }
   },
   limits: {
@@ -68,6 +88,27 @@ const validateCSVData = (data) => {
   }
   
   return errors;
+};
+
+// Normalize a CSV row's keys for flexible header support
+const normalizeCsvRow = (row) => {
+  const normalized = {};
+  for (const [key, value] of Object.entries(row || {})) {
+    const k = String(key).toLowerCase().replace(/[^a-z0-9]/g, '');
+    normalized[k] = value;
+  }
+  return normalized;
+};
+
+// Helper to get a value by multiple candidate header names
+const pickField = (normRow, candidates = []) => {
+  for (const cand of candidates) {
+    const k = String(cand).toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (normRow[k] !== undefined && normRow[k] !== null && String(normRow[k]).trim() !== '') {
+      return normRow[k];
+    }
+  }
+  return undefined;
 };
 
 // Send welcome email to student
@@ -205,90 +246,106 @@ router.post('/bulk-upload', upload.single('csvFile'), async (req, res) => {
       return res.status(400).json({ success: false, error: 'No CSV file uploaded' });
     }
 
-    const results = [];
+    const parsedRows = [];
     const errors = [];
-    const createdStudents = [];
+    const accounts = [];
 
-    // Parse CSV file
+    // Parse CSV file from in-memory buffer
     await new Promise((resolve, reject) => {
       Readable.from(req.file.buffer)
         .pipe(csv())
-        .on('data', (data) => results.push(data))
+        .on('data', (data) => parsedRows.push(data))
         .on('end', resolve)
         .on('error', reject);
     });
 
     // Process each row
-    for (let i = 0; i < results.length; i++) {
-      const row = results[i];
-      const rowNumber = i + 2; // +2 because CSV starts at row 2 (row 1 is header)
+    for (let i = 0; i < parsedRows.length; i++) {
+      const originalRow = parsedRows[i];
+      const rowNorm = normalizeCsvRow(originalRow);
+      const rowNumber = i + 2; // header is row 1
 
       try {
-        // Validate data
+        // Map CSV fields flexibly
+        const name = pickField(rowNorm, ['name']);
+        const email = pickField(rowNorm, ['email']);
+        const branch = pickField(rowNorm, ['branch','department']);
+        const section = pickField(rowNorm, ['section']);
+        const rollNumber = pickField(rowNorm, ['rollnumber','roll no','roll_no','roll']);
+        const phone = pickField(rowNorm, ['phone','mobile','contact']);
+        const year = pickField(rowNorm, ['year','currentyear']);
+        const course = pickField(rowNorm, ['course']);
+        const programType = pickField(rowNorm, ['programtype','program type','program']);
+        let batch = pickField(rowNorm, ['batch','batchrange']);
+        let admissionYear = pickField(rowNorm, ['admissionyear','admission year']);
+
+        // If batch is provided like "2025-2028", derive admissionYear from the first year
+        if (!admissionYear && batch && /\d{4}\s*-\s*\d{4}/.test(String(batch))) {
+          admissionYear = String(batch).split('-')[0].trim();
+        }
+
+        const row = { name, email, branch, section, rollNumber, phone, year, course, programType, admissionYear, batch };
+
+        // Validate required fields
         const validationErrors = validateCSVData(row);
         if (validationErrors.length > 0) {
-          errors.push(`Row ${rowNumber}: ${validationErrors.join(', ')}`);
+          const errMsg = `Row ${rowNumber}: ${validationErrors.join(', ')}`;
+          errors.push(errMsg);
+          accounts.push({ email: String(email || ''), password: '', status: 'failed', error: errMsg, name: String(name || '') });
           continue;
         }
 
-        // Check if student already exists
-        const existingStudent = await Student.findOne({ 
-          email: String(row.email).toLowerCase() 
-        });
-
+        // Check duplicates
+        const existingStudent = await Student.findOne({ email: String(email).toLowerCase() });
         if (existingStudent) {
-          errors.push(`Row ${rowNumber}: Student with email ${row.email} already exists`);
+          const errMsg = `Row ${rowNumber}: Student with email ${email} already exists`;
+          errors.push(errMsg);
+          accounts.push({ email: String(email), password: '', status: 'failed', error: errMsg, name: String(name || '') });
           continue;
         }
 
         // Generate password
-        const password = generatePassword(row.name, row.rollNumber || '123');
+        const password = generatePassword(String(name || ''), rollNumber || 'seed');
 
-        // Create student
+        // Create and save student
         const student = new Student({
-          name: row.name,
-          email: String(row.email).toLowerCase(),
+          name,
+          email: String(email).toLowerCase(),
           password,
-          branch: row.branch,
-          course: row.course || undefined,
-          year: row.year,
-          phone: row.phone || '',
-          cgpa: row.cgpa ? parseFloat(row.cgpa) : null,
-          programType: row.programtype || row.program || undefined,
-          admissionYear: row.admissionyear || row.batch || undefined
+          branch: branch || 'Not Specified',
+          section: section || undefined,
+          rollNumber: rollNumber || undefined,
+          course: course || undefined,
+          year: year || undefined,
+          phone: phone || '',
+          programType: programType || undefined,
+          admissionYear: admissionYear || undefined
         });
 
         await student.save();
-        createdStudents.push({
-          name: student.name,
-          email: student.email,
-          password
-        });
 
-        // Send welcome email
-        await sendWelcomeEmail(student.email, password, student.name);
-
+        // Push success account; DO NOT send emails here (handled later in batch management)
+        accounts.push({ name: student.name, email: student.email, password, status: 'created' });
       } catch (error) {
-        errors.push(`Row ${rowNumber}: ${error.message}`);
+        const errMsg = `Row ${rowNumber}: ${error.message}`;
+        errors.push(errMsg);
+        accounts.push({ email: String(originalRow?.email || ''), password: '', status: 'failed', error: error.message, name: String(originalRow?.name || '') });
       }
     }
 
-    // No file cleanup needed for memory storage
+    const successful = accounts.filter(a => a.status === 'created').length;
+    const failed = accounts.filter(a => a.status !== 'created').length;
 
-    res.json({
-      success: true,
-      message: `Bulk upload completed. ${createdStudents.length} students created.`,
-      created: createdStudents.length,
-      errors: errors.length > 0 ? errors : null,
-      students: createdStudents
+    return res.json({
+      total: accounts.length,
+      successful,
+      failed,
+      errors,
+      accounts
     });
-
   } catch (error) {
     console.error('Bulk upload error:', error);
-    
-    // No file cleanup needed for memory storage
-
-    res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -470,7 +527,7 @@ router.put('/eligibility-settings', protect, authorize('placement_officer', 'adm
 });
 
 // Get placement officer profile
-router.get('/profile', async (req, res) => {
+router.get('/profile', protect, authorize('placement_officer', 'admin'), async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -490,7 +547,7 @@ router.get('/profile', async (req, res) => {
 });
 
 // Update placement officer profile
-router.put('/profile', async (req, res) => {
+router.put('/profile', protect, authorize('placement_officer', 'admin'), async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -532,7 +589,7 @@ router.put('/profile', async (req, res) => {
 });
 
 // Change password
-router.put('/change-password', async (req, res) => {
+router.put('/change-password', protect, authorize('placement_officer', 'admin'), async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -613,13 +670,15 @@ async function computeProgramTypeStats(settingsDoc) {
   }
   const stats = Array.from(map.values());
   stats.forEach(st => {
-    st.placementRate = st.eligible > 0 ? Math.round((st.placed / st.eligible) * 100) : 0;
+    // Use overall placement rate (placed/total) as the main metric
+    st.placementRate = st.total > 0 ? Math.round((st.placed / st.total) * 100) : 0;
   });
   // Also include overall totals
   const overall = stats.reduce((acc, s) => {
     acc.total += s.total; acc.registered += s.registered; acc.eligible += s.eligible; acc.placed += s.placed; return acc;
   }, { total: 0, registered: 0, eligible: 0, placed: 0 });
-  const overallRate = overall.eligible > 0 ? Math.round((overall.placed / overall.eligible) * 100) : 0;
+  // Use overall placement rate (placed/total) as the main metric
+  const overallRate = overall.total > 0 ? Math.round((overall.placed / overall.total) * 100) : 0;
   return { byProgram: stats.sort((a,b)=> String(a.programType).localeCompare(String(b.programType))), overall: { ...overall, placementRate: overallRate } };
 }
 
@@ -755,6 +814,134 @@ router.get('/students/filters', async (req, res) => {
   }
 });
 
+// Mark student as placed with detailed information
+router.post('/students/:id/mark-placed', protect, authorize('placement_officer', 'admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+      companyName, 
+      designation, 
+      ctc, 
+      workLocation, 
+      joiningDate, 
+      remarks, 
+      offerLetterDriveLink 
+    } = req.body;
+
+    console.log('Mark placed request:', { id, body: req.body });
+
+    // Validate required fields
+    if (!companyName || !designation || !ctc || !workLocation || !joiningDate) {
+      console.log('Validation failed - missing required fields:', { companyName, designation, ctc, workLocation, joiningDate });
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Company name, designation, CTC, work location, and joining date are required' 
+      });
+    }
+
+    const student = await Student.findById(id);
+    if (!student) {
+      console.log('Student not found:', id);
+      return res.status(404).json({ success: false, error: 'Student not found' });
+    }
+
+    console.log('Found student:', student.name, student.email);
+
+    // Update student with placement details
+    student.isPlaced = true;
+    student.placementDetails = {
+      companyName,
+      designation,
+      ctc: Number(ctc),
+      workLocation,
+      joiningDate: new Date(joiningDate),
+      remarks: remarks || '',
+      offerLetterDriveLink: offerLetterDriveLink || '',
+      placedBy: req.user.id,
+      placedAt: new Date()
+    };
+
+    await student.save();
+    console.log('Student placement saved successfully:', student.name);
+
+    res.json({
+      success: true,
+      message: 'Student marked as placed successfully',
+      student: {
+        id: student._id,
+        name: student.name,
+        email: student.email,
+        isPlaced: student.isPlaced,
+        placementDetails: student.placementDetails
+      }
+    });
+
+  } catch (error) {
+    console.error('Mark student as placed error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get student details by IDs (for bulk operations)
+router.post('/students/bulk-details', protect, authorize('placement_officer', 'admin'), async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Student IDs array is required' 
+      });
+    }
+
+    const students = await Student.find({ _id: { $in: ids } })
+      .select('_id name email rollNumber branch section year course')
+      .lean();
+
+    res.json({
+      success: true,
+      students: students
+    });
+
+  } catch (error) {
+    console.error('Get bulk student details error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Unmark student as placed
+router.post('/students/:id/unmark-placed', protect, authorize('placement_officer', 'admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const student = await Student.findById(id);
+    if (!student) {
+      return res.status(404).json({ success: false, error: 'Student not found' });
+    }
+
+    // Reset placement status
+    student.isPlaced = false;
+    student.placementDetails = undefined;
+
+    await student.save();
+
+    res.json({
+      success: true,
+      message: 'Student unmarked as placed successfully',
+      student: {
+        id: student._id,
+        name: student.name,
+        email: student.email,
+        isPlaced: student.isPlaced
+      }
+    });
+
+  } catch (error) {
+    console.error('Unmark student as placed error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Bulk actions: block/unblock, place/unplace
 router.post('/students/bulk', async (req, res) => {
   try {
@@ -815,8 +1002,7 @@ router.post('/create-student', async (req, res) => {
 
     await student.save();
 
-    // Send welcome email
-    await sendWelcomeEmail(student.email, password, student.name);
+    // Do not send welcome email here; handled later from Batch Management
 
     res.json({
       success: true,
@@ -1398,5 +1584,155 @@ const getMatchField = (student, query) => {
   
   return matchedField ? matchedField.name : 'name';
 };
+
+// ---------- College Logo Management ---------- //
+
+// Get college information
+router.get('/college-logo', protect, authorize('placement_officer', 'admin'), async (req, res) => {
+  try {
+    const college = await College.getSingleton(req.user.id);
+    res.json({ 
+      success: true, 
+      collegeInfo: college 
+    });
+  } catch (error) {
+    console.error('Get college info error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Upload college logo
+router.post('/college-logo', protect, authorize('placement_officer', 'admin'), upload.single('logo'), async (req, res) => {
+  try {
+    console.log('College logo upload request received');
+    console.log('Request body:', req.body);
+    console.log('Request file:', req.file ? {
+      fieldname: req.file.fieldname,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    } : 'No file');
+    
+    if (!req.file) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'No file uploaded' 
+      });
+    }
+
+    // Upload to Cloudinary
+    const uploadResult = await cloudinaryService.uploadImage(req.file.buffer, {
+      folder: 'college-logos',
+      transformation: [
+        { width: 500, height: 500, crop: 'fit' },
+        { quality: 'auto' }
+      ]
+    });
+
+    // Get or create college document
+    const college = await College.getSingleton(req.user.id);
+    
+    // Delete old logo if exists
+    if (college.logoPublicId) {
+      try {
+        await cloudinaryService.deleteImage(college.logoPublicId);
+      } catch (deleteError) {
+        console.warn('Failed to delete old logo:', deleteError.message);
+      }
+    }
+
+    // Update college with new logo
+    college.logoUrl = uploadResult.secure_url;
+    college.logoPublicId = uploadResult.public_id;
+    college.updatedBy = req.user.id;
+    await college.save();
+
+    res.json({ 
+      success: true, 
+      collegeInfo: college,
+      message: 'Logo uploaded successfully' 
+    });
+  } catch (error) {
+    console.error('Upload college logo error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Delete college logo
+router.delete('/college-logo', protect, authorize('placement_officer', 'admin'), async (req, res) => {
+  try {
+    const college = await College.getSingleton(req.user.id);
+    
+    if (!college.logoUrl) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'No logo to delete' 
+      });
+    }
+
+    // Delete from Cloudinary
+    if (college.logoPublicId) {
+      try {
+        await cloudinaryService.deleteImage(college.logoPublicId);
+      } catch (deleteError) {
+        console.warn('Failed to delete logo from Cloudinary:', deleteError.message);
+      }
+    }
+
+    // Remove logo from database
+    college.logoUrl = undefined;
+    college.logoPublicId = undefined;
+    college.updatedBy = req.user.id;
+    await college.save();
+
+    res.json({ 
+      success: true, 
+      message: 'Logo deleted successfully' 
+    });
+  } catch (error) {
+    console.error('Delete college logo error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Update college name
+router.put('/college-name', protect, authorize('placement_officer', 'admin'), async (req, res) => {
+  try {
+    const { name } = req.body;
+    
+    if (!name || !name.trim()) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'College name is required' 
+      });
+    }
+
+    const college = await College.getSingleton(req.user.id);
+    college.name = name.trim();
+    college.updatedBy = req.user.id;
+    await college.save();
+
+    res.json({ 
+      success: true, 
+      collegeInfo: college,
+      message: 'College name updated successfully' 
+    });
+  } catch (error) {
+    console.error('Update college name error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
 
 export default router;

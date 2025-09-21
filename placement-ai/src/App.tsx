@@ -1,23 +1,27 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense, lazy } from 'react'
 import './App.css'
 import './index.css'
 import Login from './pages/Login'
-import PlacementOfficerDashboard from './pages/placement-officer/Dashboard'
-import OfficerStudents from './pages/placement-officer/OfficerStudents'
-import AllStudents from './pages/placement-officer/AllStudents'
-import BulkUpload from './pages/placement-officer/BulkUpload'
-import BiodataUpload from './pages/placement-officer/BiodataUpload'
-import CreateOfficerPage from './pages/placement-officer/CreateOfficer'
-import CompaniesPage from './pages/placement-officer/Companies'
-import StudentDashboard from './pages/student/Dashboard'
-import StudentJobs from './pages/student/job'
-import MyJobs from './pages/student/MyJobs'
-import StudentAtsResults from './pages/student/AtsResults'
-import ProfilePage from './pages/student/ProfilePage'
-import StudentGate from './pages/student/StudentGate'
-import StudentNotificationsPage from './pages/student/Notifications'
-import PlacementAnalytics from './pages/placement-officer/Analytics'
+import Loader from './components/ui/Loader'
+
+// Lazy load heavy components for better performance
+const PlacementOfficerDashboard = lazy(() => import('./pages/placement-officer/Dashboard'))
+const OfficerStudents = lazy(() => import('./pages/placement-officer/OfficerStudents'))
+const BulkUpload = lazy(() => import('./pages/placement-officer/BulkUpload'))
+const BatchManagement = lazy(() => import('./pages/placement-officer/BatchManagement'))
+const BiodataUpload = lazy(() => import('./pages/placement-officer/BiodataUpload'))
+const CreateOfficerPage = lazy(() => import('./pages/placement-officer/CreateOfficer'))
+const CompaniesPage = lazy(() => import('./pages/placement-officer/Companies'))
+const StudentDashboard = lazy(() => import('./pages/student/Dashboard'))
+const StudentJobs = lazy(() => import('./pages/student/job'))
+const MyJobs = lazy(() => import('./pages/student/MyJobs'))
+const StudentAtsResults = lazy(() => import('./pages/student/AtsResults'))
+const ProfilePage = lazy(() => import('./pages/student/ProfilePage'))
+const StudentGate = lazy(() => import('./pages/student/StudentGate'))
+const StudentNotificationsPage = lazy(() => import('./pages/student/Notifications'))
+const PlacementAnalytics = lazy(() => import('./pages/placement-officer/Analytics'))
+import AIChatbot from './pages/placement-officer/AIChatbot'
 import Settings from './pages/placement-officer/Settings'
 import CompanyForm from './pages/CompanyForm'
 import PlacementGate from './pages/placement-officer/PlacementGate'
@@ -51,20 +55,22 @@ function AppRoutes() {
 
   // Check student status from backend when auth changes
   useEffect(() => {
+    let mounted = true
+    
     const checkStudentStatus = async () => {
-      if (auth?.token && userRole === 'student' && !hasNavigated) {
+      if (auth?.token && userRole === 'student' && !hasNavigated && mounted) {
         try {
           setIsLoadingStatus(true)
           
-          // Fast timeout for backend check (2 seconds max)
+          // Fast timeout for backend check (3 seconds max)
           const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Backend timeout')), 2000)
+            setTimeout(() => reject(new Error('Backend timeout')), 3000)
           })
           
           const statusPromise = getCompletionStatus(auth.token)
           const response = await Promise.race([statusPromise, timeoutPromise])
           
-          if (response && typeof response === 'object' && 'success' in response && response.success) {
+          if (mounted && response && typeof response === 'object' && 'success' in response && response.success) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const completionData = response as Record<string, any>
             if (completionData.completion?.breakdown?.resume !== undefined && completionData.completion?.percentage !== undefined) {
@@ -80,30 +86,42 @@ function AppRoutes() {
             throw new Error('Invalid response')
           }
         } catch {
-          console.log('⚠️ Completion API failed, attempting resume list fallback (no localStorage)')
-          try {
-            const token = auth?.token as string
-            const list = await listResumes(token)
-            const hasResume = Array.isArray(list?.resumes) && list.resumes.length > 0
-            setStudentStatus({
-              hasResume,
-              isOnboarded: hasResume, // treat resume presence as onboarding complete
-              completionPercentage: hasResume ? 100 : 0
-            })
-          } catch {
-            // As a final safe fallback with no local storage, assume not onboarded
-            setStudentStatus({ hasResume: false, isOnboarded: false, completionPercentage: 0 })
+          if (mounted) {
+            console.log('⚠️ Completion API failed, attempting resume list fallback (no localStorage)')
+            try {
+              const token = auth?.token as string
+              const list = await listResumes(token)
+              const hasResume = Array.isArray(list?.resumes) && list.resumes.length > 0
+              if (mounted) {
+                setStudentStatus({
+                  hasResume,
+                  isOnboarded: hasResume, // treat resume presence as onboarding complete
+                  completionPercentage: hasResume ? 100 : 0
+                })
+              }
+            } catch {
+              // As a final safe fallback with no local storage, assume not onboarded
+              if (mounted) {
+                setStudentStatus({ hasResume: false, isOnboarded: false, completionPercentage: 0 })
+              }
+            }
           }
         } finally {
-          setIsLoadingStatus(false)
+          if (mounted) {
+            setIsLoadingStatus(false)
+          }
         }
-      } else {
+      } else if (mounted) {
         setIsLoadingStatus(false)
       }
     }
 
     checkStudentStatus()
-  }, [auth, userRole, hasNavigated])
+    
+    return () => {
+      mounted = false
+    }
+  }, [auth?.token, userRole, hasNavigated]) // More specific dependencies
 
   // Prevent multiple navigations - but allow re-authentication
   useEffect(() => {
@@ -119,17 +137,17 @@ function AppRoutes() {
     }
   }, [isAuthenticated])
 
-  // Initialize auth state from localStorage on mount
+  // Initialize auth state from localStorage on mount (only once)
   useEffect(() => {
     const localAuth = getAuth()
     if (localAuth?.token && localAuth?.user?.id && localAuth?.user?.role) {
       console.log('🔐 Found valid local auth, initializing state')
       // This will trigger the useAuth hook to verify the token
     }
-  }, [])
+  }, []) // Empty dependency array - only run once on mount
 
   // Debug logging
-  console.log('🔍 Routing Debug:', {
+  if (!import.meta.env.PROD) console.log('🔍 Routing Debug:', {
     isAuthenticated,
     userRole,
     studentStatus,
@@ -168,7 +186,8 @@ function AppRoutes() {
   }
 
   return (
-    <Routes>
+    <Suspense fallback={<Loader />}>
+      <Routes>
       {/* Root redirect */}
       <Route path="/" element={
         <Navigate to={
@@ -271,6 +290,11 @@ function AppRoutes() {
           ? <OfficerNotificationsPage />
           : <Navigate to="/login" replace />
       } />
+      <Route path="/placement-officer/ai-chatbot" element={
+        isAuthenticated && userRole === 'placement_officer'
+          ? <AIChatbot />
+          : <Navigate to="/login" replace />
+      } />
       <Route path="/placement-officer/analytics" element={
         isAuthenticated && userRole === 'placement_officer'
           ? <PlacementAnalytics />
@@ -288,6 +312,12 @@ function AppRoutes() {
           : <Navigate to="/login" replace />
       } />
       
+      <Route path="/placement-officer/batch-management" element={
+        isAuthenticated && userRole === 'placement_officer'
+          ? <BatchManagement />
+          : <Navigate to="/login" replace />
+      } />
+      
       <Route path="/placement-officer/biodata-upload" element={
         isAuthenticated && userRole === 'placement_officer'
           ? <BiodataUpload />
@@ -300,7 +330,7 @@ function AppRoutes() {
       } />
       <Route path="/placement-officer/all-students" element={
         isAuthenticated && userRole === 'placement_officer'
-          ? <AllStudents />
+          ? <OfficerStudents />
           : <Navigate to="/login" replace />
       } />
       
@@ -325,7 +355,8 @@ function AppRoutes() {
       
       {/* Catch-all */}
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </Suspense>
   )
 }
 

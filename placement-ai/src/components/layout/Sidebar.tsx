@@ -14,6 +14,7 @@ import {
   MessageSquare,
   Bell,
   FileText,
+  Bot,
  
 } from 'lucide-react'
 import { getAuth } from '../../global/auth'
@@ -136,13 +137,6 @@ const Sidebar = ({
           description: 'Student management'
         },
         {
-          id: 'all-students',
-          label: 'All Students',
-          icon: Users,
-          path: '/placement-officer/all-students',
-          description: 'Complete student database'
-        },
-        {
           id: 'companies',
           label: 'Companies',
           icon: Building2,
@@ -151,6 +145,13 @@ const Sidebar = ({
         },
         
         // Secondary functionality (medium priority)
+        {
+          id: 'ai-chatbot',
+          label: 'AI Assistant',
+          icon: Bot,
+          path: '/placement-officer/ai-chatbot',
+          description: 'AI-powered data analysis and reports'
+        },
         {
           id: 'analytics',
           label: 'Analytics',
@@ -171,6 +172,13 @@ const Sidebar = ({
           icon: Upload,
           path: '/placement-officer/bulk-upload',
           description: 'Mass data import'
+        },
+        {
+          id: 'batch-management',
+          label: 'Batch Management',
+          icon: Users,
+          path: '/placement-officer/batch-management',
+          description: 'Manage students by batch and send welcome emails'
         },
         {
           id: 'biodata-upload',
@@ -225,10 +233,21 @@ const Sidebar = ({
   }
 
   const navigationItems = getNavigationItems()
-  // Reorder for placement officer priority
+  // Reorder for placement officer priority (Batch-first workflow)
   const orderedItems = userRole === 'placement_officer'
     ? [...navigationItems].sort((a,b)=>{
-        const order = ['dashboard','students','all-students','companies','analytics','push-notifications','bulk-upload','biodata-upload','settings','create-officer']
+        const order = [
+          'dashboard',
+          'batch-management',
+          'bulk-upload',
+          'biodata-upload',
+          'students',
+          'companies',
+          'push-notifications',
+          'analytics',
+          'settings',
+          'create-officer'
+        ]
         return order.indexOf(a.id) - order.indexOf(b.id)
       })
     : navigationItems
@@ -321,8 +340,9 @@ const Sidebar = ({
               
               // Add separators for placement officer navigation
               const shouldAddSeparator = userRole === 'placement_officer' && (
-                (item.id === 'analytics' && index > 0) || // Before Analytics (secondary group)
-                (item.id === 'settings' && index > 0) // Before Settings (admin group)
+                (item.id === 'students' && index > 0) || // After Upload tools → before student lists
+                (item.id === 'companies' && index > 0) || // After student lists → before company ops
+                (item.id === 'settings' && index > 0) // Before admin group
               )
               
               return (

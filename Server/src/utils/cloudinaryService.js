@@ -420,6 +420,52 @@ class CloudinaryService {
       throw err;
     }
   }
+
+  // Upload image to Cloudinary (for college logos)
+  async uploadImage(fileBuffer, options = {}) {
+    const {
+      folder = 'college-logos',
+      transformation = [],
+      publicId = null
+    } = options;
+
+    const uploadOptions = {
+      folder,
+      resource_type: 'image',
+      overwrite: true,
+      tags: ['college-logo', 'placement_erp']
+    };
+
+    if (publicId) {
+      uploadOptions.public_id = publicId;
+    }
+
+    if (transformation.length > 0) {
+      uploadOptions.transformation = transformation;
+    }
+
+    const uploadResult = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      }).end(fileBuffer);
+    });
+
+    return uploadResult;
+  }
+
+  // Delete image from Cloudinary
+  async deleteImage(publicId) {
+    try {
+      const result = await cloudinary.uploader.destroy(publicId, { 
+        resource_type: 'image' 
+      });
+      return result;
+    } catch (err) {
+      console.error('❌ Error deleting image:', err);
+      throw err;
+    }
+  }
 }
 
 export default new CloudinaryService();

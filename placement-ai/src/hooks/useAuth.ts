@@ -41,10 +41,10 @@ export function useAuth(): UseAuthReturn {
       return false
     }
 
-    // Debounce rapid calls (minimum 500ms between checks)
+    // Debounce rapid calls (minimum 2000ms between checks for better performance)
     const now = Date.now()
-    if (now - lastCheck < 500) {
-      console.log('⏱️ Debouncing rapid auth check')
+    if (now - lastCheck < 2000) {
+      if (!import.meta.env.PROD) console.log('⏱️ Debouncing rapid auth check')
       return !!auth // Return current state
     }
     setLastCheck(now)
@@ -56,9 +56,9 @@ export function useAuth(): UseAuthReturn {
 
     // Then try backend verification in background (non-blocking)
     try {
-      // Very fast timeout (1 second max)
+      // Very fast timeout (2 seconds max)
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Backend timeout')), 1000)
+        setTimeout(() => reject(new Error('Backend timeout')), 2000)
       })
 
       const verificationPromise = verifyAuthFromBackend(localAuth.token)
@@ -83,12 +83,12 @@ export function useAuth(): UseAuthReturn {
         }
       }
     } catch (error) {
-      console.log('⚠️ Backend verification failed, using local auth')
+      if (!import.meta.env.PROD) console.log('⚠️ Backend verification failed, using local auth')
       // Keep using local auth on backend failure
     }
 
     return true
-  }, [auth, lastCheck])
+  }, [lastCheck]) // Removed auth dependency to prevent loops
 
   // Refresh authentication data
   const refreshAuth = useCallback(async () => {
@@ -112,26 +112,42 @@ export function useAuth(): UseAuthReturn {
     }
   }, [])
 
-  // Check authentication on mount
+  // Check authentication on mount only
   useEffect(() => {
-    verifyAuth()
-  }, [verifyAuth])
+    let mounted = true
+    
+    const checkAuth = async () => {
+      if (mounted) {
+        await verifyAuth()
+      }
+    }
+    
+    checkAuth()
+    
+    return () => {
+      mounted = false
+    }
+  }, []) // Empty dependency array - only run on mount
 
   // Listen for storage changes (other tabs)
   useEffect(() => {
     const handleStorageChange = () => {
-      verifyAuth()
+      // Only verify if we have local auth
+      const localAuth = getAuth()
+      if (localAuth?.token) {
+        verifyAuth()
+      }
     }
 
     window.addEventListener('storage', handleStorageChange)
     return () => window.removeEventListener('storage', handleStorageChange)
-  }, [verifyAuth])
+  }, []) // Empty dependency array to prevent loops
 
   // Calculate isAuthenticated based on current state
   const isAuthenticated = !!auth && !!auth.token && !!userRole && !!auth.user.id
   
   // Debug logging for authentication state
-  console.log('🔐 Auth State Debug:', {
+  if (!import.meta.env.PROD) console.log('🔐 Auth State Debug:', {
     hasAuth: !!auth,
     hasToken: !!auth?.token,
     hasUserRole: !!userRole,
