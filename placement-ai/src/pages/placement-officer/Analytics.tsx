@@ -86,7 +86,8 @@ export default function PlacementAnalytics() {
       return att >= 80 && bl <= 0 && gpa >= 6
     }).length
     const placed = students.filter(s => s.isPlaced).length
-    const placementRate = eligible > 0 ? Math.round((placed / eligible) * 100) : 0
+    // Use overall placement rate (placed/total) as the main metric
+    const placementRate = total > 0 ? Math.round((placed / total) * 100) : 0
     return { total, eligible, placed, placementRate }
   }, [students])
 
@@ -240,10 +241,6 @@ export default function PlacementAnalytics() {
             <select value={filters.course||''} onChange={e=>syncUrl({course:e.target.value})} className="form-input">
               <option value="">Course</option>
               {(filterOptionsQuery.data?.filters.courses || []).map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <select value={filters.year||''} onChange={e=>syncUrl({year:e.target.value})} className="form-input">
-              <option value="">Year</option>
-              {(filterOptionsQuery.data?.filters.years || []).map(y => <option key={`yr-${y}`} value={y}>{y}</option>)}
             </select>
             <select value={filters.department||''} onChange={e=>syncUrl({department:e.target.value})} className="form-input">
               <option value="">Department</option>

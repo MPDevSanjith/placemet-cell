@@ -2,7 +2,7 @@ import express from 'express'
 import Notification from '../models/Notification.js'
 import Student from '../models/Student.js'
 import NotificationDelivery from '../models/NotificationDelivery.js'
-import { cacheSeconds } from '../middleware/cache.js'
+import { cacheSeconds, cacheMinutes } from '../middleware/cache.js'
 import { sendEmail, isEmailConfigured } from '../email/email.js'
 import { authenticateToken, authorize } from '../middleware/auth.js'
 

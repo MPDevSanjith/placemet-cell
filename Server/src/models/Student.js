@@ -26,6 +26,19 @@ const studentSchema = new mongoose.Schema({
   lastLogin: Date,
   profileImage: String,
   
+  // Placement Details
+  placementDetails: {
+    companyName: String,
+    designation: String,
+    ctc: Number, // Cost to Company in LPA
+    workLocation: String,
+    joiningDate: Date,
+    remarks: String,
+    offerLetterDriveLink: String,
+    placedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Placement officer who marked as placed
+    placedAt: Date
+  },
+  
   // OTP fields
   loginOtp: String,
   loginOtpExpires: Date,
@@ -251,6 +264,26 @@ studentSchema.methods.updateAtsAnalysis = function(resumeId, atsData) {
   }
   return resume;
 };
+
+// Add indexes for better performance
+studentSchema.index({ email: 1 });
+studentSchema.index({ rollNumber: 1 });
+studentSchema.index({ branch: 1, course: 1 });
+studentSchema.index({ isActive: 1, isPlaced: 1 });
+studentSchema.index({ year: 1, course: 1 });
+studentSchema.index({ 'placementDetails.companyName': 1 });
+studentSchema.index({ 'onboardingData.academicInfo.gpa': 1 });
+studentSchema.index({ 'eligibilityCriteria.attendancePercentage': 1 });
+studentSchema.index({ 'eligibilityCriteria.backlogs': 1 });
+
+// Compound indexes for AI analysis queries
+studentSchema.index({ course: 1, branch: 1, year: 1 });
+studentSchema.index({ isActive: 1, course: 1, branch: 1 });
+studentSchema.index({ isPlaced: 1, course: 1, year: 1 });
+studentSchema.index({ name: 1, email: 1, rollNumber: 1 });
+
+// Text index for name search
+studentSchema.index({ name: 'text', email: 'text', rollNumber: 'text' });
 
 const Student = mongoose.model('Student', studentSchema);
 

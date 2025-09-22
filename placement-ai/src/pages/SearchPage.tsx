@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Search, User, Briefcase, Building2, Mail, Phone, GraduationCap, MapPin, Star, ArrowLeft } from 'lucide-react'
@@ -18,6 +18,9 @@ const SearchPage = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedType, setSelectedType] = useState<string>('all')
+  
+  // Request cancellation
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const searchTypes = userRole === 'student' 
     ? [
@@ -32,15 +35,16 @@ const SearchPage = () => {
         { id: 'companies', label: 'Companies', icon: Building2 }
       ]
 
-  useEffect(() => {
-    if (query && query.length >= 2) {
-      performSearch()
-    } else {
-      setResults(null)
+  const performSearch = useCallback(async () => {
+    // Cancel previous request if it exists
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
     }
-  }, [query, selectedType, userRole])
-
-  const performSearch = async () => {
+    
+    // Create new abort controller for this request
+    const abortController = new AbortController()
+    abortControllerRef.current = abortController
+    
     setIsLoading(true)
     setError(null)
     
@@ -59,14 +63,34 @@ const SearchPage = () => {
         searchResults = await search(query, selectedType === 'all' ? undefined : selectedType, 50)
       }
       
+      // Check if request was cancelled
+      if (abortController.signal.aborted) {
+        return
+      }
+      
       setResults(searchResults)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Search failed')
-      setResults(null)
+      // Don't show error if request was cancelled
+      if (!abortController.signal.aborted) {
+        setError(err instanceof Error ? err.message : 'Search failed')
+        setResults(null)
+      }
     } finally {
-      setIsLoading(false)
+      if (!abortController.signal.aborted) {
+        setIsLoading(false)
+      }
     }
-  }
+  }, [query, selectedType, userRole])
+
+  // Debounced search effect
+  useEffect(() => {
+    if (query && query.length >= 2) {
+      const timeoutId = setTimeout(performSearch, 500) // 500ms debounce
+      return () => clearTimeout(timeoutId)
+    } else {
+      setResults(null)
+    }
+  }, [query, performSearch])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -78,7 +102,7 @@ const SearchPage = () => {
 
   const handleResultClick = (result: SearchResult) => {
     if (result.type === 'student') {
-      navigate(`/placement-officer/all-students?highlight=${result.id}`)
+      navigate(`/placement-officer/students?highlight=${result.id}`)
     } else if (result.type === 'job') {
       navigate(`/placement-officer/jobs?highlight=${result.id}`)
     } else if (result.type === 'company') {
