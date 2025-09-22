@@ -1399,19 +1399,32 @@ export function getCompanyFormLink(linkId: string) {
   return request<{ success: boolean; data: { companyName: string } }>(`/companies/form-links/${linkId}`)
 }
 
-export function submitCompanyForm(payload: any, jdFile?: File) {
+export function submitCompanyForm(payload: any, jdFile?: File, roleFiles?: (File | undefined)[]) {
   const formData = new FormData()
   
   // Add all form fields
   Object.entries(payload).forEach(([key, value]) => {
-    if (value !== undefined && value !== null) {
+    if (value === undefined || value === null) return
+    if (key === 'roles' && Array.isArray(value)) {
+      // Serialize roles as JSON for structured fields
+      formData.append('roles', JSON.stringify(value))
+    } else {
       formData.append(key, String(value))
     }
   })
   
-  // Add JD file if provided
-  if (jdFile) {
+  // Add legacy single JD file if provided and roles not used
+  if (jdFile && (!payload.roles || (Array.isArray(payload.roles) && payload.roles.length === 0))) {
     formData.append('jdFile', jdFile)
+  }
+
+  // Add per-role files if provided
+  if (Array.isArray(roleFiles) && roleFiles.length > 0) {
+    roleFiles.forEach((file, idx) => {
+      if (file) {
+        formData.append(`roleFiles[${idx}]`, file)
+      }
+    })
   }
   
   const baseUrl = API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:5000')
@@ -1426,7 +1439,7 @@ export function submitCompanyForm(payload: any, jdFile?: File) {
     if (!res.ok) {
       throw new Error(data?.error || data?.message || 'Form submission failed')
     }
-    return data as { success: boolean; message: string; requestId: string; linkId: string }
+    return data as { success: boolean; message: string; requestId?: string; requestIds?: string[]; linkId: string }
   })
 }
 
