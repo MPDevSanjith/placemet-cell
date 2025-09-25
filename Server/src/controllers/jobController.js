@@ -7,7 +7,7 @@ import logger from '../utils/logger.js';
 // @access  Private (Placement Officer/Admin)
 const createJob = async (req, res) => {
   try {
-    const { company, title, description, location, jobType, ctc, minCtc, deadline, minCgpa, skills, studentsRequired } = req.body
+    const { company, title, description, location, jobType, ctc, minCtc, deadline, minCgpa, skills, studentsRequired, courses } = req.body
 
     if (!company || !title || !description || !location || !jobType) {
       return res.status(400).json({ success: false, message: 'Missing required fields' })
@@ -29,6 +29,11 @@ const createJob = async (req, res) => {
         : (typeof skills === 'string' && skills.trim().length
             ? skills.split(',').map((s) => s.trim()).filter(Boolean)
             : []),
+      courses: (() => {
+        if (Array.isArray(courses)) return courses.map((c) => String(c).trim()).filter(Boolean)
+        if (typeof courses === 'string' && courses.trim().length) return courses.split(',').map((c) => c.trim()).filter(Boolean)
+        return []
+      })(),
       createdBy: req.user?.id || null
     })
 
@@ -52,6 +57,7 @@ const getJobs = async (req, res) => {
     const location = req.query.location;
     const jobType = req.query.jobType;
     const branch = req.query.branch;
+    const course = req.query.course;
     const minCgpa = req.query.minCgpa;
     const studentId = req.query.studentId;
     const sortParam = (req.query.sort || 'newest');
@@ -79,6 +85,43 @@ const getJobs = async (req, res) => {
         { branches: branch },
         { branches: 'All' }
       ];
+    }
+
+    if (course) {
+      // Normalize course for consistent matching
+      const normalizeCourse = (course) => {
+        if (!course || typeof course !== 'string') return course;
+        
+        const normalized = course.trim().toLowerCase();
+        
+        const courseMap = {
+          'btech': 'B.Tech',
+          'b.tech': 'B.Tech', 
+          'be': 'BE',
+          'bsc': 'BSc',
+          'b.sc': 'BSc',
+          'bca': 'BCA',
+          'bcom': 'BCom',
+          'b.com': 'BCom',
+          'ba': 'BA',
+          'mca': 'MCA',
+          'msc': 'MSc',
+          'm.sc': 'MSc',
+          'mba': 'MBA',
+          'm.tech': 'M.Tech',
+          'mtech': 'M.Tech',
+          'ma': 'MA',
+          'diploma': 'Diploma',
+          'phd': 'PhD',
+          'ph.d': 'PhD',
+          'other': 'Other'
+        };
+        
+        return courseMap[normalized] || course.trim();
+      };
+      
+      const normalizedCourse = normalizeCourse(course);
+      query.courses = { $regex: normalizedCourse, $options: 'i' };
     }
 
     if (minCgpa !== undefined) {

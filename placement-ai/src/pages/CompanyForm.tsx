@@ -38,7 +38,10 @@ interface CompanyFormData {
   studentInstructions: string;
   questionsForStudents: string;
   jdDescription: string;
-  minimumCGPA?: string;
+  // UI stores Percentage; backend expects CGPA → convert on submit
+  minimumPercentage?: string;
+  // Target courses for eligibility (legacy single-role)
+  courses?: string[];
 }
 
 type RoleEntry = {
@@ -53,9 +56,11 @@ type RoleEntry = {
   interviewMode: string;
   expectedJoiningDate: string;
   employmentType: string;
-  minimumCGPA?: string;
+  // UI stores Percentage; backend expects CGPA → convert on submit
+  minimumPercentage?: string;
   jdDescription?: string;
   jdFile?: File | null;
+  courses?: string[];
 };
 
 const CompanyForm: React.FC = () => {
@@ -79,7 +84,7 @@ const CompanyForm: React.FC = () => {
     vacancies: '',
     interviewMode: 'Online',
     expectedJoiningDate: '',
-    employmentType: 'Full-time',
+    employmentType: '',
     hrName: '',
     hrDesignation: '',
     hrEmail: '',
@@ -91,7 +96,8 @@ const CompanyForm: React.FC = () => {
     studentInstructions: '',
     questionsForStudents: '',
     jdDescription: '',
-    minimumCGPA: ''
+    minimumPercentage: '',
+    courses: []
   });
   // Legacy single JD (kept for backward compatibility if roles not used)
   const [jdFile, _setJdFile] = useState<File | null>(null);
@@ -105,7 +111,10 @@ const CompanyForm: React.FC = () => {
   const [formLinkData, setFormLinkData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const handleInputChange = (field: keyof CompanyFormData, value: string) => {
+  // Standardized course options list
+  const courseOptions = ['B.Tech','BE','BSc','BCA','BCom','BA','MCA','MSc','MBA','Diploma','PhD','Other'];
+
+  const handleInputChange = (field: keyof CompanyFormData, value: any) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -126,10 +135,11 @@ const CompanyForm: React.FC = () => {
         vacancies: '',
         interviewMode: 'Online',
         expectedJoiningDate: '',
-        employmentType: 'Full-time',
-        minimumCGPA: '',
+        employmentType: '',
+        minimumPercentage: '',
         jdDescription: '',
         jdFile: null,
+        courses: [],
       }
     ]));
   };
@@ -183,6 +193,10 @@ const CompanyForm: React.FC = () => {
       const useRoles = roles.length > 0;
       const payload: any = {
         ...formData,
+        // Convert UI percentage to backend CGPA if provided
+        ...(formData.minimumPercentage && formData.minimumPercentage !== ''
+          ? { minimumCGPA: String(Math.round((parseFloat(formData.minimumPercentage) / 10) * 100) / 100) }
+          : {}),
         linkId,
       };
 
@@ -199,7 +213,11 @@ const CompanyForm: React.FC = () => {
           interviewMode: r.interviewMode,
           expectedJoiningDate: r.expectedJoiningDate,
           employmentType: r.employmentType,
-          minimumCGPA: r.minimumCGPA,
+          courses: Array.isArray(r.courses) ? r.courses : [],
+          // Convert UI percentage to backend CGPA (two decimals)
+          minimumCGPA: r.minimumPercentage && r.minimumPercentage !== ''
+            ? String(Math.round((parseFloat(r.minimumPercentage) / 10) * 100) / 100)
+            : '',
           jdDescription: r.jdDescription,
         }));
       }
@@ -325,8 +343,8 @@ const CompanyForm: React.FC = () => {
                   <input type="text" value={formData.otherLocations} onChange={(e) => handleInputChange('otherLocations', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="Comma-separated" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Industry/Domain</label>
-                  <input type="text" value={formData.industryDomain} onChange={(e) => handleInputChange('industryDomain', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="e.g., IT, Finance" />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Industry/Domain *</label>
+                  <input type="text" required value={formData.industryDomain} onChange={(e) => handleInputChange('industryDomain', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="e.g., IT, Finance" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Company Size</label>
@@ -384,8 +402,8 @@ const CompanyForm: React.FC = () => {
                       <input type="text" value={role.maxCTC} onChange={(e) => updateRole(idx, 'maxCTC', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="e.g., 12 LPA" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Minimum CGPA (optional)</label>
-                      <input type="number" min="0" max="10" step="0.01" value={role.minimumCGPA || ''} onChange={(e) => updateRole(idx, 'minimumCGPA', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="e.g., 7.5" />
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Percentage (optional)</label>
+                      <input type="number" min="0" max="100" step="0.1" value={role.minimumPercentage || ''} onChange={(e) => updateRole(idx, 'minimumPercentage', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="e.g., 70" />
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Salary Structure Details</label>
@@ -418,12 +436,32 @@ const CompanyForm: React.FC = () => {
                       <input type="date" value={role.expectedJoiningDate} onChange={(e) => updateRole(idx, 'expectedJoiningDate', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Internship/Full-time/Both</label>
-                      <select value={role.employmentType} onChange={(e) => updateRole(idx, 'employmentType', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300">
-                        <option>Internship</option>
-                        <option>Full-time</option>
-                        <option>Both</option>
-                      </select>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Employment Type</label>
+                      <input type="text" value={role.employmentType} onChange={(e) => updateRole(idx, 'employmentType', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="e.g., Internship, Full-time, Both, Contract, etc." />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Eligible Courses</label>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-2 border rounded-md">
+                        {courseOptions.map((c) => {
+                          const checked = Array.isArray(role.courses) && role.courses.includes(c)
+                          return (
+                            <label key={c} className="inline-flex items-center gap-2 text-sm text-gray-700">
+                              <input
+                                type="checkbox"
+                                checked={!!checked}
+                                onChange={(e) => {
+                                  const prev = Array.isArray(role.courses) ? role.courses : []
+                                  const next = e.target.checked
+                                    ? Array.from(new Set([...prev, c]))
+                                    : prev.filter((x) => x !== c)
+                                  updateRole(idx, 'courses', next)
+                                }}
+                              />
+                              <span>{c}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
                     </div>
                   </div>
 
@@ -474,16 +512,16 @@ const CompanyForm: React.FC = () => {
                     <input type="text" value={formData.maxCTC} onChange={(e) => handleInputChange('maxCTC', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="e.g., 12 LPA" />
                   </div>
                   <div>
-                    <label className="block text sm font-medium text-gray-700 mb-1">Minimum CGPA (optional)</label>
+                    <label className="block text sm font-medium text-gray-700 mb-1">Minimum Percentage (optional)</label>
                     <input
                       type="number"
                       min="0"
-                      max="10"
-                      step="0.01"
-                      value={formData.minimumCGPA || ''}
-                      onChange={(e) => handleInputChange('minimumCGPA', e.target.value)}
+                      max="100"
+                      step="0.1"
+                      value={formData.minimumPercentage || ''}
+                      onChange={(e) => handleInputChange('minimumPercentage', e.target.value)}
                       className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300"
-                      placeholder="e.g., 7.5"
+                      placeholder="e.g., 70"
                     />
                   </div>
                   <div className="md:col-span-2">
@@ -517,12 +555,32 @@ const CompanyForm: React.FC = () => {
                     <input type="date" value={formData.expectedJoiningDate} onChange={(e) => handleInputChange('expectedJoiningDate', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Internship/Full-time/Both</label>
-                    <select value={formData.employmentType} onChange={(e) => handleInputChange('employmentType', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300">
-                      <option>Internship</option>
-                      <option>Full-time</option>
-                      <option>Both</option>
-                    </select>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Employment Type</label>
+                    <input type="text" value={formData.employmentType} onChange={(e) => handleInputChange('employmentType', e.target.value)} className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300" placeholder="e.g., Internship, Full-time, Both, Contract, etc." />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Eligible Courses</label>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-2 border rounded-md">
+                      {courseOptions.map((c) => {
+                        const checked = Array.isArray(formData.courses) && formData.courses.includes(c)
+                        return (
+                          <label key={c} className="inline-flex items-center gap-2 text-sm text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={!!checked}
+                              onChange={(e) => {
+                                const prev = Array.isArray(formData.courses) ? formData.courses : []
+                                const next = e.target.checked
+                                  ? Array.from(new Set([...prev, c]))
+                                  : prev.filter((x) => x !== c)
+                                handleInputChange('courses', next)
+                              }}
+                            />
+                            <span>{c}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>

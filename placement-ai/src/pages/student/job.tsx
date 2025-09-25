@@ -34,6 +34,7 @@ export default function StudentJobs() {
   const [loading, setLoading] = useState(false)
   const [jobs, setJobs] = useState<JobItem[]>([])
   const [missingCgpa, setMissingCgpa] = useState<boolean>(false)
+  const [missingCourse, setMissingCourse] = useState<boolean>(false)
   const [profile, setProfile] = useState<null | {
     placementInfo?: { skills?: string[] }
     academicInfo?: { gpa?: number; branch?: string }
@@ -72,13 +73,27 @@ export default function StudentJobs() {
 
         const gpa = Number(rawGpa)
 
+        const studentCourse = (profRes?.profile?.academicInfo as any)?.course || (profRes?.profile as any)?.course || ''
+        const hasCourse = typeof studentCourse === 'string' && studentCourse.trim().length > 0
+        setMissingCourse(!hasCourse)
+        console.log('[COURSE FILTER DEBUG][Jobs] profile:', { studentCourse, hasCourse, gpa })
+        if (!hasCourse) {
+          setProfile(profRes?.profile || null)
+          setJobs([])
+          return
+        }
         const [jobsRes, resList, myApps] = await Promise.all([
-          listJobs({ limit: 100, minCgpa: isNaN(gpa) ? 0 : gpa }),
+          listJobs({ limit: 100, minCgpa: isNaN(gpa) ? 0 : gpa, course: studentCourse }),
           listResumes(token),
           listMyApplications(token).catch(() => ({ items: [] }))
         ])
 
         const items: JobItem[] = (jobsRes?.data?.items || jobsRes?.data || []) as JobItem[]
+        console.log('[COURSE FILTER DEBUG][Jobs] jobs API result:', {
+          requestedCourse: studentCourse,
+          jobsReturned: (items || []).length,
+          sampleCourses: (items || []).slice(0, 5).map((j: any) => j?.courses)
+        })
         setJobs(items)
         try {
           console.log('[CGPA DEBUG:listJobs student/jobs] count=', items.length)
@@ -109,6 +124,7 @@ export default function StudentJobs() {
   const studentSkills = useMemo(() => (profile?.placementInfo?.skills || []).map((s) => s.toLowerCase().trim()), [profile])
   const studentCgpa = profile?.academicInfo?.gpa || 0
   const studentBranch = profile?.academicInfo?.branch || ''
+  const studentCourse = (profile as any)?.academicInfo?.course || ''
 
   const computeMatch = (job: JobItem): number => {
     const jobSkills = (job.skills || []).map((s) => s.toLowerCase().trim())
@@ -119,10 +135,12 @@ export default function StudentJobs() {
     if (!job.branches || job.branches.length === 0 || job.branches.includes('All') || job.branches.includes(studentBranch)) {
       score += 10
     }
-    // Simple GPA signal (if job description includes min CGPA pattern, otherwise give small bonus)
+    // Percentage signal (convert GPA->%, parsed min CGPA->%)
     const minMatch = /cgpa\s*(\d+(?:\.\d+)?)/i.exec(job.description || '')
     const minCg = minMatch ? parseFloat(minMatch[1]) : 0
-    if (studentCgpa >= (isNaN(minCg) ? 0 : minCg)) score += 10
+    const studentPct = studentCgpa * 10
+    const minPct = (isNaN(minCg) ? 0 : minCg * 10)
+    if (studentPct >= minPct) score += 10
     return Math.max(0, Math.min(100, score))
   }
   const parseMinCgpa = (job: JobItem | null | undefined): number => {
@@ -221,6 +239,10 @@ export default function StudentJobs() {
           <div className="mb-4 p-3 bg-yellow-50 text-yellow-800 rounded-lg text-sm">
             Please add your CGPA in your profile to view eligible jobs.
           </div>
+        ) : missingCourse ? (
+          <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+            Your Course is not specified. Please update your Course in your profile or contact the Placement Officer. Jobs will be shown after you set your Course.
+          </div>
         ) : loading ? (
           <div className="text-gray-500">Loading jobs...</div>
         ) : (
@@ -235,8 +257,28 @@ export default function StudentJobs() {
                 const passSearch = !q || text.includes(q)
                 const passMatch = !onlyMatched || match >= 60
                 const minCg = resolveMinCgpa(job)
-                const passCg = studentCgpa >= ((minCg as number) || 0)
-                return passSearch && passMatch && passCg
+                const studentPct = studentCgpa * 10
+                const minPct = ((minCg as number) || 0) * 10
+                const passCg = studentPct >= minPct
+                const passCourse = (() => {
+                  try {
+                    const raw = (job as any)?.courses
+                    if (!raw || (Array.isArray(raw) && raw.length === 0)) return true
+                    const list: string[] = Array.isArray(raw) ? raw.map(String) : []
+                    const sc = String(studentCourse || '').trim()
+                    if (!sc) return false
+                    return list.some(c => String(c).trim().toLowerCase() === sc.toLowerCase())
+                  } catch { return true }
+                })()
+                try {
+                  console.log('[COURSE FILTER DEBUG][Jobs] filter check:', {
+                    jobId: (job as any)?._id,
+                    jobCourses: (job as any)?.courses,
+                    studentCourse: String(studentCourse || ''),
+                    passCourse
+                  })
+                } catch {}
+                return passSearch && passMatch && passCg && passCourse
               })
               .sort((a, b) => b.match - a.match)
               .map(({ job, match }) => (

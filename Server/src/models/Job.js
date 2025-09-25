@@ -17,7 +17,9 @@ const jobSchema = new mongoose.Schema({
   jdUrl: { type: String },
   contactEmail: { type: String },
   views: { type: Number, default: 0 },
-  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  // Targeted eligible courses (case-insensitive match on listing). Empty/undefined means not set
+  courses: [{ type: String }]
 }, { timestamps: true })
 
 // Indexes to speed up common queries
@@ -26,6 +28,7 @@ jobSchema.index({ title: 'text', description: 'text', skills: 1 })
 jobSchema.index({ minCgpa: 1 })
 jobSchema.index({ location: 1 })
 jobSchema.index({ jobType: 1 })
+jobSchema.index({ courses: 1 })
 
 export default mongoose.model('Job', jobSchema)
 

@@ -52,10 +52,100 @@ export const getStudentProfile = async (req, res) => {
     // Calculate profile completion percentage
     const profileCompletion = calculateProfileCompletion(student);
 
+    // Normalize course values
+    const normalizeCourse = (course) => {
+      if (!course || typeof course !== 'string') return course;
+      
+      const normalized = course.trim().toLowerCase();
+      
+      // Common course mappings
+      const courseMap = {
+        'btech': 'B.Tech',
+        'b.tech': 'B.Tech', 
+        'be': 'BE',
+        'bsc': 'BSc',
+        'b.sc': 'BSc',
+        'bca': 'BCA',
+        'bcom': 'BCom',
+        'b.com': 'BCom',
+        'ba': 'BA',
+        'mca': 'MCA',
+        'msc': 'MSc',
+        'm.sc': 'MSc',
+        'mba': 'MBA',
+        'm.tech': 'M.Tech',
+        'mtech': 'M.Tech',
+        'ma': 'MA',
+        'diploma': 'Diploma',
+        'phd': 'PhD',
+        'ph.d': 'PhD',
+        'other': 'Other'
+      };
+      
+      return courseMap[normalized] || course.trim();
+    };
+
+    // Backfill course if only one copy exists
+    try {
+      const topLevelCourse = student.course;
+      const nestedCourse = student.onboardingData?.academicInfo?.course;
+      console.log('🛠️ BACKFILL CHECK:', { 
+        studentId: student._id, 
+        topLevelCourse, 
+        nestedCourse, 
+        'topLevel exists': !!topLevelCourse,
+        'nested exists': !!nestedCourse 
+      });
+      
+      if (nestedCourse && !topLevelCourse) {
+        const normalizedCourse = normalizeCourse(nestedCourse);
+        student.course = normalizedCourse;
+        await student.save();
+        console.log('🛠️ BACKFILL: Persisted top-level course from nested', { studentId: student._id, course: normalizedCourse });
+      } else if (topLevelCourse && !nestedCourse) {
+        if (!student.onboardingData) student.onboardingData = { personalInfo: {}, academicInfo: {}, placementInfo: {}, onboardingStep: 'pending' };
+        if (!student.onboardingData.academicInfo) student.onboardingData.academicInfo = {};
+        const normalizedCourse = normalizeCourse(topLevelCourse);
+        student.onboardingData.academicInfo.course = normalizedCourse;
+        await student.save();
+        console.log('🛠️ BACKFILL: Persisted nested course from top-level', { studentId: student._id, course: normalizedCourse });
+      } else {
+        console.log('🛠️ BACKFILL: No backfill needed - both or neither exist');
+      }
+    } catch (bfErr) {
+      console.warn('Course backfill skipped:', bfErr?.message);
+    }
+
     // Get latest resume
     const latestResume = student.resumes
       ?.filter(r => r.isActive)
       ?.sort((a, b) => new Date(b.uploadDate) - new Date(a.uploadDate))[0];
+
+    // Debug course data
+    console.log('🔍 BACKEND COURSE DEBUG:', {
+      studentId: student._id,
+      topLevelCourse: student.course,
+      nestedCourse: student.onboardingData?.academicInfo?.course,
+      fullStudent: {
+        course: student.course,
+        onboardingData: student.onboardingData
+      }
+    });
+    
+    // More detailed debugging
+    console.log('🔍 DETAILED COURSE DEBUG:', {
+      studentId: student._id,
+      'student.course': student.course,
+      'typeof student.course': typeof student.course,
+      'student.course === undefined': student.course === undefined,
+      'student.course === null': student.course === null,
+      'student.course === ""': student.course === "",
+      'onboardingData exists': !!student.onboardingData,
+      'academicInfo exists': !!student.onboardingData?.academicInfo,
+      'nested course': student.onboardingData?.academicInfo?.course,
+      'typeof nested course': typeof student.onboardingData?.academicInfo?.course,
+      'nested course === undefined': student.onboardingData?.academicInfo?.course === undefined
+    });
 
     // Prepare profile data
     const profileData = {
@@ -72,6 +162,7 @@ export const getStudentProfile = async (req, res) => {
         branch: student.branch,
         section: student.section,
         year: student.year,
+        course: student.course || student.onboardingData?.academicInfo?.course,
         gpa: student.onboardingData?.academicInfo?.gpa,
         specialization: student.onboardingData?.academicInfo?.specialization
       },
@@ -237,11 +328,19 @@ export const updateProfileField = async (req, res) => {
       'rollNumber': () => { student.rollNumber = value; },
       'branch': () => { student.branch = value; },
       'section': () => { student.section = value; },
+      'course': () => { student.course = value; },
       'year': () => { student.year = value; },
       'gpa': () => {
         if (!student.onboardingData) student.onboardingData = {};
         if (!student.onboardingData.academicInfo) student.onboardingData.academicInfo = {};
         student.onboardingData.academicInfo.gpa = value;
+      },
+      'course': () => {
+        // Set both top-level course and nested academicInfo.course for consistency
+        student.course = value;
+        if (!student.onboardingData) student.onboardingData = {};
+        if (!student.onboardingData.academicInfo) student.onboardingData.academicInfo = {};
+        student.onboardingData.academicInfo.course = value;
       },
       'specialization': () => {
         if (!student.onboardingData) student.onboardingData = {};

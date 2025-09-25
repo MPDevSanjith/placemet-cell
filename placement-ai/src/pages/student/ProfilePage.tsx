@@ -116,6 +116,35 @@ const ProfilePage: React.FC = () => {
         profileId: response.profile ? 'Profile loaded' : 'No profile',
         authUserId: auth.user?.id
       })
+      console.log('📚 COURSE DEBUG (backend payload):', {
+        academicInfoCourse: (response.profile as any)?.academicInfo?.course,
+        topLevelCourse: (response.profile as any)?.course,
+        fullAcademicInfo: (response.profile as any)?.academicInfo,
+        fullProfile: response.profile
+      })
+      console.log('📚 COURSE DEBUG (expanded):', {
+        academicInfoCourse: (response.profile as any)?.academicInfo?.course,
+        topLevelCourse: (response.profile as any)?.course,
+        academicInfoExists: !!(response.profile as any)?.academicInfo,
+        courseInAcademicInfo: !!(response.profile as any)?.academicInfo?.course,
+        courseInTopLevel: !!(response.profile as any)?.course
+      })
+      
+      // Simple test to see what's actually in the response
+      console.log('🔍 SIMPLE TEST - What is the course value?', {
+        'profile.academicInfo?.course': (response.profile as any)?.academicInfo?.course,
+        'typeof course': typeof (response.profile as any)?.academicInfo?.course,
+        'course === undefined': (response.profile as any)?.academicInfo?.course === undefined,
+        'course === null': (response.profile as any)?.academicInfo?.course === null,
+        'course === ""': (response.profile as any)?.academicInfo?.course === ""
+      })
+      
+      // Check the actual academicInfo object structure
+      console.log('🔍 ACADEMIC INFO STRUCTURE:', {
+        'academicInfo exists': !!(response.profile as any)?.academicInfo,
+        'academicInfo keys': (response.profile as any)?.academicInfo ? Object.keys((response.profile as any).academicInfo) : 'N/A',
+        'full academicInfo': (response.profile as any)?.academicInfo
+      })
       setProfile(response.profile)
       setError(null)
       
@@ -266,7 +295,7 @@ const ProfilePage: React.FC = () => {
       const result = await analyzeATSWithResumeId(auth.token, atsRolePopup.resumeId, finalJobRole)
       
       if (!result.success) {
-        throw new Error(result.message || 'ATS analysis failed')
+        throw new Error('ATS analysis failed')
       }
       
       console.log('✅ ATS analysis completed:', result)
@@ -288,7 +317,8 @@ const ProfilePage: React.FC = () => {
       
     } catch (err) {
       console.error('❌ ATS analysis failed:', err)
-      alert(`ATS analysis failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      alert(`ATS analysis failed: ${msg}`)
     } finally {
       setIsAnalyzing(false)
     }
@@ -317,7 +347,15 @@ const ProfilePage: React.FC = () => {
         await fetchProfile()
       } else {
         // For individual fields, use the new updateProfileField function
-        await updateProfileField(auth.token, editing.field, editValue)
+        // If editing GPA via Percentage UI, convert percentage (0-100) to GPA (0-10)
+        const valueToSend = editing.field === 'gpa'
+          ? (() => {
+              const pct = parseFloat(editValue as string)
+              if (isNaN(pct)) return ''
+              return String(Math.round((pct / 10) * 100) / 100)
+            })()
+          : editValue
+        await updateProfileField(auth.token, editing.field, valueToSend)
         // Refresh profile
         await fetchProfile()
       }
@@ -791,7 +829,7 @@ const ProfilePage: React.FC = () => {
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-gray-800">Academic Information</h2>
                 <button
-                  onClick={() => handleEdit('academic', 'gpa', profile.academicInfo?.gpa || '')}
+                  onClick={() => handleEdit('academic', 'gpa', (typeof profile.academicInfo?.gpa === 'number' ? String((profile.academicInfo.gpa * 10).toFixed(1)) : ''))}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-medium shadow-md hover:shadow-xl transition-transform hover:scale-105"
                 >
                   <FiEdit3 className="w-4 h-4" />
@@ -807,17 +845,17 @@ const ProfilePage: React.FC = () => {
                   </h3>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* GPA */}
+                  {/* Percentage */}
                     <div className="flex flex-col">
-                      <label className="text-sm font-medium text-gray-600 mb-2">GPA</label>
+                      <label className="text-sm font-medium text-gray-600 mb-2">Percentage</label>
                       <input
                         type="number"
-                        step="0.01"
+                        step="0.1"
                         min="0"
-                        max="10"
-                        value={editing.field === 'gpa' ? editValue : profile.academicInfo?.gpa || ''}
+                        max="100"
+                        value={editing.field === 'gpa' ? editValue : (typeof profile.academicInfo?.gpa === 'number' ? String((profile.academicInfo.gpa * 10).toFixed(1)) : '')}
                         onChange={(e) => setEditValue(e.target.value)}
-                        placeholder="Enter your GPA (0-10)"
+                        placeholder="Enter your Percentage (0-100)"
                         className="px-4 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all"
                       />
                     </div>
@@ -912,23 +950,36 @@ const ProfilePage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* GPA */}
+                    {/* Course */}
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border flex items-center gap-4">
+                      <div className="p-3 rounded-xl bg-indigo-500 text-white">
+                        <FiBookOpen />
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500 uppercase">Course</div>
+                        <div className="font-semibold text-gray-800">
+                          {(profile.academicInfo as any)?.course || 'Not provided'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Percentage */}
                     <div className="bg-white p-5 rounded-2xl shadow-sm border flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div className="p-3 rounded-xl bg-indigo-500 text-white">
                           <FiAward />
                         </div>
                         <div>
-                          <div className="text-xs text-gray-500 uppercase">GPA</div>
+                          <div className="text-xs text-gray-500 uppercase">Percentage</div>
                           <div className="font-semibold text-gray-800">
-                            {profile.academicInfo?.gpa || 'Not provided'}
+                            {typeof profile.academicInfo?.gpa === 'number' && !isNaN(profile.academicInfo.gpa) ? `${(profile.academicInfo.gpa * 10).toFixed(1)}%` : 'Not provided'}
                           </div>
                         </div>
                       </div>
                       <button
-                        onClick={() => handleEdit('academic', 'gpa', profile.academicInfo?.gpa || '')}
+                        onClick={() => handleEdit('academic', 'gpa', (typeof profile.academicInfo?.gpa === 'number' ? String((profile.academicInfo.gpa * 10).toFixed(1)) : ''))}
                         className="text-indigo-600 hover:text-indigo-800"
-                        title="Edit GPA"
+                        title="Edit Percentage"
                       >
                         <FiEdit3 />
                       </button>

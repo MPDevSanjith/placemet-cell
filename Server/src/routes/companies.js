@@ -386,7 +386,7 @@ router.get('/form-links/:linkId', async (req, res) => {
 })
 
 // Public endpoint for company form submissions
-router.post('/requests/submit', jdUpload.single('jdFile'), async (req, res) => {
+router.post('/requests/submit', jdUpload.any(), async (req, res) => {
   try {
     const body = req.body || {}
     const {
@@ -400,7 +400,7 @@ router.post('/requests/submit', jdUpload.single('jdFile'), async (req, res) => {
       companySize,
       companyDescription,
       transportFacility,
-      // Job/Placement Details
+      // Legacy single role fields (used if roles not provided)
       jobTitle,
       jobResponsibilities,
       minCTC,
@@ -428,10 +428,10 @@ router.post('/requests/submit', jdUpload.single('jdFile'), async (req, res) => {
       minimumCGPA
     } = body
 
-    if (!companyName || !hrName || !hrEmail || !hrPhone || !jobTitle || !jobResponsibilities) {
+    if (!companyName || !hrName || !hrEmail || !hrPhone) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields: companyName, hrName, hrEmail, hrPhone, jobTitle, jobResponsibilities'
+        error: 'Missing required fields: companyName, hrName, hrEmail, hrPhone'
       })
     }
 
@@ -441,22 +441,38 @@ router.post('/requests/submit', jdUpload.single('jdFile'), async (req, res) => {
       return res.status(404).json({ success: false, error: 'Invalid or expired form link' })
     }
 
-    // Optional JD upload
-    let jdFileInfo = null
-    if (req.file) {
-      jdFileInfo = await cloudinaryService.uploadCompanyJD(req.file, companyName)
+    // Parse roles if provided
+    let roles = []
+    if (typeof body.roles === 'string') {
+      try {
+        roles = JSON.parse(body.roles)
+      } catch (e) {
+        return res.status(400).json({ success: false, error: 'Invalid roles payload' })
+      }
+    } else if (Array.isArray(body.roles)) {
+      roles = body.roles
     }
 
-    const request = new CompanyRequest({
-      company: companyName,
-      jobRole: jobTitle,
-      description: jobResponsibilities,
-      studentsRequired: Number(vacancies) || 1,
-      minimumCGPA: Number(minimumCGPA) || 0,
-      startDate: '',
-      endDate: '',
-      formLinkId: linkId,
-      formData: {
+    // Map uploaded files: legacy single file 'jdFile' and per-role files in roleFiles[i]
+    const files = Array.isArray(req.files) ? req.files : []
+    const legacyFile = files.find(f => f.fieldname === 'jdFile') || null
+    const roleFiles = new Map()
+    files.forEach((f) => {
+      const m = /^roleFiles\[(\d+)\]$/.exec(f.fieldname || '')
+      if (m) {
+        const idx = Number(m[1])
+        roleFiles.set(idx, f)
+      }
+    })
+
+    // Helper to build formData block
+    const buildFormData = async (overrides = {}, fileInfo = null) => {
+      // Upload JD file if present
+      let jdFileInfo = null
+      if (fileInfo) {
+        jdFileInfo = await cloudinaryService.uploadCompanyJD(fileInfo, companyName)
+      }
+      return {
         companyWebsite,
         hqLocation,
         otherLocations,
@@ -464,15 +480,6 @@ router.post('/requests/submit', jdUpload.single('jdFile'), async (req, res) => {
         companySize,
         companyDescription,
         transportFacility,
-        minCTC,
-        maxCTC,
-        salaryStructure,
-        jobLocation,
-        bondDetails,
-        vacancies,
-        interviewMode,
-        expectedJoiningDate,
-        employmentType,
         hrName,
         hrDesignation,
         hrEmail,
@@ -483,10 +490,89 @@ router.post('/requests/submit', jdUpload.single('jdFile'), async (req, res) => {
         jobDescriptionLink,
         studentInstructions,
         questionsForStudents,
-        jdDescription,
-        jdFile: jdFileInfo,
-        submittedAt: new Date().toISOString()
+        submittedAt: new Date().toISOString(),
+        ...overrides,
+        jdFile: jdFileInfo
       }
+    }
+
+    const createdIds = []
+
+    if (Array.isArray(roles) && roles.length > 0) {
+      // Multiple roles: create a separate request for each role
+      for (let i = 0; i < roles.length; i++) {
+        const r = roles[i] || {}
+        if (!r.jobTitle || !r.jobResponsibilities) {
+          return res.status(400).json({ success: false, error: `Role ${i + 1}: jobTitle and jobResponsibilities are required` })
+        }
+        const f = roleFiles.get(i) || null
+        const formDataBlock = await buildFormData({
+          minCTC: r.minCTC,
+          maxCTC: r.maxCTC,
+          salaryStructure: r.salaryStructure,
+          jobLocation: r.jobLocation,
+          bondDetails: r.bondDetails,
+          vacancies: r.vacancies,
+          interviewMode: r.interviewMode,
+          expectedJoiningDate: r.expectedJoiningDate,
+          employmentType: r.employmentType,
+          courses: Array.isArray(r.courses) ? r.courses : [],
+          minimumCGPA: r.minimumCGPA,
+          jdDescription: r.jdDescription,
+        }, f)
+
+        const request = new CompanyRequest({
+          company: companyName,
+          jobRole: r.jobTitle,
+          description: r.jobResponsibilities,
+          studentsRequired: Number(r.vacancies) || 1,
+          minimumCGPA: Number(r.minimumCGPA) || 0,
+          startDate: '',
+          endDate: '',
+          formLinkId: linkId,
+          formData: formDataBlock
+        })
+        await request.save()
+        createdIds.push(request._id)
+        formLink.submissions.push(request._id)
+      }
+      await formLink.save()
+      return res.status(201).json({ success: true, message: 'Company requests submitted successfully', requestIds: createdIds, linkId })
+    }
+
+    // Legacy single-role behavior
+    if (!jobTitle || !jobResponsibilities) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: jobTitle, jobResponsibilities'
+      })
+    }
+
+    const legacyFormData = await buildFormData({
+      minCTC,
+      maxCTC,
+      salaryStructure,
+      jobLocation,
+      bondDetails,
+      vacancies,
+      interviewMode,
+      expectedJoiningDate,
+      employmentType,
+      courses: Array.isArray(body.courses) ? body.courses : (typeof body.courses === 'string' && body.courses.trim().length ? body.courses.split(/[\,\n]/).map(s => s.trim()).filter(Boolean) : []),
+      minimumCGPA,
+      jdDescription,
+    }, legacyFile)
+
+    const request = new CompanyRequest({
+      company: companyName,
+      jobRole: jobTitle,
+      description: jobResponsibilities,
+      studentsRequired: Number(vacancies) || 1,
+      minimumCGPA: Number(minimumCGPA) || 0,
+      startDate: '',
+      endDate: '',
+      formLinkId: linkId,
+      formData: legacyFormData
     })
 
     await request.save()
@@ -516,8 +602,8 @@ router.put('/requests/:id/approve', protect, authorize('placement_officer', 'adm
     request.status = 'Approved'
     await request.save()
 
-    // Create job posting from the approved request
-    const jobData = {
+    // Create job posting(s) from the approved request
+    const baseJobData = {
       company: request.company,
       title: request.jobRole,
       description: request.description || 'Job opportunity from ' + request.company,
@@ -565,22 +651,38 @@ router.put('/requests/:id/approve', protect, authorize('placement_officer', 'adm
         }
         return []
       })(),
+      courses: (() => {
+        // Accept both arrays or comma-separated values, case insensitive stored as-is
+        const raw = request.formData?.courses || request.formData?.eligibleCourses
+        if (Array.isArray(raw)) return raw.map((c) => String(c).trim()).filter(Boolean)
+        if (typeof raw === 'string' && raw.trim().length) {
+          return raw.split(/[\,\n]/).map((c) => c.trim()).filter(Boolean)
+        }
+        return []
+      })(),
       createdBy: req.user.id
     }
 
-    const job = new Job(jobData)
-    await job.save()
+    const coursesList = Array.isArray(baseJobData.courses) ? baseJobData.courses : []
+    const createdJobs = []
+    if (coursesList.length > 1) {
+      for (const c of coursesList) {
+        const job = new Job({ ...baseJobData, courses: [String(c).trim()] })
+        await job.save()
+        createdJobs.push(job)
+      }
+    } else {
+      const job = new Job(baseJobData)
+      await job.save()
+      createdJobs.push(job)
+    }
 
     res.json({ 
       success: true, 
-      message: 'Company request approved and job posting created successfully',
+      message: 'Company request approved and job posting(s) created successfully',
       data: {
         request,
-        job: {
-          id: job._id,
-          title: job.title,
-          company: job.company
-        }
+        jobs: createdJobs.map((j) => ({ id: j._id, title: j.title, company: j.company, courses: j.courses }))
       }
     })
 

@@ -62,6 +62,7 @@ const studentSchema = new mongoose.Schema({
     },
     academicInfo: {
       gpa: Number,
+      course: String,
       specialization: String,
       skills: [String],
       projects: [String]

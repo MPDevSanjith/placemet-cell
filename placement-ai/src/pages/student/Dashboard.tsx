@@ -38,6 +38,8 @@ export default function StudentDashboard() {
   const [studentSkills, setStudentSkills] = useState<string[]>([])
   const [studentGpa, setStudentGpa] = useState<number>(0)
   const [missingCgpa, setMissingCgpa] = useState<boolean>(false)
+  const [missingCourse, setMissingCourse] = useState<boolean>(false)
+  const [studentCourse, setStudentCourse] = useState<string>('')
   const [jobs, setJobs] = useState<InternalJob[]>([])
   const [loading, setLoading] = useState(true)
   const [applyJobId, setApplyJobId] = useState<string | null>(null)
@@ -99,12 +101,28 @@ export default function StudentDashboard() {
         const gpaVal = Number(rawGpa)
         // Fetch more jobs to ensure variety and better matching
         // Fetch minimal data first to render quickly; defer secondary calls
+        const studentCourse = (profileRes?.profile?.academicInfo as any)?.course || (profileRes?.profile as any)?.course || ''
+        const hasCourse = typeof studentCourse === 'string' && studentCourse.trim().length > 0
+        setMissingCourse(!hasCourse)
+        setStudentCourse(String(studentCourse || ''))
+        console.log('[COURSE FILTER DEBUG][Dashboard] profile:', {
+          studentCourse,
+          hasCourse,
+          gpaVal
+        })
+        if (!hasCourse) {
+          setJobs([])
+          setAtsScore(null)
+          setAppliedIds(new Set())
+          return
+        }
         const [jobsRes, myApps] = await Promise.all([
           listJobs({ 
             limit: 8,
             minCgpa: isNaN(gpaVal) ? 0 : gpaVal,
             sort: 'newest',
-            status: 'active'
+            status: 'active',
+            course: studentCourse
           }),
           listMyApplications(auth.token).catch(() => ({ items: [] }))
         ])
@@ -136,6 +154,11 @@ export default function StudentDashboard() {
         }
 
         const jobItems: InternalJob[] = (jobsRes?.data?.items || jobsRes?.data || []) as any
+        console.log('[COURSE FILTER DEBUG][Dashboard] jobs API result:', {
+          requestedCourse: studentCourse,
+          jobsReturned: (jobItems || []).length,
+          sampleCourses: (jobItems || []).slice(0, 5).map((j: any) => j?.courses)
+        })
         setJobs(Array.isArray(jobItems) ? jobItems : [])
         try {
           console.log('[CGPA DEBUG:listJobs dashboard] count=', (jobItems || []).length)
@@ -251,12 +274,12 @@ export default function StudentDashboard() {
       let score = 50 // Base score
       
       try {
-        // CGPA match bonus
+        // Percentage match bonus (convert GPA->%, minCg->%)
         const minCg = resolveMinCgpa(job)
-        const validStudentGpa = typeof studentGpa === 'number' && !isNaN(studentGpa) ? studentGpa : 0
-        const validMinCg = typeof minCg === 'number' && !isNaN(minCg) ? minCg : 0
+        const studentPct = (typeof studentGpa === 'number' && !isNaN(studentGpa)) ? studentGpa * 10 : 0
+        const minPct = (typeof minCg === 'number' && !isNaN(minCg)) ? minCg * 10 : 0
         
-        if (validStudentGpa >= validMinCg) {
+        if (studentPct >= minPct) {
           score += 20
         }
         
@@ -298,7 +321,20 @@ export default function StudentDashboard() {
     const eligibleJobs = jobs
       .filter((j) => {
         const minCg = resolveMinCgpa(j)
-        return studentGpa >= (minCg || 0)
+        const studentPct = studentGpa * 10
+        const minPct = (minCg || 0) * 10
+        const passCg = studentPct >= minPct
+        const passCourse = (() => {
+          try {
+            const raw = (j as any)?.courses
+            if (!raw || (Array.isArray(raw) && raw.length === 0)) return true
+            const list: string[] = Array.isArray(raw) ? raw.map(String) : []
+            const sc = String(studentCourse || '').trim()
+            if (!sc) return false
+            return list.some(c => String(c).trim().toLowerCase() === sc.toLowerCase())
+          } catch { return true }
+        })()
+        return passCg && passCourse
       })
       .map((j) => {
         const companyName = typeof j.company === 'string' 
@@ -349,6 +385,15 @@ export default function StudentDashboard() {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
     }
+
+    // Debug: summary of eligibility by course
+    try {
+      console.log('[COURSE FILTER DEBUG][Dashboard] eligible summary:', {
+        studentCourse,
+        totalJobs: jobs.length,
+        eligibleCount: eligibleJobs.length
+      })
+    } catch {}
 
     // Return top jobs with good variety
     return shuffled.slice(0, 5)
@@ -448,6 +493,11 @@ export default function StudentDashboard() {
                   🔄 Refresh
                 </button>
               </div>
+              {missingCourse && (
+                <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm border border-red-200">
+                  Your Course is not specified. Please update your Course in your profile or contact the Placement Officer. Jobs will be shown after you set your Course.
+                </div>
+              )}
               <div className="space-y-3 sm:space-y-4">
                 {mappedJobs.map((job) => (
                   <JobCard
@@ -460,7 +510,7 @@ export default function StudentDashboard() {
                 ))}
                 {!loading && mappedJobs.length === 0 && (
                   <div className="text-center py-6 sm:py-8">
-                    <p className="text-sm text-gray-500 mb-2">No matching jobs available right now.</p>
+                    <p className="text-sm text-gray-500 mb-2">{missingCourse ? 'No jobs are shown because your course is not specified.' : 'No matching jobs available right now.'}</p>
                     <p className="text-xs text-gray-400">Try refreshing or check back later for new opportunities.</p>
                   </div>
                 )}
@@ -585,10 +635,11 @@ export default function StudentDashboard() {
               </div>
               <div><span className="font-medium text-gray-700">Minimum CTC: </span>{(viewJob as any)?.minCtc || '—'}</div>
               <div>
-                <span className="font-medium text-gray-700">CGPA Required: </span>
+                <span className="font-medium text-gray-700">Percentage Required: </span>
                 {(() => {
                   const minCg = resolveMinCgpa(viewJob)
-                  return (minCg || 0) > 0 ? String(minCg) : 'Not required'
+                  const minPct = Math.round(((minCg || 0) * 1000)) / 10
+                  return (minPct || 0) > 0 ? `${minPct}%` : 'Not required'
                 })()}
               </div>
               <div><span className="font-medium text-gray-700">Vacancies: </span>{(viewJob as any)?.studentsRequired || '—'}</div>

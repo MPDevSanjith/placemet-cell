@@ -66,6 +66,39 @@ const generatePassword = (name, rollNumberOrSeed) => {
   return `${name.slice(0, 2).toUpperCase()}${numbers}${randomChar}`;
 };
 
+// Normalize course values for consistency
+const normalizeCourse = (course) => {
+  if (!course || typeof course !== 'string') return course;
+  
+  const normalized = course.trim().toLowerCase();
+  
+  // Common course mappings
+  const courseMap = {
+    'btech': 'B.Tech',
+    'b.tech': 'B.Tech', 
+    'be': 'BE',
+    'bsc': 'BSc',
+    'b.sc': 'BSc',
+    'bca': 'BCA',
+    'bcom': 'BCom',
+    'b.com': 'BCom',
+    'ba': 'BA',
+    'mca': 'MCA',
+    'msc': 'MSc',
+    'm.sc': 'MSc',
+    'mba': 'MBA',
+    'm.tech': 'M.Tech',
+    'mtech': 'M.Tech',
+    'ma': 'MA',
+    'diploma': 'Diploma',
+    'phd': 'PhD',
+    'ph.d': 'PhD',
+    'other': 'Other'
+  };
+  
+  return courseMap[normalized] || course.trim();
+};
+
 // Validate CSV data
 const validateCSVData = (data) => {
   const errors = [];
@@ -315,12 +348,20 @@ router.post('/bulk-upload', upload.single('csvFile'), async (req, res) => {
           branch: branch || 'Not Specified',
           section: section || undefined,
           rollNumber: rollNumber || undefined,
-          course: course || undefined,
+          course: course ? normalizeCourse(course) : undefined,
           year: year || undefined,
           phone: phone || '',
           programType: programType || undefined,
           admissionYear: admissionYear || undefined
         });
+
+        // Ensure nested onboardingData.academicInfo.course mirrors top-level course
+        if (!student.onboardingData) student.onboardingData = { personalInfo: {}, academicInfo: {}, placementInfo: {}, onboardingStep: 'pending' };
+        if (!student.onboardingData.academicInfo) student.onboardingData.academicInfo = {};
+        if (course) {
+          const normalizedCourse = normalizeCourse(course);
+          student.onboardingData.academicInfo.course = normalizedCourse;
+        }
 
         await student.save();
 
@@ -416,7 +457,13 @@ router.put('/students/:id', async (req, res) => {
     if (name) student.name = name;
     if (email) student.email = String(email).toLowerCase();
     if (branch !== undefined) student.branch = branch;
-    if (course !== undefined) student.course = course;
+    if (course !== undefined) {
+      const normalizedCourse = normalizeCourse(course);
+      student.course = normalizedCourse;
+      if (!student.onboardingData) student.onboardingData = { personalInfo: {}, academicInfo: {}, placementInfo: {}, onboardingStep: 'pending' };
+      if (!student.onboardingData.academicInfo) student.onboardingData.academicInfo = {};
+      student.onboardingData.academicInfo.course = normalizedCourse;
+    }
     if (section !== undefined) student.section = section;
     if (rollNumber !== undefined) student.rollNumber = rollNumber;
     if (year) student.year = year;
@@ -991,7 +1038,7 @@ router.post('/create-student', async (req, res) => {
       email: String(email).toLowerCase(),
       password,
       branch,
-      course: course || undefined,
+      course: course ? normalizeCourse(course) : undefined,
       section: section || 'Not Specified',
       rollNumber,
       phone: phone || '',
@@ -1001,6 +1048,15 @@ router.post('/create-student', async (req, res) => {
     });
 
     await student.save();
+
+    // Mirror course into onboardingData.academicInfo.course
+    if (!student.onboardingData) student.onboardingData = { personalInfo: {}, academicInfo: {}, placementInfo: {}, onboardingStep: 'pending' };
+    if (!student.onboardingData.academicInfo) student.onboardingData.academicInfo = {};
+    if (course) {
+      const normalizedCourse = normalizeCourse(course);
+      student.onboardingData.academicInfo.course = normalizedCourse;
+      await student.save();
+    }
 
     // Do not send welcome email here; handled later from Batch Management
 
@@ -1090,7 +1146,14 @@ router.post('/bulk-biodata', upload.single('csvFile'), async (req, res) => {
         // Update student with biodata
         student.name = row.name;
         student.branch = row.branch;
-        if (row.course) student.course = row.course;
+        if (row.course) {
+          const normalizedCourse = normalizeCourse(row.course);
+          student.course = normalizedCourse;
+          // Mirror into nested academicInfo
+          if (!student.onboardingData) student.onboardingData = { personalInfo: {}, academicInfo: {}, placementInfo: {}, onboardingStep: 'pending' };
+          if (!student.onboardingData.academicInfo) student.onboardingData.academicInfo = {};
+          student.onboardingData.academicInfo.course = normalizedCourse;
+        }
         student.section = row.section || student.section || 'Not Specified';
         student.rollNumber = row.rollnumber;
         student.phone = row.phone || student.phone || '';
