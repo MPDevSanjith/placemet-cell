@@ -20,9 +20,14 @@ const userSchema = new mongoose.Schema({
     required: true
   },
   role: {
-    type: String,
-    enum: ['admin', 'placement_officer'],
-    default: 'placement_officer'
+  	type: String,
+  	enum: ['admin', 'placement_officer', 'placement_coordinator'],
+  	default: 'placement_officer'
+  },
+  // Optional department for coordinators
+  department: {
+  	type: String,
+  	trim: true
   },
   status: {
     type: String,

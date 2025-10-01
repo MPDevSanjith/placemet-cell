@@ -272,6 +272,50 @@ router.post('/create-officer', async (req, res) => {
   }
 });
 
+// Register a placement coordinator (department-wise)
+router.post('/create-coordinator', async (req, res) => {
+  try {
+    const { name, email, department } = req.body || {};
+    if (!name || !email || !department) {
+      return res.status(400).json({ success: false, error: 'Name, email and department are required' });
+    }
+
+    const existing = await User.findOne({ email: String(email).toLowerCase() });
+    if (existing) {
+      return res.status(409).json({ success: false, error: 'User already exists' });
+    }
+
+    const password = generatePassword(name, '77');
+
+    const user = new User({
+      name,
+      email: String(email).toLowerCase(),
+      password,
+      role: 'placement_coordinator',
+      department: String(department).trim()
+    });
+
+    await user.save();
+
+    await sendWelcomeEmail(email, password, name);
+
+    res.json({
+      success: true,
+      message: 'Placement coordinator created successfully',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        department: user.department
+      }
+    });
+  } catch (error) {
+    console.error('Create coordinator error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Bulk upload students from CSV
 router.post('/bulk-upload', upload.single('csvFile'), async (req, res) => {
   try {
