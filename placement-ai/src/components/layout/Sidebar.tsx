@@ -203,6 +203,14 @@ const Sidebar = ({
           path: '/placement-officer/create-officer',
           description: 'Add new officers'
         }
+        ,
+        {
+          id: 'create-coordinator',
+          label: 'Create Coordinator',
+          icon: Users,
+          path: '/placement-officer/create-coordinator',
+          description: 'Add department coordinators'
+        }
       ]
     } else {
       // Admin role
@@ -246,7 +254,8 @@ const Sidebar = ({
           'push-notifications',
           'analytics',
           'settings',
-          'create-officer'
+          'create-officer',
+          'create-coordinator'
         ]
         return order.indexOf(a.id) - order.indexOf(b.id)
       })

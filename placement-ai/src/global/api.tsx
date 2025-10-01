@@ -473,6 +473,13 @@ export function createOfficer(payload: { name: string; email: string }) {
   })
 }
 
+export function createCoordinator(payload: { name: string; email: string; department: string }) {
+  return request<{ success: boolean; user: { id: string; name: string; email: string; role: string; department: string } }>('/placement-officer/create-coordinator', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 // ------------------- PLACEMENT OFFICER: STUDENT MGMT ------------------- //
 
 export type OfficerStudent = {

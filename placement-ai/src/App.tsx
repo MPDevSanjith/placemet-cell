@@ -12,6 +12,7 @@ const BulkUpload = lazy(() => import('./pages/placement-officer/BulkUpload'))
 const BatchManagement = lazy(() => import('./pages/placement-officer/BatchManagement'))
 const BiodataUpload = lazy(() => import('./pages/placement-officer/BiodataUpload'))
 const CreateOfficerPage = lazy(() => import('./pages/placement-officer/CreateOfficer'))
+const CreateCoordinatorPage = lazy(() => import('./pages/placement-officer/CreateCoordinator'))
 const CompaniesPage = lazy(() => import('./pages/placement-officer/Companies'))
 const StudentDashboard = lazy(() => import('./pages/student/Dashboard'))
 const StudentJobs = lazy(() => import('./pages/student/job'))
@@ -337,6 +338,11 @@ function AppRoutes() {
       <Route path="/placement-officer/create-officer" element={
         isAuthenticated && userRole === 'placement_officer'
           ? <CreateOfficerPage />
+          : <Navigate to="/login" replace />
+      } />
+      <Route path="/placement-officer/create-coordinator" element={
+        isAuthenticated && userRole === 'placement_officer'
+          ? <CreateCoordinatorPage />
           : <Navigate to="/login" replace />
       } />
       <Route path="/placement-officer/new-job-post" element={
